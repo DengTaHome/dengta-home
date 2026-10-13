@@ -8,6 +8,11 @@ const {
     nightKey
 } = require("../services/device-digester");
 
+// Night rules read host-local calendar time, while elapsed-time fixtures keep explicit offsets.
+function localNightFixture(hour, minute = 0) {
+    return new Date(2026, 7, 16, hour, minute);
+}
+
 test("presence inject after a long silence", () => {
     const now = new Date("2026-08-16T20:00:00+08:00");
     const result = digestEvent({
@@ -44,7 +49,7 @@ test("opened-while-unreplied is shadow-only", () => {
 });
 
 test("goodnight inject fires once per night", () => {
-    const now = new Date("2026-08-16T23:40:00+08:00");
+    const now = localNightFixture(23, 40);
     const first = digestEvent({
         latest: {},
         event: { trigger: "charging", charging: true },
@@ -55,7 +60,7 @@ test("goodnight inject fires once per night", () => {
     const second = digestEvent({
         latest: { night_charge_key: first.updates.night_charge_key },
         event: { trigger: "charging", charging: true },
-        now: new Date("2026-08-16T23:55:00+08:00")
+        now: localNightFixture(23, 55)
     });
     assert.equal(second.injects.length, 0);
 });
@@ -64,7 +69,7 @@ test("daytime charging produces no goodnight inject", () => {
     const result = digestEvent({
         latest: {},
         event: { trigger: "charging", charging: true },
-        now: new Date("2026-08-16T15:00:00+08:00")
+        now: localNightFixture(15)
     });
     assert.equal(result.injects.length, 0);
 });
@@ -96,9 +101,10 @@ test("emulator events skip worry", () => {
 });
 
 test("nightKey rolls at 06:00", () => {
-    const before = nightKey(new Date("2026-08-16T05:59:00+08:00"));
-    const after = nightKey(new Date("2026-08-16T06:01:00+08:00"));
-    assert.notEqual(before, after);
-    assert.equal(isNightChargeHour(new Date("2026-08-16T23:30:00+08:00")), true);
-    assert.equal(isNightChargeHour(new Date("2026-08-16T12:00:00+08:00")), false);
+    const before = nightKey(localNightFixture(5, 59));
+    const after = nightKey(localNightFixture(6, 1));
+    assert.equal(before, "2026-08-15");
+    assert.equal(after, "2026-08-16");
+    assert.equal(isNightChargeHour(localNightFixture(23, 30)), true);
+    assert.equal(isNightChargeHour(localNightFixture(12)), false);
 });
