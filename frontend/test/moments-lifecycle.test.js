@@ -124,7 +124,8 @@ after(async () => {
   await vite.close();
   assert.equal(dirname(resolve(cacheDir)), resolve(tmpdir()));
   assert.ok(basename(cacheDir).startsWith("dengta-moments-lifecycle-"));
-  await rm(cacheDir, { recursive: true, force: true });
+  // Optimizer cache writes can briefly overlap close; keep retries inside this verified temp directory.
+  await rm(cacheDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   globalThis.window = oldWindow; globalThis.fetch = oldFetch; delete globalThis.__momentsLifecycleFixture;
 });
 
