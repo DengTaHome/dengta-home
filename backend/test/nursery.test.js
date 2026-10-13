@@ -421,6 +421,7 @@ async function main() {
                 role: "assistant",
                 content: "我们慢慢来，今天也一起看窗外的云。",
                 visible: true,
+                context_visible: true,
                 created_at: "2026-08-02T03:59:00.000Z"
             },
             {
@@ -430,6 +431,7 @@ async function main() {
                 role: "assistant",
                 content: "B 租户的私密消息",
                 visible: true,
+                context_visible: true,
                 created_at: "2026-08-02T03:59:30.000Z"
             }
         ]

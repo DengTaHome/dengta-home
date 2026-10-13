@@ -25,16 +25,27 @@ function createDatabase(initial = {}) {
 
     function from(table) {
         const filters = [];
-        let orderBy = null;
+        const orderBy = [];
         let limitCount = null;
 
         function selectedRows() {
             let rows = tables[table].filter((row) =>
                 filters.every(([kind, column, value]) => {
-                    if (kind === "eq") return row[column] === value;
+                    if (kind === "eq") {
+                        return ["context_visible", "visible"].includes(column)
+                            ? row[column] !== false
+                            : row[column] === value;
+                    }
                     if (kind === "in") return value.includes(row[column]);
                     if (kind === "gte") {
                         return String(row[column] || "") >= String(value);
+                    }
+                    if (kind === "cursor") {
+                        const match = value.match(/^created_at\.(lt|gt)\.(.+),and\(created_at.eq\..+,id\.(?:lt|gt)\.([^()]+)\)$/);
+                        assert.ok(match, value);
+                        const [, direction, time, id] = match;
+                        const comparison = String(row.created_at).localeCompare(time) || Number(row.id) - Number(id);
+                        return direction === "lt" ? comparison < 0 : comparison > 0;
                     }
                     if (kind === "not_contains") {
                         return !Object.entries(value).every(
@@ -51,15 +62,17 @@ function createDatabase(initial = {}) {
                     return true;
                 })
             );
-            if (orderBy) {
-                const [column, options] = orderBy;
+            if (orderBy.length) {
                 rows = [...rows].sort((left, right) => {
+                    for (const [column, options] of orderBy) {
                     const comparison = String(
                         left[column] || ""
                     ).localeCompare(String(right[column] || ""));
-                    return options?.ascending === false
+                    if (comparison) return options?.ascending === false
                         ? -comparison
                         : comparison;
+                    }
+                    return 0;
                 });
             }
             return limitCount == null ? rows : rows.slice(0, limitCount);
@@ -95,7 +108,11 @@ function createDatabase(initial = {}) {
                 return builder;
             },
             order(column, options) {
-                orderBy = [column, options];
+                orderBy.push([column, options]);
+                return builder;
+            },
+            or(value) {
+                filters.push(["cursor", null, value]);
                 return builder;
             },
             limit(value) {
@@ -130,6 +147,7 @@ function sourceRows() {
                 role: "user",
                 content: "reset-before user message",
                 visible: true,
+                context_visible: false,
                 tool_calls: {},
                 created_at: "2026-07-29T01:59:59.999Z"
             },
@@ -139,6 +157,7 @@ function sourceRows() {
                 role: "assistant",
                 content: "reset-boundary assistant message",
                 visible: true,
+                context_visible: true,
                 tool_calls: {},
                 created_at: RESET_AT
             },
@@ -148,6 +167,7 @@ function sourceRows() {
                 role: "user",
                 content: "reset-after user message",
                 visible: true,
+                context_visible: true,
                 tool_calls: {},
                 created_at: "2026-07-29T02:00:01.000Z"
             },
@@ -157,6 +177,7 @@ function sourceRows() {
                 role: "assistant",
                 content: "reset-after interaction",
                 visible: true,
+                context_visible: true,
                 tool_calls: { is_companion_interaction: true },
                 created_at: "2026-07-29T02:00:02.000Z"
             }
@@ -165,18 +186,24 @@ function sourceRows() {
             {
                 summary: "reset-before memory",
                 confirmation_status: "confirmed",
+                superseded: false,
+                locked: false,
                 created_at: "2026-07-29T01:59:59.999Z",
                 updated_at: "2026-07-29T03:00:00.000Z"
             },
             {
                 summary: "reset-after memory",
                 confirmation_status: "confirmed",
+                superseded: false,
+                locked: false,
                 created_at: "2026-07-29T02:00:01.000Z",
                 updated_at: "2026-07-29T02:00:01.000Z"
             },
             {
                 summary: "rejected memory",
                 confirmation_status: "rejected",
+                superseded: false,
+                locked: false,
                 created_at: "2026-07-29T02:00:02.000Z",
                 updated_at: "2026-07-29T02:00:02.000Z"
             }
@@ -239,6 +266,19 @@ async function testCompressionCannotResummarizeResetBeforeRows() {
         context.memories.map((item) => item.summary),
         ["reset-after memory"]
     );
+}
+
+async function testContextVisibilityExcludesCompressedHistoryOnlyFromModels() {
+    const database = createDatabase(sourceRows());
+    const context = await loadMainChatContextRows({
+        database,
+        conversationId: CONVERSATION_ID,
+        settings: { context_turns: 20 }
+    });
+
+    assert.deepEqual(context.messages.map((item) => item.id), [2, 3, 4]);
+    assert.equal(database.tables.messages[0].visible, true);
+    assert.equal(database.tables.messages[0].context_visible, false);
 }
 
 function testClientStatusSnapshotsRespectResetBoundary() {
@@ -424,12 +464,16 @@ async function testCreativePlanningCannotReuseResetBeforeSources() {
             {
                 summary: "RESET_BEFORE_CREATIVE_MEMORY",
                 confirmation_status: "confirmed",
+                superseded: false,
+                locked: false,
                 created_at: "2026-07-29T01:00:00.000Z",
                 updated_at: "2026-07-29T03:00:00.000Z"
             },
             {
                 summary: "RESET_AFTER_CREATIVE_MEMORY",
                 confirmation_status: "confirmed",
+                superseded: false,
+                locked: false,
                 created_at: "2026-07-29T02:00:01.000Z",
                 updated_at: "2026-07-29T02:00:01.000Z"
             }
@@ -468,6 +512,7 @@ Promise.resolve()
     .then(testMainChatExcludesResetBeforeContext)
     .then(testInteractionExcludesResetBeforeContext)
     .then(testCompressionCannotResummarizeResetBeforeRows)
+    .then(testContextVisibilityExcludesCompressedHistoryOnlyFromModels)
     .then(testClientStatusSnapshotsRespectResetBoundary)
     .then(testCreativeLeaseIsRecheckedBeforePersistingIdea)
     .then(testMigrationAddsNullableCutoffWithoutRewritingSettings)

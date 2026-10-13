@@ -1,6 +1,6 @@
 :root {
-  --dengta-jelly-enter: 560ms;
-  --dengta-jelly-release: cubic-bezier(.18, .89, .32, 1.28);
+  --dengta-jelly-enter: 220ms;
+  --dengta-jelly-release: cubic-bezier(.2, .8, .2, 1);
 }
 
 /* Every popup keeps its existing material; only its compositor motion changes. */
@@ -12,14 +12,13 @@
 .status-panel,
 .account-menu-popover {
   backface-visibility: hidden;
-  will-change: transform, opacity;
-  animation: dengta-jelly-pop var(--dengta-jelly-enter) linear both;
+  animation: dengta-jelly-pop var(--dengta-jelly-enter) var(--dengta-jelly-release) both;
 }
 
 .settings-sheet {
   transform-origin: 50% 100%;
   animation-name: dengta-jelly-sheet-pop;
-  animation-duration: 620ms;
+  animation-duration: 280ms;
 }
 
 .dialog-card,
@@ -42,9 +41,8 @@
   animation: dengta-jelly-backdrop-in 220ms ease-out both;
 }
 
-.feature-page,
-.message-list {
-  animation: dengta-jelly-page-arrive 430ms linear both;
+.feature-page {
+  animation: dengta-jelly-page-arrive 200ms ease-out both;
 }
 
 :where(
@@ -61,9 +59,8 @@
   .feature-page
 ) button:not(:disabled) {
   -webkit-tap-highlight-color: transparent;
-  transform: translateZ(0);
   transition-property: transform, opacity;
-  transition-duration: 260ms, 180ms;
+  transition-duration: 160ms, 140ms;
   transition-timing-function: var(--dengta-jelly-release), ease-out;
 }
 
@@ -80,80 +77,26 @@
   .account-menu-popover,
   .feature-page
 ) button:not(:disabled):active {
-  transform: translate3d(0, 1px, 0) scale3d(.945, .91, 1);
+  transform: translate3d(0, 1px, 0) scale3d(.98, .98, 1);
   transition-duration: 72ms, 72ms;
   transition-timing-function: ease-out;
 }
 
 @keyframes dengta-jelly-pop {
-  0% {
-    opacity: .02;
-    transform: translate3d(0, 18px, 0) scale3d(.9, .86, 1);
-  }
-  38% {
-    opacity: 1;
-    transform: translate3d(0, -4px, 0) scale3d(1.035, 1.02, 1);
-  }
-  58% {
-    transform: translate3d(0, 2px, 0) scale3d(.984, 1.018, 1);
-  }
-  75% {
-    transform: translate3d(0, -1px, 0) scale3d(1.012, .993, 1);
-  }
-  89% {
-    transform: translate3d(0, .4px, 0) scale3d(.997, 1.004, 1);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
-  }
+  from { opacity: 0; transform: translate3d(0, 8px, 0) scale3d(.98, .98, 1); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
 }
-
 @keyframes dengta-jelly-sheet-pop {
-  0% {
-    opacity: .02;
-    transform: translate3d(0, 42px, 0) scale3d(.955, .925, 1);
-  }
-  36% {
-    opacity: 1;
-    transform: translate3d(0, -7px, 0) scale3d(1.018, 1.012, 1);
-  }
-  56% {
-    transform: translate3d(0, 3px, 0) scale3d(.992, 1.009, 1);
-  }
-  73% {
-    transform: translate3d(0, -1.5px, 0) scale3d(1.007, .996, 1);
-  }
-  88% {
-    transform: translate3d(0, .5px, 0) scale3d(.998, 1.003, 1);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
-  }
+  from { opacity: 0; transform: translate3d(0, 20px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
-
 @keyframes dengta-jelly-backdrop-in {
-  from { opacity: .02; }
+  from { opacity: 0; }
   to { opacity: 1; }
 }
-
 @keyframes dengta-jelly-page-arrive {
-  0% {
-    opacity: .02;
-    transform: translate3d(0, 9px, 0) scale3d(.993, .99, 1);
-  }
-  54% {
-    opacity: 1;
-    transform: translate3d(0, -1.5px, 0) scale3d(1.003, 1.002, 1);
-  }
-  76% {
-    transform: translate3d(0, .6px, 0) scale3d(.999, 1.001, 1);
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
-  }
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

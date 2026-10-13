@@ -156,14 +156,45 @@ async function installationRequestScope({
     now = () => new Date()
 }) {
     const normalizedMethod = String(method).toUpperCase();
+    const coWatchSessionMatch = String(path || "").match(
+        /^\/api\/v2\/co-watch\/sessions\/([^/]+)$/i
+    );
+    const coWatchReplyMatch = String(path || "").match(
+        /^\/api\/v2\/co-watch\/sessions\/([^/]+)\/reply$/i
+    );
+    const coWatchPlaybackMatch = String(path || "").match(
+        /^\/api\/v2\/co-watch\/sessions\/([^/]+)\/playback$/i
+    );
+    const coWatchMessagesMatch = String(path || "").match(
+        /^\/api\/v2\/co-watch\/sessions\/([^/]+)\/messages$/i
+    );
+    const coWatchSessionIdPath = UUID_PATTERN.test(
+        coWatchSessionMatch?.[1] || ""
+    );
+    const coWatchSessionReadPath =
+        coWatchSessionIdPath || coWatchSessionMatch?.[1] === "active";
+    const coWatchReplyPath = UUID_PATTERN.test(
+        coWatchReplyMatch?.[1] || ""
+    );
+    const coWatchPlaybackPath = UUID_PATTERN.test(
+        coWatchPlaybackMatch?.[1] || ""
+    );
+    const coWatchMessagesPath = UUID_PATTERN.test(
+        coWatchMessagesMatch?.[1] || ""
+    );
     const permitted =
         (normalizedMethod === "GET" &&
-            [
-                "/api/v2/settings",
-                "/api/v2/push/messages"
-            ].includes(path)) ||
+            (["/api/v2/settings", "/api/v2/push/messages"].includes(path) ||
+                coWatchSessionReadPath ||
+                coWatchMessagesPath)) ||
         (normalizedMethod === "POST" &&
-            path === "/api/v2/co-watch/frame");
+            ([
+                "/api/v2/co-watch/frame",
+                "/api/v2/co-watch/sessions"
+            ].includes(path) ||
+                coWatchReplyPath)) ||
+        (normalizedMethod === "PATCH" &&
+            (coWatchSessionIdPath || coWatchPlaybackPath));
     if (!permitted) {
         throw authError(
             403,
@@ -250,7 +281,9 @@ function createAuthContextMiddleware({
         "/",
         "/health",
         "/api/weather/current",
-        "/api/push/trigger"
+        "/api/push/trigger",
+        "/api/v2/co-watch/bilibili-resolve",
+        "/api/v2/co-watch/bilibili-stream"
     ]
 }) {
     const publicPathSet = new Set(publicPaths);

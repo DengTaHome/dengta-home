@@ -22,6 +22,11 @@ const synchronizedMessage = {
 assert.equal(isSynchronizedChatMessage(localMessage), false);
 assert.equal(isSynchronizedChatMessage(synchronizedMessage), true);
 assert.equal(
+  findSynchronizedAssistantMessage(localMessage, [{ ...synchronizedMessage, content: "Different reply." }]),
+  null,
+  "similar timestamps must never substitute a different assistant reply",
+);
+assert.equal(
   findSynchronizedAssistantMessage(localMessage, [
     {
       id: "019c0000-0000-7000-8000-000000000002",

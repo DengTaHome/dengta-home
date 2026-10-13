@@ -12,7 +12,7 @@ const renderConfig = fs.readFileSync(
     "utf8"
 );
 const backgroundJobWorkflow = fs.readFileSync(
-    path.join(root, "..", ".github", "workflows", "background-jobs.yml"),
+    path.join(root, ".github", "workflows", "shadow-push.yml"),
     "utf8"
 );
 
@@ -47,11 +47,11 @@ assert.match(
 assert.match(backgroundJobWorkflow, /cron: "\*\/10 \* \* \* \*"/);
 assert.match(
     backgroundJobWorkflow,
-    /secrets\.DENGTA_BACKGROUND_JOB_TRIGGER_SECRET/
+    /secrets\.DENGTA_BACKGROUND_JOB_TRIGGER_SECRET_V3/
 );
 assert.match(
     backgroundJobWorkflow,
-    /DENGTA_BACKEND_URL or DENGTA_BACKGROUND_JOB_TRIGGER_SECRET is not configured; skipping this tick\.[\s\S]*?exit 0/
+    /DENGTA_BACKGROUND_JOB_TRIGGER_SECRET_V3 is not configured; skipping this tick\.[\s\S]*?exit 0/
 );
 assert.match(
     backgroundJobWorkflow,
@@ -120,11 +120,14 @@ assert.match(
 const triggerRouteIndex = serverSource.indexOf(
     'app.post("/internal/background-jobs/tick", backgroundJobTrigger)'
 );
-const authMiddlewareIndex = serverSource.indexOf(
-    "app.use(\n    createAuthContextMiddleware"
+const authMiddlewareIndex = serverSource.search(
+    /app\.use\(\r?\n\s*createAuthContextMiddleware/
 );
-assert.ok(triggerRouteIndex >= 0);
-assert.ok(authMiddlewareIndex > triggerRouteIndex);
+assert.ok(triggerRouteIndex >= 0, "background trigger route must exist");
+assert.ok(
+    authMiddlewareIndex > triggerRouteIndex,
+    "background trigger authentication must remain ahead of user auth middleware on LF and CRLF checkouts"
+);
 assert.match(
     serverSource,
     /if \(authRequired\) \{\s*return res\.status\(410\)\.json\(\{\s*code: "legacy_background_trigger_retired"/

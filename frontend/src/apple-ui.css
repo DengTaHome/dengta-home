@@ -1,8 +1,4 @@
-/*
- * Apple-inspired application shell informed by VoltAgent/awesome-design-md,
- * design-md/apple at commit 8147538 (MIT). See THIRD_PARTY_NOTICES.md.
- * https://github.com/VoltAgent/awesome-design-md/tree/8147538b4226ae41e2487a9179e3bcc1f68e8554/design-md/apple
- */
+/* Apple-inspired application shell based on design-md/apple at 8147538. */
 :root {
   --apple-blue: #0066cc;
   --apple-blue-focus: #0071e3;
@@ -17,19 +13,65 @@
   --apple-black: #000000;
   --apple-dark: #1c1c1e;
   --apple-dark-raised: #2c2c2e;
-  --apple-radius-card: 8px;
-  --apple-radius-control: 8px;
+  --apple-radius-card: 10px;
+  --apple-radius-control: 9999px;
   --apple-radius-bubble: 18px;
+  --apple-radius-button: 9999px;
+  --apple-radius-input: 10px;
   --apple-font-display:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "HarmonyOS Sans SC",
     "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
   --apple-font-text:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "HarmonyOS Sans SC",
     "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --apple-font-ui: var(--dengta-font);
   color: var(--apple-ink);
   background: var(--apple-parchment);
   color-scheme: light;
   font-family: var(--apple-font-text);
+}
+
+/* Apple-style press feedback on all interactive elements */
+button:not(:disabled):active,
+input[type="button"]:not(:disabled):active,
+input[type="submit"]:not(:disabled):active,
+select:not(:disabled):active,
+a:active {
+  transform: scale(0.96);
+  transition: transform 0.12s cubic-bezier(0.32, 0.94, 0.6, 1);
+}
+
+/* Smooth transitions for all interactive elements */
+button,
+input[type="button"],
+input[type="submit"],
+select,
+a,
+.together-primary,
+.music-cookie-connect-actions button,
+.music-cookie-operations-tabs button,
+.music-cookie-playlist-name,
+.music-cookie-track-actions button {
+  transition:
+    transform 160ms cubic-bezier(0.32, 0.94, 0.6, 1),
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
+}
+
+/* Global scroll containers — smooth native feel */
+.message-list,
+.composer-tool-menu,
+.settings-sheet-scroll,
+.feature-page,
+.moment-list,
+.diary-entry-list,
+.music-cookie-operations-body,
+.music-cookie-track-list,
+.music-cookie-playlist-list {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
 html,
@@ -88,6 +130,8 @@ select:focus-visible {
 
 .main-panel {
   isolation: isolate;
+  position: relative;
+  z-index: 1;
 }
 
 /* Global navigation */
@@ -490,6 +534,10 @@ select:focus-visible {
 .message-avatar {
   border: 0;
   border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
   color: #ffffff;
   background: var(--apple-dark);
   box-shadow: none;
@@ -926,7 +974,15 @@ select:focus-visible {
 }
 
 .nursery-meter > span {
-  background: var(--apple-blue);
+  background: transparent;
+}
+
+.nursery-meter > i > b {
+  background: #c0718a;
+}
+
+.nursery-meter.is-inverse > i > b {
+  background: #6d9a8c;
 }
 
 /* Settings sheet */
@@ -1614,14 +1670,45 @@ select:focus-visible {
 }
 
 .duel-notice button {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   padding: 0;
   border: 0;
   color: inherit;
   background: transparent;
   font-size: 18px;
+}
+
+.duel-recovery-actions,
+.achievement-starter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.duel-recovery-actions button,
+.achievement-starter-actions button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color, #d8c9d0);
+  border-radius: 14px;
+  background: var(--surface-secondary, rgba(255, 255, 255, 0.12));
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.duel-help {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.achievement-starter-actions small {
+  flex-basis: 100%;
 }
 
 .duel-skills {
@@ -1635,10 +1722,11 @@ select:focus-visible {
   padding: 10px 12px;
   border-left: 3px solid rgba(214, 125, 165, 0.72);
   background: rgba(214, 125, 165, 0.09);
+  color: #f1e7ed;
 }
 
 .duel-visible-reaction small {
-  color: rgba(142, 72, 105, 0.78);
+  color: #d9a9be;
   font-size: 11px;
 }
 

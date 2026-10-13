@@ -1,4 +1,4 @@
-const CACHE_NAME = "dengta-home-v12";
+const CACHE_NAME = "dengta-home-v14-fonts";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -32,6 +32,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api/v2/cast/")) return;
 
   if (request.mode === "navigate") {
     event.respondWith(

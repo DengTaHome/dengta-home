@@ -1,6 +1,7 @@
 {
   "name": "DengTa home",
   "short_name": "DengTa",
+  "id": "/",
   "description": "给 AI 一个家：聊天、记忆、动态与自定义模型接口。",
   "start_url": "/",
   "scope": "/",

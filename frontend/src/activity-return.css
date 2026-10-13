@@ -1,0 +1,10 @@
+.activity-return-bar { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 10px; padding: 8px 6px 8px 12px; border: 1px solid rgb(var(--theme-accent-rgb, 134 90 105) / .22); border-radius: 16px; color: var(--theme-ink, #302831); background: rgb(var(--theme-card-rgb, 255 255 255) / .9); }
+.activity-return-symbol { flex: 0 0 18px; color: var(--theme-accent, #865a69); }
+.activity-return-copy { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.activity-return-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.activity-return-copy small { color: var(--theme-muted, #6d6470); font-size: 11px; line-height: 1.5; }
+.activity-return-bar button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 5px; min-height: 44px; min-width: 44px; border: 0; border-radius: 12px; color: inherit; background: transparent; cursor: pointer; font: inherit; font-size: 13px; }
+.activity-return-bar .activity-return-open { padding: 8px 10px; background: rgb(var(--theme-accent-rgb, 134 90 105) / .1); }
+.activity-return-bar button:hover { background: rgb(var(--theme-accent-rgb, 134 90 105) / .18); }
+.activity-return-bar button:focus-visible { outline: 2px solid var(--theme-accent, #865a69); outline-offset: 2px; }
+@media (max-width: 380px) { .activity-return-bar { gap: 6px; padding-left: 10px; } }

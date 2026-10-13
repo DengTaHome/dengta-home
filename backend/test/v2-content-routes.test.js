@@ -507,6 +507,7 @@ async function main() {
                 role: "assistant",
                 content: "A 的主动消息",
                 visible: true,
+                context_visible: true,
                 tool_calls: { is_push: true },
                 created_at: "2026-07-26T10:00:00.000Z"
             },
@@ -518,6 +519,7 @@ async function main() {
                 role: "assistant",
                 content: "B 的主动消息",
                 visible: true,
+                context_visible: true,
                 tool_calls: { is_push: true },
                 created_at: "2026-07-26T10:01:00.000Z"
             },
@@ -529,6 +531,7 @@ async function main() {
                 role: "assistant",
                 content: "A 的普通回复",
                 visible: true,
+                context_visible: true,
                 tool_calls: {},
                 created_at: "2026-07-26T10:02:00.000Z"
             }
@@ -773,8 +776,8 @@ async function main() {
                 auth_type: "bearer",
                 secret_ciphertext: "a-secret",
                 default_model: "model-a",
-                enabled: false,
-                is_default: false,
+                enabled: true,
+                is_default: true,
                 priority: 100,
                 billing_url: "",
                 expires_at: null,
@@ -797,8 +800,8 @@ async function main() {
                 auth_type: "bearer",
                 secret_ciphertext: "b-secret-must-not-leak",
                 default_model: "model-b",
-                enabled: false,
-                is_default: false,
+                enabled: true,
+                is_default: true,
                 priority: 100,
                 billing_url: "",
                 expires_at: null,
@@ -897,8 +900,10 @@ async function main() {
         const updatedSettingsA = (await updateA.json()).settings;
         assert.equal(updatedSettingsA.ai_name, "灯灯");
         assert.equal(updatedSettingsA.user_display_name, "新桃桃");
-        assert.equal(updatedSettingsA.provider, "openai-responses");
-        assert.equal(updatedSettingsA.reasoning_effort, "xhigh");
+        assert.equal(updatedSettingsA.provider, "custom");
+        assert.equal(updatedSettingsA.api_url, "");
+        assert.equal(updatedSettingsA.model, "");
+        assert.equal(updatedSettingsA.reasoning_effort, "");
         assert.equal(
             database.tables.settings.find(
                 (row) => row.user_id === userAId
@@ -909,7 +914,7 @@ async function main() {
             database.tables.settings.find(
                 (row) => row.user_id === userAId
             ).reasoning_effort,
-            "xhigh"
+            ""
         );
         assert.equal(
             database.tables.settings.find(
@@ -1055,6 +1060,51 @@ async function main() {
         assert.equal(
             database.tables.mcp_connections.length,
             2
+        );
+
+        const anonymousProviderStatus = await fetch(
+            `${baseUrl}/api/ai-providers/status`
+        );
+        assert.equal(anonymousProviderStatus.status, 401);
+        assert.equal(
+            (await anonymousProviderStatus.json()).code,
+            "authentication_required"
+        );
+
+        const providerStatusAResponse = await fetch(
+            `${baseUrl}/api/ai-providers/status`,
+            { headers: authHeaders("token-a") }
+        );
+        assert.equal(providerStatusAResponse.status, 200);
+        const providerStatusA = await providerStatusAResponse.json();
+        assert.equal(providerStatusA.profiles, 1);
+        assert.equal(providerStatusA.enabled_profiles, 1);
+        assert.equal(
+            providerStatusA.active_profile.id,
+            "70000000-0000-4000-8000-000000000001"
+        );
+        assert.equal(providerStatusA.active_profile.default_model, "model-a");
+        assert.doesNotMatch(
+            JSON.stringify(providerStatusA),
+            /model-b|70000000-0000-4000-8000-000000000002|b-secret-must-not-leak/
+        );
+
+        const providerStatusBResponse = await fetch(
+            `${baseUrl}/api/ai-providers/status`,
+            { headers: authHeaders("token-b") }
+        );
+        assert.equal(providerStatusBResponse.status, 200);
+        const providerStatusB = await providerStatusBResponse.json();
+        assert.equal(providerStatusB.profiles, 1);
+        assert.equal(providerStatusB.enabled_profiles, 1);
+        assert.equal(
+            providerStatusB.active_profile.id,
+            "70000000-0000-4000-8000-000000000002"
+        );
+        assert.equal(providerStatusB.active_profile.default_model, "model-b");
+        assert.doesNotMatch(
+            JSON.stringify(providerStatusB),
+            /model-a|70000000-0000-4000-8000-000000000001|a-secret/
         );
 
         const providersA = await (

@@ -1,0 +1,50 @@
+.cotton-pet, .cotton-pet * { box-sizing: border-box; }
+.cotton-pet { width: min(100%, 1100px); margin: 0 auto; padding: clamp(16px, 3vw, 36px); color: var(--theme-ink, #33463c); }
+.cotton-heading { margin-bottom: 22px; }
+.cotton-eyebrow { color: var(--theme-muted, #708074); font-size: 12px; letter-spacing: .12em; }
+.cotton-heading h2 { margin: 10px 0 6px; font-size: clamp(24px, 4vw, 34px); }
+.cotton-heading p, .cotton-controls p { font-size: 14px; line-height: 1.8; color: var(--theme-muted, #708074); }
+.cotton-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 24px; }
+.cotton-stage { position: relative; min-width: 0; height: 480px; overflow: hidden; border-radius: 28px; background: radial-gradient(ellipse at 50% 67%, #dfdfc9 0, #eff0e4 35%, #f9f7ef 80%); border: 1px solid #dfe4d7; }
+.cotton-stage canvas { display: block; width: 100%; height: 100%; }
+.cotton-welcome, .cotton-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; padding: 24px; color: #435647; }
+.cotton-welcome > span { font-size: 60px; color: #8c9e80; }
+.cotton-welcome h3, .cotton-welcome p { margin: 0; }
+.cotton-overlay { background: #f9f7efeb; z-index: 2; }
+.cotton-state, .cotton-silent { position: absolute; font-size: 12px; color: #54664c; padding: 8px 12px; background: #ffffffc4; border-radius: 20px; }
+.cotton-state { top: 18px; left: 18px; }
+.cotton-silent { bottom: 18px; right: 18px; }
+.cotton-pet button { border: 1px solid #cdd7c5; border-radius: 12px; background: #f3f5ed; color: #405b43; padding: 11px 14px; font: inherit; font-size: 13px; cursor: pointer; min-height: 44px; }
+.cotton-pet button:hover:not(:disabled), .cotton-pet button[aria-pressed=true] { background: #dfead6; }
+.cotton-pet button:focus-visible { outline: 3px solid #829c71; outline-offset: 2px; }
+.cotton-pet button:disabled { opacity: .45; cursor: default; }
+.cotton-controls h3 { margin: 0 0 10px; font-size: 18px; }
+.cotton-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cotton-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.cotton-feedback { min-height: 50px; margin: 12px 0; }
+.cotton-stats { display: flex; justify-content: space-between; gap: 8px; padding: 14px; background: #edf1e51c; border: 1px solid #9aab892e; border-radius: 14px; }
+.cotton-stats dt { font-size: 12px; margin-bottom: 6px; }
+.cotton-stats dd { margin: 0; font-size: 18px; }.cotton-stats dd span { font-size: 10px; opacity: .6; }
+.cotton-share { width: 100%; margin-bottom: 16px; }
+.cotton-controls small { display: block; opacity: .65; font-size: 11px; line-height: 1.8; }
+@media(max-width: 760px) { .cotton-layout { grid-template-columns: minmax(0, 1fr); gap: 22px; }.cotton-stage { height: 340px; }.cotton-pet { padding-bottom: 80px; } }
+
+.cotton-chat-dock { flex: 0 0 auto; width: 100%; min-width: 0; margin-bottom: 6px; color: var(--theme-ink, #33463c); }
+.cotton-dock-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.cotton-dock-bar button { min-height: 36px; border: 1px solid #9aac8c50; border-radius: 12px; padding: 6px 10px; background: #edf1e51c; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.cotton-dock-bar span { flex: 1; font-size: 11px; opacity: .65; }
+.cotton-pet.cotton-pet-compact { padding: 8px 0 0; }
+.cotton-pet-compact .cotton-layout { grid-template-columns: minmax(100px, 160px) minmax(0, 1fr); gap: 12px; max-width: 480px; }
+.cotton-pet-compact .cotton-stage { height: 156px; border-radius: 18px; }
+.cotton-pet-compact .cotton-state, .cotton-pet-compact .cotton-silent { font-size: 9px; padding: 3px 6px; left: 6px; top: 6px; right: auto; }
+.cotton-pet-compact .cotton-silent { top: auto; bottom: 6px; }
+.cotton-pet-compact .cotton-actions { display: block; }
+.cotton-pet-compact .cotton-options { margin-top: 6px; gap: 4px; }
+.cotton-pet-compact button { min-height: 36px; padding: 6px 9px; font-size: 11px; }
+.cotton-pet-compact .cotton-feedback { font-size: 11px; min-height: 0; margin: 5px 0 0; line-height: 1.5; }
+.cotton-pet-compact .cotton-overlay { padding: 10px; font-size: 11px; }
+@media(max-width: 420px) {
+  .cotton-pet-compact .cotton-layout { grid-template-columns: 116px minmax(0, 1fr); gap: 10px; }
+  .cotton-pet-compact .cotton-stage { height: 144px; }
+  .cotton-dock-bar span { display: none; }
+}

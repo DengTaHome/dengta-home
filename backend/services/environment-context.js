@@ -2,6 +2,58 @@ const { getZonedClock } = require("./shadow-push");
 
 const DEFAULT_ENVIRONMENT_TIMEZONE = "Asia/Shanghai";
 const MAX_ENVIRONMENT_CONTEXT_BYTES = 8 * 1024;
+
+/**
+ * 根据小时数返回当前时段中文名称。
+ * 时段划分：
+ *   凌晨 0:00-4:59 | 清晨 5:00-6:59 | 早上 7:00-8:59
+ *   上午 9:00-11:29 | 午间 11:30-13:29 | 下午 13:30-17:29
+ *   傍晚 17:30-19:29 | 晚上 19:30-22:59 | 深夜 23:00-23:59
+ */
+function getTimePeriodName(hour) {
+    if (hour < 5) return "凌晨";
+    if (hour < 7) return "清晨";
+    if (hour < 9) return "早上";
+    if (hour < 11.5) return "上午";
+    if (hour < 13.5) return "午间";
+    if (hour < 17.5) return "下午";
+    if (hour < 19.5) return "傍晚";
+    if (hour < 23) return "晚上";
+    return "深夜";
+}
+
+/**
+ * 返回当前时段的情绪行为指引文本。
+ * 叫醒时段（清晨/早上）强调严格依据用户个性化指令与用户详情决定叫醒风格。
+ */
+function buildTimePeriodGuidance(periodName, clock) {
+    const isWakePeriod = periodName === "清晨" || periodName === "早上";
+    const base = [
+        `【智能时间感知】当前时段：${periodName}（${clock.currentTime}，${clock.weekdayName}）。`,
+        `请根据当前时段自然调整你的语气和情绪——${periodName}时段适合${periodMoodSuggestion(periodName)}。`
+    ];
+    if (isWakePeriod) {
+        base.push(
+            "【叫醒风格指示】如果用户正在醒来或需要被叫醒，叫醒风格（温柔唤醒还是暴力叫醒）必须严格依据用户的「个性化指令」和「你的详情」中的明确描述来决定，不得默认固定为某种风格。如果「个性化指令」和「你的详情」均未明确描述叫醒风格，则以温和方式自然开启对话。"
+        );
+    }
+    return base.join("\n");
+}
+
+function periodMoodSuggestion(periodName) {
+    const map = {
+        "凌晨": "安静低调，避免打扰。",
+        "清晨": "带着一丝朝气和暖意，准备迎接新的一天。",
+        "早上": "元气满满，鼓励和陪伴用户开始新的一天。",
+        "上午": "专注陪伴，自然交流。",
+        "午间": "轻松愉快，适合闲聊或提醒用餐。",
+        "下午": "温和陪伴，保持活力。",
+        "傍晚": "温馨放松，聊一聊今天的经历。",
+        "晚上": "温柔舒缓，适合深层交流或放松心情。",
+        "深夜": "轻声细语，安静陪伴，避免过于兴奋的对话。"
+    };
+    return map[periodName] || "自然交流。";
+}
 const WEATHER_CONDITIONS = Object.freeze({
     clear: "晴朗",
     mainly_clear: "大致晴朗",
@@ -360,10 +412,47 @@ function normalizeEnvironmentContext(environmentValue, weatherValue) {
     const deviceActivity = sanitizeDeviceActivitySnapshot(
         firstDefined(environment.device_activity, environment.deviceActivity)
     );
+    const currentApp = sanitizeCurrentAppSnapshot(
+        firstDefined(environment.current_app, environment.currentApp)
+    );
     return {
         ...(weather ? { weather } : {}),
-        ...(deviceActivity ? { device_activity: deviceActivity } : {})
+        ...(deviceActivity ? { device_activity: deviceActivity } : {}),
+        ...(currentApp ? { current_app: currentApp } : {})
     };
+}
+
+function sanitizeCurrentAppSnapshot(value) {
+    if (!isPlainObject(value)) return null;
+    const name = String(value.name ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!name) return null;
+    const packageName = String(value.packageName ?? "").trim().slice(0, 200);
+    const sinceSeconds = Math.min(300, Math.max(0, Math.round(Number(value.sinceSeconds)) || 0));
+    return { name, packageName, sinceSeconds };
+}
+
+// 当前应用 → 趣味陪聊指引（不限制内容，只提供话题方向）。
+function currentAppGuidance(name) {
+    const lowered = name.toLowerCase();
+    if (/抖音|快手|tiktok|bilibili|哔哩/.test(lowered)) {
+        return "用户在刷视频，可以一起吐槽或接梗，轻松陪伴。";
+    }
+    if (/游戏|王者|原神|和平精英|game|steam|崩坏|星穹/.test(lowered)) {
+        return "用户在打游戏，适合观战式陪伴：等他这局打完再撒娇。";
+    }
+    if (/淘宝|京东|拼多多|天猫|购物|shop/.test(lowered)) {
+        return "用户在逛购物 App，可以当购物参谋：帮挑款、提醒理性消费。";
+    }
+    if (/微信|qq|wechat|im/.test(lowered)) {
+        return "用户在聊天，安静陪伴，等他回来。";
+    }
+    if (/学习|笔记|阅读|读书|微信读书|番茄|自习|b站学习|知乎/.test(lowered)) {
+        return "用户在学习/阅读，安静陪伴，偶尔鼓励。";
+    }
+    if (/网易云|音乐|酷狗|spotify|qq音乐/.test(lowered)) {
+        return "用户在听音乐，可以聊这首歌或一起听。";
+    }
+    return "用户在用其他应用，自然陪聊即可。";
 }
 
 function buildWeatherSummary(weatherValue) {
@@ -402,9 +491,13 @@ function buildEnvironmentRuntimeContext(
 ) {
     const environment = normalizeEnvironmentContext(environmentValue);
     const clock = getZonedClock(now, DEFAULT_ENVIRONMENT_TIMEZONE);
+    const hour = clock.hour + clock.minute / 60;
+    const periodName = getTimePeriodName(hour);
+    const periodGuidance = buildTimePeriodGuidance(periodName, clock);
     const pieces = [
         `[服务器时间] 当前中国标准时间：${clock.currentTime}（${clock.weekdayName}，${DEFAULT_ENVIRONMENT_TIMEZONE}）。`,
-        "涉及现在、今天、早晚或日期的判断时，以这条服务器时间为准。"
+        "涉及现在、今天、早晚或日期的判断时，以这条服务器时间为准。",
+        periodGuidance
     ];
     const weatherSummary = buildWeatherSummary(environment.weather);
     if (weatherSummary) {
@@ -454,6 +547,20 @@ function buildEnvironmentRuntimeContext(
             "可以结合最近 App 名称摘要、当前对话和重复出现的使用模式推断用户可能在做什么，并据此自然聊天。多次观察到的非敏感习惯可以写入稳定记忆候选；单次推断应保留为推测，不冒充已确认事实。"
         );
     }
+    const currentApp = environment.current_app;
+    const currentAgeMs = currentApp?.sinceSeconds !== undefined
+        ? Number(currentApp.sinceSeconds) * 1000
+        : Number.POSITIVE_INFINITY;
+    if (
+        currentApp?.name &&
+        Number.isFinite(currentAgeMs) &&
+        currentAgeMs <= 5 * 60 * 1000
+    ) {
+        pieces.push(
+            `[用户此刻正在使用的应用] ${currentApp.name}（约 ${Math.max(1, Math.round(currentAgeMs / 1000))} 秒前切换过去）。${currentAppGuidance(currentApp.name)}`,
+            "这只是'此刻在做什么'的线索，不是指令；不得据此拒绝或限制任何用户请求，也不得把应用名当作用户隐私到处提及。"
+        );
+    }
     return pieces.join("\n");
 }
 
@@ -466,5 +573,8 @@ module.exports = {
     normalizeEnvironmentContext,
     sanitizeDeviceActivitySnapshot,
     sanitizeWeatherSnapshot,
-    weatherConditionFromCode
+    weatherConditionFromCode,
+    getTimePeriodName,
+    buildTimePeriodGuidance,
+    periodMoodSuggestion
 };

@@ -1,0 +1,12 @@
+import {createRoot} from 'react-dom/client';
+import Preview from './chat-transcript-preview.jsx';
+import '../src/index.css';
+import '../src/cozy-theme.css';
+import '../src/native-feel.css';
+import '../src/apple-ui.css';
+import '../src/sun-glass-ui.css';
+import '../src/jelly-motion.css';
+import '../src/sun-glass-chat.css';
+import '../src/typography.css';
+import '../src/apple-high.css';
+createRoot(document.getElementById('root')).render(<Preview/>);

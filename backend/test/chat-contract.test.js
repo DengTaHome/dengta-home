@@ -4,9 +4,22 @@ const path = require("node:path");
 const { normalizeChatBody } = require("../services/chat-request");
 const {
     publicChatErrorCode,
+    publicChatErrorMessage,
     streamFailure,
     streamSuccess
 } = require("../services/chat-stream-contract");
+
+function assertStreamFailure(actual, expected) {
+    const { error_location, ...rest } = actual || {};
+    if (error_location) {
+        assert.match(
+            String(error_location),
+            /^[A-Za-z0-9_./-]+:\d+:\d+$/,
+            "error_location must be a file:line:column position",
+        );
+    }
+    assert.deepEqual(rest, expected);
+}
 
 const source = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
 const aiSource = fs.readFileSync(
@@ -50,6 +63,26 @@ assert.match(source, /isSafeMessageId\(req\.params\.messageId\)/);
 assert.match(source, /const disposition = \["image", "text"\]\.includes/);
 assert.match(source, /storedAttachmentPathsForConversation/);
 assert.match(source, /resolveTurnModel\(/);
+assert.match(
+    executeChatSource,
+    /const conversation = existingConversationId[\s\S]*?loadConversation\(existingConversationId, database\)/,
+    "chat turns must load the persisted conversation before resolving the model"
+);
+assert.match(
+    executeChatSource,
+    /resolveConversationTurnModel\(\s*settings,\s*conversation,\s*input\.requestedModel,\s*database\s*\)/,
+    "chat must reconcile a persisted session model against the active provider"
+);
+assert.match(
+    source,
+    /async function resolveConversationTurnModel[\s\S]*?resolveConversationModel\([\s\S]*?if \(!resolution\.rebound\)[\s\S]*?\.from\("conversations"\)[\s\S]*?model_id: resolution\.model/,
+    "a stale persisted model must be replaced with the active provider default"
+);
+assert.match(
+    executeChatSource,
+    /ensureConversation\([\s\S]*?effectiveModel/,
+    "implicit first sessions must persist the resolved model"
+);
 assert.match(source, /publicMessage\(savedUserMessage\)/);
 assert.match(source, /requestScope:\s*req\.scope \|\| null/);
 assert.match(
@@ -143,7 +176,7 @@ assert.match(
 );
 assert.match(
     source,
-    /\["text", "reasoning"\]\.includes\(event\?\.type\)/
+    /\["text", "reasoning", "monologue"\]\.includes\(event\?\.type\)/
 );
 assert.match(aiSource, /createReasoningEventEmitter/);
 assert.doesNotMatch(
@@ -160,50 +193,149 @@ assert.doesNotMatch(
 );
 assert.match(source, /public_reasoning_summary_stream:\s*false/);
 assert.match(source, /visible_inner_monologue_on_demand:\s*true/);
+assert.match(source, /visible_monologue_stream:\s*true/);
+assert.match(source, /visible_monologue_schema_version:\s*1/);
+assert.match(source, /visible_monologue_storage:\s*"message_metadata"/);
+assert.match(
+    executeChatSource,
+    /visible_monologue:\s*generated\.visible_monologue/
+);
 
 assert.deepEqual(streamSuccess({ reply: "完成" }), {
     type: "done",
     ok: true,
     reply: "完成"
 });
-assert.deepEqual(streamFailure(new Error("上游失败")), {
+assertStreamFailure(streamFailure(new Error("上游失败")), {
     type: "error",
     ok: false,
     content: "上游失败",
-    user_message_committed: false
+    user_message_committed: false,
+    code: "request_failed"
 });
-assert.deepEqual(
+assertStreamFailure(
     streamFailure(new Error("模型失败"), { userMessageCommitted: true }),
     {
         type: "error",
         ok: false,
         content: "模型失败",
-        user_message_committed: true
+        user_message_committed: true,
+    code: "request_failed"
     }
 );
 const rawUpstreamError = new Error(
     "<!doctype html><html><body><pre>provider stack trace</pre></body></html>"
 );
 rawUpstreamError.status = 502;
-assert.deepEqual(streamFailure(rawUpstreamError), {
+assertStreamFailure(streamFailure(rawUpstreamError), {
     type: "error",
     ok: false,
     content: "模型服务暂时无法完成这次回复，请稍后重试。",
-    user_message_committed: false
+    user_message_committed: false,
+    code: "request_failed"
 });
-assert.deepEqual(
+assertStreamFailure(
     streamFailure(rawUpstreamError, { userMessageCommitted: true }),
     {
         type: "error",
         ok: false,
         content: "AI 回复没有完成，但你的消息已经保存，可以稍后重试。",
-        user_message_committed: true
+        user_message_committed: true,
+    code: "request_failed"
     }
+);
+assert.equal(
+    streamFailure(new Error("Upstream request failed")).content,
+    streamFailure(rawUpstreamError).content
+);
+assert.equal(
+    streamFailure(new Error("Upstream request failed"), {
+        userMessageCommitted: true
+    }).content,
+    streamFailure(rawUpstreamError, { userMessageCommitted: true }).content
+);
+assert.equal(
+    streamFailure(
+        new Error("Upstream stream ended without a terminal response event")
+    ).content,
+    "上游模型流没有正常结束，请重试或检查接口兼容性 / The upstream model stream ended without a terminal response event. Retry or check API compatibility."
+);
+const unavailableModelError = new Error("request model unavailable");
+unavailableModelError.code = "MODEL_NOT_AVAILABLE";
+assert.equal(
+    streamFailure(unavailableModelError).content,
+    "请求的模型不在当前接口可用列表中 / The requested model is not available from the current API.（错误代码 / Code: MODEL_NOT_AVAILABLE；来源 / Source: dengta）"
+);
+const boundaryResidueError = new Error("模型供应商未返回可保存的对话内容。");
+boundaryResidueError.code = "provider_boundary_residue";
+boundaryResidueError.errorSource = "dengta_output_guard";
+boundaryResidueError.providerPhase = "completed_output";
+assertStreamFailure(
+    streamFailure(boundaryResidueError, { userMessageCommitted: true }),
+    {
+        type: "error",
+        ok: false,
+        content:
+            "模型回复被识别为拒答残留，拒答正文未保存 / The model response was identified as refusal residue; the refusal text was not saved.（错误代码 / Code: provider_boundary_residue；来源 / Source: dengta_output_guard）",
+        user_message_committed: true,
+        code: "provider_boundary_residue",
+        error_source: "dengta_output_guard",
+        provider_phase: "completed_output"
+    }
+);
+const inspectionErrorWithMetadata = new Error(
+    "Input text data may contain inappropriate content."
+);
+inspectionErrorWithMetadata.providerCode = "data_inspection_failed";
+inspectionErrorWithMetadata.errorSource = "upstream_provider_or_gateway";
+inspectionErrorWithMetadata.providerPhase = "event";
+assert.equal(
+    publicChatErrorCode(inspectionErrorWithMetadata),
+    "data_inspection_failed"
+);
+assert.match(
+    publicChatErrorMessage(inspectionErrorWithMetadata),
+    /data_inspection_failed.*upstream_provider_or_gateway/
+);
+assertStreamFailure(
+    streamFailure(inspectionErrorWithMetadata),
+    {
+        type: "error",
+        ok: false,
+        content:
+            "输入内容未通过模型接口的内容检查 / The input did not pass the model provider's content inspection.（错误代码 / Code: data_inspection_failed；来源 / Source: upstream_provider_or_gateway）",
+        user_message_committed: false,
+        code: "data_inspection_failed",
+        provider_code: "data_inspection_failed",
+        error_source: "upstream_provider_or_gateway",
+        provider_phase: "event"
+    }
+);
+const providerErrorDocument = new Error("raw provider document");
+providerErrorDocument.code = "provider_error_document";
+assertStreamFailure(
+    streamFailure(providerErrorDocument, { userMessageCommitted: true }),
+    {
+        type: "error",
+        ok: false,
+        content:
+            "模型接口返回了错误文档，尚未确认更具体原因；本轮回复未保存。 查看错误码及上游 HTTP 日志，检查接口设置或稍后重试。 / The model API returned an error document; this reply was not saved.（错误代码 / Code: provider_error_document；来源 / Source: dengta）",
+        user_message_committed: true,
+        code: "provider_error_document"
+    }
+);
+const inspectionError = new Error(
+    "Input text data may contain inappropriate content."
+);
+inspectionError.code = "data_inspection_failed";
+assert.equal(
+    streamFailure(inspectionError).content,
+    "输入内容未通过模型接口的内容检查 / The input did not pass the model provider's content inspection.（错误代码 / Code: data_inspection_failed；来源 / Source: dengta）"
 );
 const pendingError = new Error("AI 仍在处理中");
 pendingError.code = "CHAT_GENERATION_IN_PROGRESS";
 assert.equal(publicChatErrorCode(pendingError), "CHAT_GENERATION_IN_PROGRESS");
-assert.deepEqual(
+assertStreamFailure(
     streamFailure(pendingError, { userMessageCommitted: true }),
     {
         type: "error",
@@ -217,8 +349,8 @@ const privateError = new Error("内部租约错误");
 privateError.code = "INTERNAL_LEASE_FAILURE";
 assert.equal(publicChatErrorCode(privateError), null);
 assert.equal(
-    Object.prototype.hasOwnProperty.call(streamFailure(privateError), "code"),
-    false
+    streamFailure(privateError).code,
+    "request_failed"
 );
 assert.match(
     source,
@@ -226,7 +358,7 @@ assert.match(
 );
 assert.match(
     source,
-    /streamFailure\(error, \{ userMessageCommitted \}\)/
+    /streamFailure\(error, \{\s*userMessageCommitted,\s*logId:/
 );
 assert.match(
     idempotencySource,
@@ -244,7 +376,7 @@ assert.doesNotMatch(
 );
 assert.match(
     source,
-    /writeSse\(res, streamFailure\(error, \{ userMessageCommitted \}\)\);\s*res\.end\(\);/
+    /writeSse\(\s*res,\s*streamFailure\(error, \{\s*userMessageCommitted,\s*logId:/
 );
 assert.doesNotMatch(
     source,

@@ -293,8 +293,12 @@ function userReference(options = {}) {
 
 function personalizeCompanionStatusText(value, options = {}) {
     const text = String(value || "");
-    if (!text.includes("用户")) return text;
-    return text.replace(/用户/g, userReference(options));
+    const reference = userReference(options);
+    const personalized = text.includes("用户")
+        ? text.replace(/用户/g, reference)
+        : text;
+    // 防御：模型偶尔把缺失的称呼写成字面 "undefined"，统一换成用户称呼。
+    return personalized.replace(/\bundefined\b/gi, reference);
 }
 
 function safeIsoDate(value) {

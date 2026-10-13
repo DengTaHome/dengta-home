@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "./api";
+import { authSession } from "./auth-session";
+import { createScopedSettingsSession, settingsSaveScope } from "./settings-save-scope";
 import {
   buildCcSwitchBridgeHtml,
   buildCcSwitchDeepLink,
@@ -18,6 +20,11 @@ import {
   reasoningEffortForProvider,
   reasoningEffortOptions,
 } from "./provider-reasoning-effort";
+import {
+  providerCredentialNeedsRecovery,
+  settingsServiceErrorDetail,
+  settingsServiceErrorMessage,
+} from "./settings-service-errors";
 
 const PROTOCOL_OPTIONS = [
   {
@@ -62,9 +69,14 @@ function protocolLabel(value) {
   return PROTOCOL_OPTIONS.find((item) => item.value === value)?.label || value;
 }
 
-async function aiProviderRequest(
+function providerErrorMessage(code, fallback) {
+  const message = settingsServiceErrorMessage({ code, message: fallback }, fallback);
+  return typeof message === "string" ? message : fallback;
+}
+
+async function requestAiProvider(
   path,
-  { method = "GET", body } = {},
+  { method = "GET", body, signal, authSession: scopedSession } = {},
 ) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -75,13 +87,33 @@ async function aiProviderRequest(
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       retry: false,
+      signal,
+      authSession: scopedSession,
     });
-  } catch {
-    throw new Error("无法连接 DengTa 后端，请稍后再试。");
+  } catch (error) {
+    throw new Error(
+      providerErrorMessage(
+        error?.code,
+        "无法连接 DengTa 后端，请稍后再试 / Unable to connect to the DengTa backend. Try again shortly.",
+      ),
+      { cause: error },
+    );
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.message || "请求失败（" + response.status + "）");
+    const rawCode = data.error || data.code;
+    const code = typeof rawCode === "string" && /^[A-Za-z][A-Za-z0-9_]{1,80}$/.test(rawCode)
+      ? rawCode : "AI_PROVIDER_REQUEST_FAILED";
+    const error = new Error(
+      providerErrorMessage(
+        code,
+        `请求失败（HTTP ${response.status}）/ Request failed (HTTP ${response.status}).`,
+      ),
+    );
+    error.code = code;
+    error.status = response.status;
+    error.upstreamStatus = data.upstream_status;
+    throw error;
   }
   return data;
 }
@@ -314,7 +346,7 @@ function ProviderFields({ value, onChange, models = [], editing = false }) {
   );
 }
 
-export default function AiProviderCenter() {
+export default function AiProviderCenter({ onStatusChange = null } = {}) {
   const [status, setStatus] = useState({ checking: true });
   const [profiles, setProfiles] = useState([]);
   const [draft, setDraft] = useState({ ...EMPTY_PROVIDER_DRAFT });
@@ -325,19 +357,84 @@ export default function AiProviderCenter() {
   const [ccSwitchTarget, setCcSwitchTarget] = useState("");
   const [ccSwitchApiKey, setCcSwitchApiKey] = useState("");
   const [ccSwitchFeedback, setCcSwitchFeedback] = useState("");
+  const scopeRef = useRef(null);
+  const operationRef = useRef(null);
+  const profileReadRevisionRef = useRef(0);
+  const statusReadRevisionRef = useRef(0);
+  const draftRevisionRef = useRef(0);
+  const profileEditsRef = useRef(new Map());
+
+  function isCurrent(scope = scopeRef.current) {
+    return scope && scopeRef.current === scope && !scope.controller.signal.aborted &&
+      settingsSaveScope(authSession.getSnapshot()) === scope.key;
+  }
+
+  const aiProviderRequest = useCallback((path, options = {}) => {
+    const scope = scopeRef.current;
+    if (!scope || scope.controller.signal.aborted || settingsSaveScope(authSession.getSnapshot()) !== scope.key) {
+      return Promise.reject(new Error("本次设置操作已取消。"));
+    }
+    return requestAiProvider(path, {
+      ...options,
+      signal: scope.controller.signal,
+      authSession: createScopedSettingsSession(authSession, scope.key, scope.controller.signal),
+    });
+  }, []);
+
+  function startOperation(name) {
+    if (operationRef.current || !isCurrent()) return null;
+    const operation = { name, scope: scopeRef.current };
+    operationRef.current = operation;
+    setBusy(name);
+    setFeedback("");
+    return operation;
+  }
+
+  function operationCurrent(operation) {
+    return operationRef.current === operation && isCurrent(operation.scope);
+  }
+
+  function finishOperation(operation) {
+    if (operationRef.current !== operation) return;
+    operationRef.current = null;
+    if (isCurrent(operation.scope)) setBusy("");
+  }
+
+  function mergeProfileEdits(nextProfiles) {
+    return nextProfiles.map(profile => ({ ...profile, ...profileEditsRef.current.get(profile.id) }));
+  }
+
+  function clearSavedProfileEdits(profile) {
+    const edits = { ...profileEditsRef.current.get(profile.id) };
+    for (const field of Object.keys(edits)) if (edits[field] === profile[field]) delete edits[field];
+    if (Object.keys(edits).length) profileEditsRef.current.set(profile.id, edits);
+    else profileEditsRef.current.delete(profile.id);
+  }
 
   async function refreshStatus() {
+    const scope = scopeRef.current;
+    const revision = ++statusReadRevisionRef.current;
     try {
       const data = await aiProviderRequest("/api/ai-providers/status");
+      if (!isCurrent(scope) || revision !== statusReadRevisionRef.current) return;
       setStatus({ ...data, checking: false });
+      onStatusChange?.(data);
+      return data;
     } catch (error) {
-      setStatus({ checking: false, available: false, message: error.message });
+      if (!isCurrent(scope) || revision !== statusReadRevisionRef.current) return;
+      const failed = { checking: false, available: null, message: error.message };
+      setStatus(failed);
+      onStatusChange?.(failed);
+      return failed;
     }
   }
 
   async function refreshProfiles() {
+    const scope = scopeRef.current;
+    const revision = ++profileReadRevisionRef.current;
     const data = await aiProviderRequest("/api/ai-providers/manage");
-    const nextProfiles = Array.isArray(data.profiles) ? data.profiles : [];
+    if (!isCurrent(scope) || revision !== profileReadRevisionRef.current) return;
+    const nextProfiles = mergeProfileEdits(Array.isArray(data.profiles) ? data.profiles : []);
     setProfiles(nextProfiles);
     return nextProfiles;
   }
@@ -351,27 +448,64 @@ export default function AiProviderCenter() {
     await refreshStatus();
   }
 
+  async function refreshCenter() {
+    const operation = startOperation("refresh");
+    if (!operation) return;
+    try {
+      const [statusResult, profilesResult] = await Promise.allSettled([refreshStatus(), refreshProfiles()]);
+      if (!operationCurrent(operation)) return;
+      const failures = [statusResult.status === "fulfilled" && statusResult.value?.available === null
+        ? statusResult.value.message : "", profilesResult.status === "rejected" ? profilesResult.reason.message : ""].filter(Boolean);
+      setFeedback(failures.length ? `列表刷新失败，请稍后重试。\n${failures.join("\n")}` : "接口列表与状态已刷新。");
+    } finally {
+      finishOperation(operation);
+    }
+  }
+
   useEffect(() => {
     let active = true;
-    Promise.all([
+    const scope = { key: settingsSaveScope(authSession.getSnapshot()), controller: new AbortController() };
+    scopeRef.current = scope;
+    const statusRevision = ++statusReadRevisionRef.current;
+    const profileRevision = ++profileReadRevisionRef.current;
+    Promise.allSettled([
       aiProviderRequest("/api/ai-providers/status"),
       aiProviderRequest("/api/ai-providers/manage"),
     ])
-      .then(([statusData, profilesData]) => {
-        if (!active) return;
-        setStatus({ ...statusData, checking: false });
-        setProfiles(Array.isArray(profilesData.profiles) ? profilesData.profiles : []);
-      })
-      .catch((error) => {
-        if (active) {
-          setStatus({ checking: false, available: false, message: error.message });
-          setFeedback(error.message);
+      .then(([statusResult, profilesResult]) => {
+        if (!active || !isCurrent(scope)) return;
+        if (!operationRef.current) setBusy("");
+        if (statusResult.status === "fulfilled" && statusRevision === statusReadRevisionRef.current) {
+          setStatus({ ...statusResult.value, checking: false });
+          onStatusChange?.(statusResult.value);
+        } else if (statusResult.status === "rejected" && statusRevision === statusReadRevisionRef.current) {
+          const failed = {
+            checking: false,
+            available: null,
+            message: statusResult.reason.message,
+          };
+          setStatus(failed);
+          onStatusChange?.(failed);
         }
+        if (profilesResult.status === "fulfilled" && profileRevision === profileReadRevisionRef.current) {
+          setProfiles(
+            mergeProfileEdits(Array.isArray(profilesResult.value.profiles)
+              ? profilesResult.value.profiles
+              : []),
+          );
+        }
+        const failures = [statusRevision === statusReadRevisionRef.current ? statusResult : null,
+          profileRevision === profileReadRevisionRef.current ? profilesResult : null].filter(Boolean)
+          .filter((result) => result.status === "rejected")
+          .map((result) => result.reason.message);
+        if (failures.length > 0) setFeedback([...new Set(failures)].join("\n"));
       });
     return () => {
       active = false;
+      scope.controller.abort();
+      if (scopeRef.current === scope) operationRef.current = null;
     };
-  }, []);
+  }, [onStatusChange, aiProviderRequest]);
 
   const routableCount = useMemo(
     () => profiles.filter((profile) => providerIsRoutable(profile)).length,
@@ -379,6 +513,7 @@ export default function AiProviderCenter() {
   );
 
   function updateDraft(field, value) {
+    draftRevisionRef.current += 1;
     setDraft((current) => {
       const next = { ...current, [field]: value };
       if (field === "protocol") {
@@ -395,6 +530,12 @@ export default function AiProviderCenter() {
   }
 
   function editProfile(id, field, value) {
+    profileEditsRef.current.set(id, { ...profileEditsRef.current.get(id), [field]: value });
+    if (field === "is_default" && value === true) {
+      profiles.filter(profile => profile.id !== id).forEach(profile => {
+        profileEditsRef.current.set(profile.id, { ...profileEditsRef.current.get(profile.id), is_default: false });
+      });
+    }
     setProfiles((current) => current.map((profile) => {
       if (profile.id === id) {
         const next = { ...profile, [field]: value };
@@ -403,6 +544,7 @@ export default function AiProviderCenter() {
             value,
             profile.reasoning_effort,
           );
+          profileEditsRef.current.set(id, { ...profileEditsRef.current.get(id), reasoning_effort: next.reasoning_effort });
         }
         return next;
       }
@@ -479,114 +621,180 @@ export default function AiProviderCenter() {
   }
 
   async function testDraft() {
-    setBusy("test-draft");
-    setFeedback("");
+    const operation = startOperation("test-draft");
+    if (!operation) return;
+    const submitted = { ...draft };
+    const revision = draftRevisionRef.current;
     try {
       const data = await aiProviderRequest("/api/ai-providers/manage/test", {
         method: "POST",
-        body: providerPayload(draft),
+        body: providerPayload(submitted),
       });
+      if (!operationCurrent(operation) || revision !== draftRevisionRef.current) return;
       setDraftModels(data.models || []);
       setFeedback("模型目录可读取，发现 " + (data.models?.length || 0) + " 个模型。检查不会保存密钥。");
     } catch (error) {
+      if (!operationCurrent(operation) || revision !== draftRevisionRef.current) return;
       setDraftModels([]);
-      setFeedback(error.message);
+      setFeedback(
+        settingsServiceErrorDetail(error, "供应商请求失败 / Provider request failed."),
+      );
     } finally {
-      setBusy("");
+      finishOperation(operation);
     }
   }
 
   async function createProfile(event) {
     event.preventDefault();
-    setBusy("create");
-    setFeedback("");
+    const operation = startOperation("create");
+    if (!operation) return;
+    const submitted = { ...draft };
+    const revision = draftRevisionRef.current;
+    let saved = false;
     try {
       await aiProviderRequest("/api/ai-providers/manage", {
         method: "POST",
-        body: providerPayload(draft),
+        body: providerPayload(submitted),
       });
+      saved = true;
+      if (!operationCurrent(operation)) return;
+      setDraft(current => Object.keys(submitted).every(field => current[field] === submitted[field])
+        ? { ...EMPTY_PROVIDER_DRAFT } : current);
+      if (revision === draftRevisionRef.current) setDraftModels([]);
       await refreshProfiles();
-      setDraft({ ...EMPTY_PROVIDER_DRAFT });
-      setDraftModels([]);
+      if (!operationCurrent(operation)) return;
       setFeedback("接口已加密保存。启用并设为下次聊天首选后，新的聊天请求才会优先使用它。");
       await refreshStatus();
     } catch (error) {
-      setFeedback(error.message);
+      if (!operationCurrent(operation)) return;
+      setFeedback(
+        (saved
+          ? "接口已加密保存，列表刷新失败。请先刷新接口列表核对，勿重复保存。"
+          : "保存结果尚未确认。请先刷新接口列表核对，勿重复保存。") + "\n" +
+          settingsServiceErrorDetail(error, "供应商请求失败 / Provider request failed."),
+      );
     } finally {
-      setBusy("");
+      finishOperation(operation);
     }
   }
 
   async function saveProfile(profile) {
-    setBusy("save-" + profile.id);
-    setFeedback("");
+    const operation = startOperation("save-" + profile.id);
+    if (!operation) return;
+    const submitted = { ...profile };
+    let saved = false;
     try {
       await aiProviderRequest("/api/ai-providers/manage/" + profile.id, {
         method: "PUT",
-        body: providerPayload(profile),
+        body: providerPayload(submitted),
       });
+      saved = true;
+      if (!operationCurrent(operation)) return;
+      clearSavedProfileEdits(submitted);
       await refreshProfiles();
+      if (!operationCurrent(operation)) return;
       setFeedback("接口设置已保存，并会用于下一次新的模型请求。");
       await refreshStatus();
     } catch (error) {
-      setFeedback(error.message);
+      if (!operationCurrent(operation)) return;
+      setFeedback(
+        (saved
+          ? "接口设置已保存，列表刷新失败。请先刷新接口列表核对。"
+          : "保存结果尚未确认。请先刷新接口列表核对后再重试。") + "\n" +
+          settingsServiceErrorDetail(error, "供应商请求失败 / Provider request failed."),
+      );
     } finally {
-      setBusy("");
+      finishOperation(operation);
     }
   }
 
   async function testProfile(profile) {
-    setBusy("test-" + profile.id);
-    setFeedback("");
+    const operation = startOperation("test-" + profile.id);
+    if (!operation) return;
     try {
       const data = await aiProviderRequest(
         "/api/ai-providers/manage/" + profile.id + "/test",
         { method: "POST" },
       );
+      if (!operationCurrent(operation)) return;
       await refreshProfiles();
+      if (!operationCurrent(operation)) return;
       setFeedback("模型目录可读取，发现 " + (data.models?.length || 0) + " 个模型。");
       await refreshStatus();
     } catch (error) {
+      if (!operationCurrent(operation)) return;
       await refreshProfilesAfterProbeFailure();
-      setFeedback(error.message);
+      if (!operationCurrent(operation)) return;
+      setFeedback(
+        settingsServiceErrorDetail(error, "供应商请求失败 / Provider request failed."),
+      );
     } finally {
-      setBusy("");
+      finishOperation(operation);
     }
   }
 
   async function makeDefault(profile) {
-    setBusy("default-" + profile.id);
-    setFeedback("");
+    const operation = startOperation("default-" + profile.id);
+    if (!operation) return;
+    const submittedDefaults = new Map([...profileEditsRef.current].map(([id, edits]) => [id, edits.is_default]));
+    let saved = false;
     try {
       await aiProviderRequest(
         "/api/ai-providers/manage/" + profile.id + "/default",
         { method: "POST" },
       );
+      saved = true;
+      if (!operationCurrent(operation)) return;
+      for (const [id, edits] of profileEditsRef.current) {
+        if (submittedDefaults.has(id) && submittedDefaults.get(id) === edits.is_default) {
+          const nextEdits = { ...edits };
+          delete nextEdits.is_default;
+          profileEditsRef.current.set(id, nextEdits);
+        }
+      }
       await refreshProfiles();
+      if (!operationCurrent(operation)) return;
       setFeedback("下次聊天首选已更新；这不表示接口正在运行，新的聊天请求才会使用它。");
       await refreshStatus();
     } catch (error) {
-      setFeedback(error.message);
+      if (!operationCurrent(operation)) return;
+      setFeedback(
+        (saved
+          ? "下次聊天首选已更新，列表刷新失败。请先刷新接口列表核对。"
+          : "首选更新结果尚未确认。请先刷新接口列表核对后再重试。") + "\n" +
+          settingsServiceErrorDetail(error, "供应商请求失败 / Provider request failed."),
+      );
     } finally {
-      setBusy("");
+      finishOperation(operation);
     }
   }
 
   async function removeProfile(profile) {
     if (!window.confirm("确定删除接口“" + profile.name + "”吗？删除后密钥无法恢复。")) return;
-    setBusy("delete-" + profile.id);
-    setFeedback("");
+    const operation = startOperation("delete-" + profile.id);
+    if (!operation) return;
+    let deleted = false;
     try {
       await aiProviderRequest("/api/ai-providers/manage/" + profile.id, {
         method: "DELETE",
       });
+      deleted = true;
+      if (!operationCurrent(operation)) return;
+      profileEditsRef.current.delete(profile.id);
       await refreshProfiles();
+      if (!operationCurrent(operation)) return;
       setFeedback("接口及其加密密钥已删除。");
       await refreshStatus();
     } catch (error) {
-      setFeedback(error.message);
+      if (!operationCurrent(operation)) return;
+      setFeedback(
+        (deleted
+          ? "接口及其加密密钥已删除，列表刷新失败。请先刷新接口列表核对。"
+          : "删除结果尚未确认。请先刷新接口列表核对后再重试。") + "\n" +
+          settingsServiceErrorDetail(error, "供应商请求失败 / Provider request failed."),
+      );
     } finally {
-      setBusy("");
+      finishOperation(operation);
     }
   }
 
@@ -597,15 +805,26 @@ export default function AiProviderCenter() {
           <span className="settings-kicker">模型接入</span>
           <h3>多供应商 API 控制台</h3>
           <p>统一管理正规 API、自建 New API、Sub2API、CPA 或其他兼容网关。这里保存的接口会真实接入聊天后端。</p>
+          <p>API Key 只发送到后端加密保存，页面不会回显已保存的密钥。</p>
         </div>
         <span className={status.available ? "provider-state ready" : "provider-state pending"}>
-          {status.checking ? "检查中" : status.available ? "数据库已就绪" : "等待数据库迁移"}
+          {status.checking ? "检查中" : status.available === true ? "数据库已就绪" : status.available === false ? "等待数据库迁移" : "状态未确认"}
         </span>
       </div>
 
       <div className="provider-safety-note" role="note">
         <strong>只填网关输出，不填账号登录材料</strong>
         <p>如果某个教程要求 auth.json、OAuth 凭据、卡密 JSON、Cookie 或账号 Token，请在你自己信任的 Sub2API / CPA / Cockpit 工具里完成登录或导入。DengTa 这里只接收最终的 Base URL、对外 API Key 和模型名。</p>
+      </div>
+
+      <div className="provider-recovery-note" role="note">
+        <strong>迁移后无法聊天？重新保存活动 GPT 密钥 / Chat unavailable after migration?</strong>
+        <p>
+          更换 Render 服务或后端加密密钥后，旧接口仍会显示在列表里，但原密文不能继续使用。无需删除接口：在对应卡片重新粘贴 API Key，确认“启用这个接口”，保存修改，检查模型目录，再设为下次聊天首选。
+        </p>
+        <small>
+          After a backend migration, re-enter the API key on the existing profile, enable and save it, check the model catalog, then make it the next-chat default.
+        </small>
       </div>
 
       <div className="provider-summary-grid">
@@ -618,6 +837,11 @@ export default function AiProviderCenter() {
       </div>
 
       {feedback && <p className="provider-feedback" role="status">{feedback}</p>}
+      <div className="provider-card-actions">
+        <button type="button" className="secondary-button" disabled={Boolean(busy)} onClick={refreshCenter}>
+          {busy === "refresh" ? "刷新中" : "刷新接口列表"}
+        </button>
+      </div>
 
       <>
         <form className="provider-create-card" onSubmit={createProfile}>
@@ -656,6 +880,12 @@ export default function AiProviderCenter() {
                   </div>
                 </div>
                 <ProviderHealthSummary profile={profile} />
+                {providerCredentialNeedsRecovery(profile) && (
+                  <div className="provider-recovery-note is-required" role="alert">
+                    <strong>此接口需要重新保存 API Key / This provider key must be saved again</strong>
+                    <p>在下方密钥框粘贴新值并点“保存修改”，再点“检查模型目录”。其他资料不需要重填。</p>
+                  </div>
+                )}
                 <ProviderFields
                   value={profile}
                   editing
@@ -752,7 +982,7 @@ export default function AiProviderCenter() {
                 )}
               </article>
             ))}
-            {profiles.length === 0 && <p className="provider-empty">还没有保存接口。旧版单接口会继续工作，不会因这里为空而中断聊天。</p>}
+            {profiles.length === 0 && <p className="provider-empty">还没有保存活动接口。请在上方填写并保存一个供应商配置，之后新聊天会使用它。</p>}
         </div>
       </>
 

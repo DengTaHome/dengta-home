@@ -18,6 +18,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "ScreenGlance")
 public final class ScreenGlancePlugin extends Plugin {
+    private final ProjectionConsentGate consentGate = new ProjectionConsentGate();
+    private String pendingConsentId;
     @PluginMethod
     public void getState(PluginCall call) {
         call.resolve(ScreenGlanceService.buildState(getContext()));
@@ -25,6 +27,12 @@ public final class ScreenGlancePlugin extends Plugin {
 
     @PluginMethod
     public void startSession(PluginCall call) {
+        if (!scopeMatches(call)) return;
+        JSObject currentState = ScreenGlanceService.buildState(getContext());
+        if (currentState.optBoolean("active", false)) {
+            call.resolve(currentState);
+            return;
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
             call.reject("当前 Android 版本不支持系统屏幕共享。");
             return;
@@ -35,16 +43,31 @@ public final class ScreenGlancePlugin extends Plugin {
             call.reject("系统没有提供屏幕共享服务。");
             return;
         }
-        startActivityForResult(
-            call,
-            manager.createScreenCaptureIntent(),
-            "handleProjectionResult"
-        );
+        String id = call.getCallbackId();
+        if (!consentGate.begin(id, BackgroundNotificationCredentials.currentScopeKey(getContext()))) {
+            call.reject("系统共享授权仍在等待，请先处理原来的授权窗口。", "screen_glance_consent_busy");
+            return;
+        }
+        pendingConsentId = id;
+        try {
+            startActivityForResult(call, manager.createScreenCaptureIntent(), "handleProjectionResult");
+        } catch (Exception error) {
+            consentGate.finish(id, BackgroundNotificationCredentials.currentScopeKey(getContext()));
+            call.reject("无法打开系统共享授权，请重试。", "screen_glance_consent_failed");
+        }
     }
 
     @ActivityCallback
     private void handleProjectionResult(PluginCall call, ActivityResult result) {
+        String id = call == null ? pendingConsentId : call.getCallbackId();
+        boolean accepted = consentGate.finish(id, BackgroundNotificationCredentials.currentScopeKey(getContext()));
         if (call == null) return;
+        if (!accepted) {
+            JSObject state = ScreenGlanceService.buildState(getContext());
+            state.put("consentCancelled", true);
+            call.resolve(state);
+            return;
+        }
         Intent data = result.getData();
         if (result.getResultCode() != Activity.RESULT_OK || data == null) {
             JSObject state = ScreenGlanceService.buildState(getContext());
@@ -70,6 +93,7 @@ public final class ScreenGlancePlugin extends Plugin {
 
     @PluginMethod
     public void configure(PluginCall call) {
+        if (!scopeMatches(call)) return;
         boolean randomEnabled = Boolean.TRUE.equals(
             call.getBoolean("randomEnabled", false)
         );
@@ -90,6 +114,9 @@ public final class ScreenGlancePlugin extends Plugin {
         int watchIntervalSeconds = boundedSeconds(
             call.getInt("watchIntervalSeconds", 90)
         );
+        String coWatchSessionId = String.valueOf(
+            call.getString("coWatchSessionId", "")
+        ).trim();
         ScreenGlanceService.storeConfig(
             getContext(),
             randomEnabled,
@@ -98,7 +125,8 @@ public final class ScreenGlancePlugin extends Plugin {
             wifiOnly,
             chargingOnly,
             watchTogetherEnabled,
-            watchIntervalSeconds
+            watchIntervalSeconds,
+            coWatchSessionId
         );
         ScreenGlanceService.sendAction(
             getContext(),
@@ -154,22 +182,53 @@ public final class ScreenGlancePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void readCoWatchPreview(PluginCall call) {
+        try {
+            JSObject preview = ScreenGlanceService.readCoWatchPreview(
+                getContext()
+            );
+            if (preview == null) {
+                JSObject empty = new JSObject();
+                empty.put("available", false);
+                call.resolve(empty);
+                return;
+            }
+            preview.put("available", true);
+            call.resolve(preview);
+        } catch (Exception error) {
+            call.reject("The latest co-watch preview is unavailable.");
+        }
+    }
+
+    @PluginMethod
     public void stopSession(PluginCall call) {
+        consentGate.cancel(call.getString("scopeKey", ""));
+        if (!scopeMatches(call)) return;
         ScreenGlanceService.sendAction(
             getContext(),
             ScreenGlanceService.ACTION_STOP
         );
         ScreenGlanceService.deleteLatestCapture(getContext());
+        ScreenGlanceService.deleteCoWatchPreview(getContext());
         call.resolve(ScreenGlanceService.buildState(getContext()));
     }
 
     private static int boundedMinutes(Integer value) {
         int requested = value == null ? 60 : value;
-        return Math.min(600, Math.max(1, requested));
+        return Math.min(180, Math.max(1, requested));
+    }
+
+    private boolean scopeMatches(PluginCall call) {
+        String expected = call.getString("scopeKey", "");
+        if (expected != null && !expected.isEmpty() && !ScreenCaptureScope.matches(expected, BackgroundNotificationCredentials.currentScopeKey(getContext()))) {
+            call.reject("后台身份尚未同步，请稍候重试屏幕共享。", "screen_glance_identity_pending");
+            return false;
+        }
+        return true;
     }
 
     private static int boundedSeconds(Integer value) {
         int requested = value == null ? 90 : value;
-        return Math.min(600, Math.max(30, requested));
+        return Math.min(10_800, Math.max(60, requested));
     }
 }

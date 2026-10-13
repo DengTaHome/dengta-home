@@ -8,6 +8,7 @@ const {
 } = require("../../services/chat-attachments");
 const { cleanModelId } = require("../../services/model-catalog");
 const { requireRequestScope } = require("../../services/request-scope");
+const { describeImageWithDebug, visionConfig, visionConfigured } = require("../../services/vision-describe");
 
 const UUID_PATTERN =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -74,8 +75,53 @@ async function blobBuffer(value) {
     );
 }
 
-function createV2CoreRouter({ storage } = {}) {
+function createV2CoreRouter({
+    storage,
+    getSettings,
+    resolveTurnModel
+} = {}) {
     const router = express.Router();
+
+    async function resolveSessionModel(
+        scope,
+        requestedModel,
+        { required = false } = {}
+    ) {
+        const modelId = cleanModelId(requestedModel);
+        if (requestedModel && !modelId) {
+            throw requestError(
+                400,
+                "invalid_session_model",
+                "会话模型格式不正确 / The session model format is invalid."
+            );
+        }
+        if (required && !modelId) {
+            throw requestError(
+                400,
+                "invalid_session_model",
+                "会话模型不能为空 / The session model cannot be empty."
+            );
+        }
+        if (
+            typeof getSettings !== "function" ||
+            typeof resolveTurnModel !== "function"
+        ) {
+            return modelId || null;
+        }
+        const settings = await getSettings(scope.db);
+        const candidate = modelId || cleanModelId(settings?.model);
+        if (!candidate) {
+            if (required) {
+                throw requestError(
+                    400,
+                    "invalid_session_model",
+                    "会话模型不能为空 / The session model cannot be empty."
+                );
+            }
+            return null;
+        }
+        return (await resolveTurnModel(settings, candidate)) || null;
+    }
 
     router.use((req, res, next) => {
         try {
@@ -95,6 +141,67 @@ function createV2CoreRouter({ storage } = {}) {
         }
     });
 
+    router.post("/vision/models", async (req, res, next) => {
+        try {
+            requireRequestScope(req);
+            if (!visionConfigured()) {
+                const error = new Error("视觉服务还没有配置 VISION_API_KEY。");
+                error.status = 503;
+                error.code = "vision_unconfigured";
+                throw error;
+            }
+            const config = visionConfig();
+            const response = await fetch(`${config.baseUrl}/models`, {
+                method: "GET",
+                headers: { Authorization: `Bearer ${config.apiKey}` },
+                signal: AbortSignal.timeout(30000)
+            });
+            const json = await response.json().catch(() => ({}));
+            const ids = Array.isArray(json?.data)
+                ? json.data.map((item) => String(item?.id || "")).filter(Boolean).sort()
+                : [];
+            res.json({ http_status: response.status, count: ids.length, models: ids });
+        } catch (error) {
+            next(error);
+        }
+    });
+    router.post("/vision/describe", async (req, res, next) => {
+        try {
+            requireRequestScope(req);
+            if (!visionConfigured()) {
+                const error = new Error("视觉服务还没有配置 VISION_API_KEY。");
+                error.status = 503;
+                error.code = "vision_unconfigured";
+                throw error;
+            }
+            const base64 = String(req.body?.image_base64 || "").trim();
+            if (!base64) {
+                const error = new Error("请提供 image_base64 字段。");
+                error.status = 400;
+                error.code = "vision_image_missing";
+                throw error;
+            }
+            const buffer = Buffer.from(base64, "base64");
+            if (buffer.length === 0 || buffer.length > 12 * 1024 * 1024) {
+                const error = new Error("图片数据无效或超过 12MB。");
+                error.status = 400;
+                error.code = "vision_image_invalid";
+                throw error;
+            }
+            const mimeType = String(req.body?.mime_type || "image/png").trim();
+            const overrideModel = String(req.body?.model || "").trim();
+            const config = overrideModel && /^[A-Za-z0-9.\/-]{1,80}$/.test(overrideModel)
+                ? { ...visionConfig(), model: overrideModel }
+                : visionConfig();
+            const result = await describeImageWithDebug(buffer, mimeType, config);
+            res.json({
+                description: result.text,
+                ...(result.text ? {} : { vision_debug: result.debug })
+            });
+        } catch (error) {
+            next(error);
+        }
+    });
     router.get("/sessions", async (req, res, next) => {
         try {
             const scope = requireRequestScope(req);
@@ -134,17 +241,10 @@ function createV2CoreRouter({ storage } = {}) {
                 throw requestError(
                     400,
                     "invalid_session_model",
-                    "会话模型格式不正确。"
+                    "会话模型格式不正确 / The session model format is invalid."
                 );
             }
-            const modelId = cleanModelId(requestedModel);
-            if (requestedModel && !modelId) {
-                throw requestError(
-                    400,
-                    "invalid_session_model",
-                    "会话模型格式不正确。"
-                );
-            }
+            const modelId = await resolveSessionModel(scope, requestedModel);
             const { data, error } = await scope.db
                 .from("conversations")
                 .insert({ title, model_id: modelId || null })
@@ -215,18 +315,14 @@ function createV2CoreRouter({ storage } = {}) {
                     throw requestError(
                         400,
                         "invalid_session_model",
-                        "会话模型格式不正确。"
+                        "会话模型格式不正确 / The session model format is invalid."
                     );
                 }
-                const modelId = cleanModelId(requestedModel);
-                if (!modelId) {
-                    throw requestError(
-                        400,
-                        "invalid_session_model",
-                        "会话模型不能为空。"
-                    );
-                }
-                updates.model_id = modelId;
+                updates.model_id = await resolveSessionModel(
+                    scope,
+                    requestedModel,
+                    { required: true }
+                );
             }
 
             const { data, error } = await scope.db

@@ -32,7 +32,8 @@ assert.match(
   "the authenticated application must not inflate the login/loading bundle",
 );
 assert.match(main, /<App[\s\S]*accountControl=\{accountControl\}/);
-assert.match(main, /key=\{snapshot\.user\?\.id\}/);
+assert.match(main, /<LoadedApp key=\{JSON\.stringify\(\[snapshot\.user\?\.id, snapshot\.activeCompanionId\]\)\}/,
+  "the application must remount when either the account or companion changes");
 assert.match(main, /accountScope=\{snapshot\.user\?\.id \|\| ""\}/);
 assert.match(main, /userName=\{snapshot\.user\?\.displayName\}/);
 assert.match(

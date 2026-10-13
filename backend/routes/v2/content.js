@@ -649,6 +649,7 @@ function createV2ContentRouter({
                 .select(PUSH_MESSAGE_FIELDS)
                 .eq("role", "assistant")
                 .eq("visible", true)
+                .eq("context_visible", true)
                 .contains("tool_calls", { is_push: true })
                 .gte("created_at", since.toISOString())
                 .order("created_at", { ascending: true })
@@ -800,7 +801,7 @@ function createV2ContentRouter({
                 if (!removed.data) {
                     throw requestError(404, "memory_not_found", "找不到这条记忆。");
                 }
-                res.json({ deleted: true, reason: "provider_boundary_residue" });
+                res.json({ deleted: true, reason: "memory_summary_rejected" });
                 return;
             }
             const { data, error } = await scope.db
@@ -818,6 +819,18 @@ function createV2ContentRouter({
             if (error) throw error;
             if (!data) {
                 throw requestError(404, "memory_not_found", "找不到这条记忆。");
+            }
+            // 同步更新 memory_calendar 中的摘要（如果该记忆曾在压缩时写入日历）
+            try {
+                await scope.db
+                    .from("memory_calendar")
+                    .update({
+                        summary,
+                        updated_at: new Date(now()).toISOString()
+                    })
+                    .contains("source_ids", [memoryId]);
+            } catch {
+                // memory_calendar 表可能还不存在，日历同步是非必需的补充
             }
             res.json({ memory: data });
         } catch (error) {

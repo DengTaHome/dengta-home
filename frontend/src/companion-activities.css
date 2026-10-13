@@ -1,0 +1,10 @@
+.companion-activity-cards { display: grid; gap: 10px; margin-top: 12px; min-width: 0; }
+.companion-activity-card { display: grid; gap: 8px; padding: 14px; border: 1px solid rgba(126, 93, 77, .18); border-radius: 16px; background: rgba(255, 252, 247, .86); color: #573f33; overflow-wrap: anywhere; }
+.companion-activity-card > div:first-child { display: flex; align-items: center; gap: 8px; }
+.companion-activity-card p { margin: 0; }
+.companion-activity-card small { color: #796558; font-size: 12px; }
+.companion-activity-card button { min-height: 40px; justify-self: start; padding: 8px 15px; border: 1px solid rgba(126, 93, 77, .22); border-radius: 12px; background: #fffaf0; color: #573f33; font: inherit; font-size: 13px; cursor: pointer; transition: background-color .15s ease; }
+.companion-activity-card button:hover { background: #f6ebdb; }
+.companion-activity-card button:focus-visible { outline: 2px solid #8b5e49; outline-offset: 3px; }
+.companion-video-entry { display: grid; gap: 5px; padding-top: 10px; border-top: 1px solid rgba(126, 93, 77, .12); }
+.companion-video-entry a { color: #614b3c; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }

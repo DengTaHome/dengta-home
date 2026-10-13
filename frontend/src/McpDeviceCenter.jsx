@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "./api";
+import { settingsServiceErrorMessage } from "./settings-service-errors";
 
 const EMPTY_DRAFT = {
   name: "",
@@ -7,19 +8,51 @@ const EMPTY_DRAFT = {
   auth_type: "none",
   auth_header: "X-API-Key",
   credential: "",
-  protocol_version: "2025-03-26",
+  protocol_version: "auto",
+  provider_profile: "auto",
 };
+
+const NETEASE_MCP_PRESET = Object.freeze({
+  ...EMPTY_DRAFT,
+  name: "网易云音乐 MCP（Code-MonkeyZhang，自托管）",
+  endpoint: "https://你的公网域名/mcp",
+  auth_type: "bearer",
+  provider_profile: "netease_cloud_music",
+});
+
+const NETEASE_TOOL_RISKS = Object.freeze({
+  cloud_music_login: "登录与会话",
+  cloud_music_status: "登录与会话",
+  cloud_music_get_daily_recommend: "账户隐私读取",
+  cloud_music_my_playlists: "账户隐私读取",
+  cloud_music_playlist_detail: "公开查询",
+  cloud_music_create_playlist: "账户写入",
+  cloud_music_add_to_playlist: "账户写入",
+  cloud_music_search: "公开查询",
+  cloud_music_album_info: "公开查询",
+  cloud_music_artist_info: "公开查询",
+  cloud_music_my_subscriptions: "账户隐私读取",
+  cloud_music_play: "启动外部应用",
+});
+
+function toolRiskLabel(toolName) {
+  return NETEASE_TOOL_RISKS[toolName] || "外部工具";
+}
 
 async function mcpRequest(path, { method = "GET", body } = {}) {
   try {
     return await apiRequest(path, {
       method,
+      timeoutMs: method === "GET" || method === "DELETE" ? 12_000 : 90_000,
       headers: { Accept: "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (error) {
     throw new Error(
-      error?.message || "无法连接 DengTa 后端，请稍后再试。",
+      settingsServiceErrorMessage(
+        error,
+        "无法连接 DengTa 后端，请稍后再试 / Unable to connect to the DengTa backend. Try again shortly.",
+      ),
       { cause: error },
     );
   }
@@ -28,6 +61,21 @@ async function mcpRequest(path, { method = "GET", body } = {}) {
 function policyLabel(value) {
   return value === "auto" ? "允许 AI 自动执行" : "禁止自动执行（默认）";
 }
+
+function userClickOnlyTool(toolName) {
+  return toolName === "cloud_music_login" || toolName === "cloud_music_play";
+}
+
+function safeToolPolicies(policies = {}) {
+  return Object.fromEntries(Object.entries(policies).map(([name, value]) => [name, userClickOnlyTool(name) ? "disabled" : value]));
+}
+
+const CAPABILITY_LABELS = Object.freeze({
+  status: "登录状态",
+  my_playlists: "读取歌单",
+  playlist_detail: "读取曲目",
+  search: "搜索歌曲",
+});
 
 export default function McpDeviceCenter() {
   const [status, setStatus] = useState({ checking: true });
@@ -61,16 +109,32 @@ export default function McpDeviceCenter() {
     setDiscovery(null);
   }
 
+  function validateDraft() {
+    let endpoint;
+    try { endpoint = new URL(draft.endpoint); } catch { throw new Error("请填写完整的公网 HTTPS MCP 地址。"); }
+    if (endpoint.protocol !== "https:") throw new Error("云端 MCP 只支持公网 HTTPS 端点。");
+    if (draft.auth_type === "custom_header" && draft.auth_header.trim().toLowerCase() === "cookie") throw new Error("DengTa 绝不接收或转发 Cookie 请求头，请改用 MCP 服务自己的 Token/API Key（如有）。");
+    if (/(?:MUSIC_U|__csrf|NETEASE_COOKIE)\s*=/i.test(draft.credential)) throw new Error("请不要向 DengTa 填写 MUSIC_U、__csrf、NETEASE_COOKIE 或任何 Cookie；它们只能配置在你自托管的 MCP 服务端。");
+  }
+
   async function discover() {
     setBusy("discover");
     setFeedback("");
     try {
+      validateDraft();
       const data = await mcpRequest("/api/mcp/connections/manage/discover", {
         method: "POST",
         body: draft,
       });
       setDiscovery(data);
-      setFeedback(`连接成功，发现 ${data.tools?.length || 0} 个工具。`);
+      setDraft((current) => ({
+        ...current,
+        protocol_version: data.protocol_version || current.protocol_version,
+        provider_profile: data.provider_profile || current.provider_profile,
+      }));
+      setFeedback(data.provider_profile === "netease_cloud_music"
+        ? `连接成功，已自动识别网易云音乐接口和 ${data.tools?.length || 0} 个工具。`
+        : `连接成功，发现 ${data.tools?.length || 0} 个工具。保存后可逐项授权给 AI 使用。`);
     } catch (error) {
       setDiscovery(null);
       setFeedback(error.message);
@@ -84,6 +148,7 @@ export default function McpDeviceCenter() {
     setBusy("create");
     setFeedback("");
     try {
+      validateDraft();
       const data = await mcpRequest("/api/mcp/connections/manage", {
         method: "POST",
         body: draft,
@@ -115,7 +180,8 @@ export default function McpDeviceCenter() {
           auth_type: connection.auth_type,
           auth_header: connection.auth_header,
           protocol_version: connection.protocol_version,
-          tool_policies: connection.tool_policies,
+          provider_profile: connection.provider_profile || "",
+           tool_policies: safeToolPolicies(connection.tool_policies),
           ...(connection.credential ? { credential: connection.credential } : {}),
         },
       });
@@ -165,19 +231,43 @@ export default function McpDeviceCenter() {
     <div className="settings-card mcp-device-center">
       <div className="mcp-device-heading">
         <div>
-          <h3>MCP 设备中心</h3>
+          <h3>自定义 MCP 连接</h3>
           <p className="card-hint">
-            接入空调、灯、Home Assistant 或其他 MCP 服务。模型会根据对话选择你明确授权的工具；这是一套可核验的工具调用机制，不是意识。
+            自行添加外部记忆、设备或其他 MCP 服务，无需管理员审批。填写服务地址与访问令牌，保存后选择允许 AI 使用的工具。
           </p>
         </div>
         <span className={`status-chip ${status.available ? "online" : "pending"}`}>
-          {status.checking ? "检查中" : status.available ? `${status.connections || 0} 个连接` : "待配置"}
+          {status.checking ? "检查中" : status.available ? `${connections.length} 个连接` : "待配置"}
         </span>
+      </div>
+
+      <div className="mcp-setup-required" role="note">
+        <strong>连接外部 MCP 记忆</strong>
+        <p>接口类型选择“外部记忆 MCP”，填写服务商提供的 Streamable HTTP 地址，测试并保存。启用连接，并分别授权记忆查询或写入工具。AI 可在聊天中按需使用；查询结果不会自动导入灯塔记忆库。</p>
+        <p>记忆读写权限由你决定。服务器只提供加密保存和账号隔离，不需要人工确认连接。</p>
       </div>
 
       <div className="mcp-safety-note">
         <strong>默认零权限</strong>
         <p>新连接的所有工具均为“禁止自动执行”。你必须逐项改成允许并启用连接，聊天模型才看得到它。设备凭据只在后端加密保存，不会回传页面。</p>
+      </div>
+
+      <div className="mcp-setup-required netease-mcp-preset" role="note">
+        <strong>网易云音乐 MCP · Code-MonkeyZhang/cloud-music-mcp</strong>
+        <ol>
+          <li>在每位用户独占的 Windows/macOS 主机实例中安装上游；它原生是 stdio，配置里的 <code>command</code>/<code>args</code> 不能直接填入 DengTa。</li>
+          <li>用 <code>uv run fastmcp run "src/cloud_music_mcp/main.py:mcp" --transport http --host 127.0.0.1 --port 8000</code> 仅监听回环地址。</li>
+          <li>在实例前增加带 Bearer 鉴权的包装层，再通过 HTTPS 反向代理公开为 <code>https://你的公网域名/mcp</code>；不要把无鉴权的 FastMCP 端口直接暴露到公网。</li>
+          <li>扫码登录必须在运行 Python 的自托管主机完成，或通过另行保护的管理页完成。Cookie 明文只留在该用户实例，绝不填写到 DengTa。</li>
+        </ol>
+        <p><code>cloud_music_play</code> 只会启动或控制自托管主机上的网易云桌面客户端，不能控制 Android App，也不能为 Together 提供音频。DengTa 不抓取网易云网页、不解析音频直链、不绕过 DRM。</p>
+        <p>发现的全部工具仍默认禁用。风险标签只用于解释影响，不构成授权；请按工具逐项审阅后再启用。</p>
+        <button type="button" className="secondary-button" disabled={Boolean(busy)} onClick={() => { setDraft(NETEASE_MCP_PRESET); setDiscovery(null); setFeedback("已填入网易云 MCP 安全预设，请把域名替换为你自托管的公网 HTTPS 地址。"); }}>使用网易云 MCP 预设</button>
+      </div>
+
+      <div className="mcp-setup-required" role="note">
+        <strong>迁移后设备测试失败 / Device test fails after migration</strong>
+        <p>无需删除连接。在对应卡片的“更新访问令牌”重新填写 Token，保存权限后再测试 / Re-enter the token on the existing connection, save it, then test again.</p>
       </div>
 
       {!status.checking && !status.configured && (
@@ -201,16 +291,28 @@ export default function McpDeviceCenter() {
                 <input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} placeholder="例如：家里的空调" />
               </label>
               <label>
-                协议版本
-                <select value={draft.protocol_version} onChange={(event) => updateDraft("protocol_version", event.target.value)}>
-                  <option value="2025-03-26">2025-03-26（推荐）</option>
+                 接口类型
+                 <select value={draft.provider_profile} onChange={(event) => updateDraft("provider_profile", event.target.value)}>
+                   <option value="auto">自动识别（推荐）</option>
+                   <option value="">通用 MCP</option>
+                   <option value="memory_mcp">外部记忆 MCP</option>
+                   <option value="netease_cloud_music">网易云音乐</option>
+                </select>
+              </label>
+              <label>
+                 协议版本
+                 <select value={draft.protocol_version} onChange={(event) => updateDraft("protocol_version", event.target.value)}>
+                   <option value="auto">自动识别（推荐）</option>
+                   <option value="2025-11-25">2025-11-25</option>
+                   <option value="2025-06-18">2025-06-18</option>
+                   <option value="2025-03-26">2025-03-26</option>
                   <option value="2024-11-05">2024-11-05（兼容旧服务）</option>
                 </select>
               </label>
               <label className="full-width">
                 完整 MCP 地址
                 <input value={draft.endpoint} onChange={(event) => updateDraft("endpoint", event.target.value)} placeholder="例如：https://你的-home-assistant.example.com/api/mcp" />
-                <small>必须填写完整 HTTPS 端点，不要只填网站首页；云端不能访问 192.168.x.x 或 localhost。</small>
+                <small>必须填写完整公网 HTTPS 端点；网易云预设必须以 /mcp 结尾。不要填网站首页、192.168.x.x、localhost 或 Cookie。</small>
               </label>
               <label>
                 授权方式
@@ -223,7 +325,7 @@ export default function McpDeviceCenter() {
               {draft.auth_type === "custom_header" && (
                 <label>
                   请求头名称
-                  <input value={draft.auth_header} onChange={(event) => updateDraft("auth_header", event.target.value)} placeholder="X-API-Key" />
+                    <input value={draft.auth_header} onChange={(event) => updateDraft("auth_header", event.target.value)} placeholder="X-API-Key（禁止 Cookie）" />
                 </label>
               )}
               {draft.auth_type !== "none" && (
@@ -243,8 +345,14 @@ export default function McpDeviceCenter() {
             </div>
             {discovery && (
               <div className="mcp-discovery-result">
-                <strong>{discovery.server_name || "MCP 服务"} 已响应</strong>
-                <span>{(discovery.tools || []).map((tool) => tool.name).join("、") || "没有公开工具"}</span>
+                 <strong>{discovery.server_name || "MCP 服务"} 已响应</strong>
+                 <span>{discovery.provider_profile === "netease_cloud_music" ? `网易云音乐 · ${discovery.adapter_id || "兼容接口"} · 置信度 ${Math.round((discovery.confidence || 0) * 100)}%` : discovery.provider_profile === "memory_mcp" ? "外部记忆 MCP" : "通用 MCP 接口"}</span>
+                 {discovery.provider_profile === "netease_cloud_music" && discovery.capabilities && <div className="mcp-discovered-tools">{Object.entries(discovery.capabilities).map(([name, available]) => <span key={name}>{available ? "已识别" : "缺少"} · {CAPABILITY_LABELS[name] || name}</span>)}</div>}
+                {(discovery.tools || []).length ? (
+                  <div className="mcp-discovered-tools">
+                    {discovery.tools.map((tool) => <span key={tool.name}><code>{tool.name}</code><span className="mcp-tool-risk">{toolRiskLabel(tool.name)}</span></span>)}
+                  </div>
+                ) : <span>没有公开工具</span>}
               </div>
             )}
           </form>
@@ -286,18 +394,20 @@ export default function McpDeviceCenter() {
                 <div className="mcp-tool-list">
                   {(connection.discovered_tools || []).map((tool) => (
                     <label key={tool.name}>
-                      <span><strong>{tool.name}</strong><small>{tool.description || "服务没有提供说明"}</small></span>
+                      <span><strong>{tool.name}</strong><span className="mcp-tool-risk">{toolRiskLabel(tool.name)}</span><small>{tool.description || "服务没有提供说明"}</small></span>
                       <select
                         aria-label={`${tool.name} 的自动执行权限`}
-                        value={connection.tool_policies?.[tool.name] || "disabled"}
+                        value={userClickOnlyTool(tool.name) ? "disabled" : connection.tool_policies?.[tool.name] || "disabled"}
+                        disabled={userClickOnlyTool(tool.name)}
                         onChange={(event) => editConnection(connection.id, (current) => ({
                           ...current,
                           tool_policies: { ...current.tool_policies, [tool.name]: event.target.value },
                         }))}
                       >
                         <option value="disabled">{policyLabel("disabled")}</option>
-                        <option value="auto">{policyLabel("auto")}</option>
+                        <option value="auto" disabled={userClickOnlyTool(tool.name)}>{policyLabel("auto")}</option>
                       </select>
+                      {userClickOnlyTool(tool.name) && <small>{tool.name === "cloud_music_login" ? "只能在自托管管理页完成登录，DengTa 不调用此工具。" : "只能由用户点击外部播放按钮触发，禁止 AI 自动执行。"}</small>}
                     </label>
                   ))}
                 </div>
@@ -330,7 +440,7 @@ export default function McpDeviceCenter() {
             <li>点“测试并读取工具”，确认工具名后保存。最后只把调温等确实需要的工具改成“允许 AI 自动执行”。</li>
           </ol>
           <h4>市面上的其他 MCP</h4>
-          <p>如果商家给你的是一个 HTTPS URL 和 Token，通常可以直接填。每家端点路径、授权方式和工具名可能不同，并不存在所有设备共用的一条固定路径。为控制模型请求大小，每轮最多加载 32 个已授权工具。</p>
+           <p>如果商家给你的是一个 HTTPS URL 和 Token，通常可以直接填。选择“自动识别”后，DengTa 会依次协商受支持的 MCP 协议版本，读取服务名称、工具与参数结构，并识别网易云元数据能力。每家端点路径、授权方式和工具名可能不同，并不存在所有设备共用的一条固定路径。为控制模型请求大小，每轮最多加载 32 个已授权工具。</p>
           <p>如果给你的是 JSON 里的 <code>command</code>、<code>args</code> 或本地程序，那是 stdio MCP，Render 不能直接运行你电脑上的命令；需要商家提供远程 Streamable HTTP 地址，或先部署一个 HTTPS MCP 网关。</p>
           <p>如果服务只支持网页登录 OAuth，目前这个自定义窗口不会代替你登录；请优先使用服务商提供的访问令牌。OAuth 配对可作为后续升级。</p>
         </div>

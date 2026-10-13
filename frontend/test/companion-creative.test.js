@@ -17,6 +17,7 @@ const chatMessage = fs.readFileSync(
   path.join(root, "src", "ChatMessage.jsx"),
   "utf8",
 );
+const app = fs.readFileSync(path.join(root, "src", "App.jsx"), "utf8");
 const css = fs.readFileSync(
   path.join(root, "src", "cozy-theme.css"),
   "utf8",
@@ -42,8 +43,37 @@ assert.match(studio, /实际调用 \{artwork\.actual_call_count\} 次/);
 assert.match(studio, /CREATIVE_FAILURE_MESSAGES/);
 assert.match(studio, /creative_provider_auth_failed/);
 assert.match(studio, /creative_provider_image_missing/);
+assert.match(studio, /Promise\.allSettled/);
+assert.match(studio, /artworkResult\.value\.metadata_reentry_required/);
+assert.match(studio, /returnedArtworks\.some\(artworkNeedsMetadataRecovery\)/);
+assert.match(studio, /artworkNeedsMetadataRecovery\(artwork\)/);
+assert.match(studio, /creative_artwork_metadata_reentry_required/);
+assert.match(studio, /creative_provider_credential_reentry_required/);
+assert.match(
+  studio,
+  /saveProvider[\s\S]*creativeErrorFeedback\(error, IMAGE_PROVIDER_CREDENTIAL_RECOVERY_MESSAGE\)/,
+);
+assert.match(studio, /creative_secret_invalid/);
+assert.match(studio, /Image API setup required/);
+assert.match(studio, /Open image settings/);
+assert.match(studio, /Existing images and manual uploads remain stored/);
+assert.match(studio, /unfinished artwork must be recreated/);
+assert.match(studio, /Re-entering the image API key cannot restore old artwork text/);
+assert.doesNotMatch(studio, /text ideas.*remain available/i);
+assert.match(studio, /id="creative-provider-settings"/);
+assert.match(studio, /Re-enter image API key/);
+assert.match(studio, /required=\{providerCredentialRecoveryRequired\}/);
+assert.match(
+  studio,
+  /disabled=\{\s*Boolean\(busy\)\s*\|\|\s*status\.settings\.generation_mode === "off"\s*\}/,
+);
+assert.match(studio, /disabled=\{Boolean\(busy\)\}\s*onChange=\{uploadArtwork\}/);
+assert.match(profile, /onOpenCreativeStudio/);
+assert.match(css, /\.creative-credential-recovery/);
+assert.match(app, /openCreativeProviderSettings/);
+assert.match(app, /scrollIntoView/);
 assert.doesNotMatch(studio, /供应商错误：\{artwork\.failure_code\}/);
-assert.match(profile, /<CompanionArtworkLibrary/);
+assert.match(app, /<CompanionArtStudio/);
 assert.doesNotMatch(profile, /还没有接入绘图能力/);
 assert.match(chatMessage, /is_surprise_reveal/);
 assert.match(chatMessage, /AuthenticatedImage/);

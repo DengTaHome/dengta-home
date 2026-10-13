@@ -12,6 +12,23 @@
     <link rel="icon" type="image/svg+xml" href="/app-icon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      try {
+        const mode = localStorage.getItem("dengta.font-mode.v1") || "standard";
+        document.documentElement.dataset.dengtaFontMode = mode;
+        if (mode !== "system") {
+          const preload = document.createElement("link");
+          preload.rel = "preload";
+          preload.href = "/fonts/DengTaSans-cjk-v2.woff2";
+          preload.as = "font";
+          preload.type = "font/woff2";
+          preload.crossOrigin = "anonymous";
+          document.head.append(preload);
+        }
+      } catch {
+        // The standard font still loads from CSS when private storage is unavailable.
+      }
+    </script>
     <title>DengTa home</title>
   </head>
   <body>

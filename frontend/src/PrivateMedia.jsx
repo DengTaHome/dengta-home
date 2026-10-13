@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { usePrivateMediaSource } from "./use-private-media";
 
 export function AuthenticatedImage({
@@ -7,18 +8,38 @@ export function AuthenticatedImage({
   buttonClassName,
   loading = "lazy",
   onPreview,
+  fallback = null,
+  scopeKey = "",
 }) {
-  const media = usePrivateMediaSource(src);
+  const placeholderRef = useRef(null);
+  const [visibleSource, setVisibleSource] = useState(null);
+  const needsObservation = loading !== "eager" && typeof IntersectionObserver === "function";
+  const mayLoad = !needsObservation || visibleSource === src;
+  const media = usePrivateMediaSource(src, { enabled: mayLoad, scopeKey });
 
-  if (media.loading) {
+  useEffect(() => {
+    if (mayLoad || !placeholderRef.current) return;
+    let active = true;
+    const observer = new IntersectionObserver((entries) => {
+      if (!active || !entries.some((entry) => entry.isIntersecting)) return;
+      setVisibleSource(src);
+      observer.disconnect();
+    });
+    observer.observe(placeholderRef.current);
+    return () => { active = false; observer.disconnect(); };
+  }, [mayLoad, src]);
+
+  if (!mayLoad || media.loading) {
     return (
       <span
-        className="private-media-placeholder is-loading"
+        ref={placeholderRef}
+        className={`private-media-placeholder is-loading${className ? ` ${className}` : ""}`}
         aria-label="图片加载中"
       />
     );
   }
   if (!media.url) {
+    if (fallback) return fallback;
     return (
       <span
         className="private-media-placeholder is-error"
@@ -36,6 +57,7 @@ export function AuthenticatedImage({
       src={media.url}
       alt={alt}
       loading={loading}
+      decoding="async"
     />
   );
   if (!onPreview) return image;

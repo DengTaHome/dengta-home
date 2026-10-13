@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import { createServer } from 'vite';
+import { fileURLToPath } from 'node:url';
+const previousWindow = globalThis.window, previousFetch = globalThis.fetch;
+globalThis.window = { setTimeout, clearTimeout };
+const vite = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), appType: 'custom', logLevel: 'silent', server: { middlewareMode: true } });
+let fetches = 0;
+const pendingAuth = { getRequestContext: () => new Promise(() => {}) };
+try {
+  const { apiFetch, streamChat } = await vite.ssrLoadModule('/src/api.js');
+  globalThis.fetch = async () => { fetches += 1; throw new Error('should not be called'); };
+  const external = new AbortController();
+  await assert.rejects(apiFetch('/fixture', { timeoutMs: 15, signal: external.signal, authSession: pendingAuth, retry: false }), error => error.code === 'request_timeout');
+  assert.equal(fetches, 0, 'timeout applies to auth even with an external signal');
+  const abort = new AbortController();
+  const waiting = apiFetch('/fixture', { signal: abort.signal, authSession: pendingAuth, retry: false });
+  abort.abort(); await assert.rejects(waiting, error => error.name === 'AbortError'); assert.equal(fetches, 0);
+  let controller;
+  const events = [];
+  globalThis.fetch = async () => new Response(new ReadableStream({ start(c) { controller = c; } }), { headers: { 'Content-Type': 'text/event-stream' } });
+  const authSession = { getRequestContext: async () => ({}) };
+  const run = streamChat({ message: 'synthetic' }, event => events.push(event), { authSession });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const encoder = new TextEncoder();
+  const first = encoder.encode('data: {"type":"text","content":"你好🙂"}\r\n\r\n');
+  const split = first.indexOf(0xf0) + 2;
+  controller.enqueue(first.slice(0, split)); await new Promise(resolve => setTimeout(resolve, 0)); assert.equal(events.length, 0);
+  controller.enqueue(first.slice(split)); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(events[0].content, '你好🙂', 'complete UTF-8 delta arrives before the stream finishes');
+  controller.enqueue(encoder.encode('data: {"type":"done","ok":true}\n\n')); controller.close(); await run;
+  const truncated = streamChat({ message: 'synthetic' }, () => {}, { authSession });
+  await new Promise(resolve => setTimeout(resolve, 0)); controller.close();
+  await assert.rejects(truncated, error => error.code === 'chat_stream_interrupted');
+  console.log('API lifecycle passed: external abort, timeout during auth, immediate UTF8 chunks, missing terminal');
+} finally { await vite.close(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }

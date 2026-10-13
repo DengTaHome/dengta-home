@@ -316,6 +316,20 @@ async function main() {
             for (const character of rawText) {
                 sendProviderDelta(response, provider, character);
             }
+            if (provider === "openai-responses") {
+                sendEvent(response, {
+                    type: "response.completed",
+                    response: { status: "completed" }
+                });
+            } else if (provider === "anthropic") {
+                sendEvent(response, {
+                    type: "message_delta",
+                    delta: { stop_reason: "end_turn" }
+                });
+                sendEvent(response, { type: "message_stop" });
+            } else if (provider === "gemini") {
+                sendEvent(response, { candidates: [{ finishReason: "STOP" }] });
+            }
         }
         response.end("data: [DONE]\n\n");
     });
@@ -509,9 +523,17 @@ async function main() {
             path.join(__dirname, "..", "server.js"),
             "utf8"
         );
-        const voiceStart = serverSource.indexOf('app.post(\n    "/voice/turn"');
-        const voiceEnd = serverSource.indexOf('app.post("/voice/speech"', voiceStart);
-        assert.ok(voiceStart >= 0 && voiceEnd > voiceStart);
+        const voiceStart = serverSource.search(
+            /app\.post\(\r?\n\s*"\/voice\/turn"/
+        );
+        const voiceEnd = serverSource.indexOf(
+            'app.post("/voice/speech"',
+            voiceStart
+        );
+        assert.ok(
+            voiceStart >= 0 && voiceEnd > voiceStart,
+            "voice route boundaries must be discoverable with LF or CRLF line endings"
+        );
         const voiceRoute = serverSource.slice(voiceStart, voiceEnd);
         assert.match(voiceRoute, /generateReply\(\{/);
         assert.match(voiceRoute, /SELECT_REPLY_SUGGESTIONS_TOOL/);

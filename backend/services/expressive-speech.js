@@ -66,12 +66,51 @@ const MINIMAX_SOUND_TAGS = [
     "applause"
 ];
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+const {
+    MAX_DEEPGRAM_CHARACTERS,
+    deepgramModelLanguage,
+    synthesizeDeepgramSpeech
+} = require("./deepgram-speech");
 
 function serviceUnavailable(message) {
     const error = new Error(message);
     error.status = 503;
     error.code = "EXPRESSIVE_TTS_NOT_CONFIGURED";
     return error;
+}
+
+function voiceLanguageUnsupported() {
+    const error = new Error(
+        "当前 Deepgram 音色不支持这条回复里的语言，也没有可用的中文语音回退。"
+    );
+    error.status = 422;
+    error.code = "VOICE_LANGUAGE_UNSUPPORTED";
+    return error;
+}
+
+function analyzeDeepgramSentences(text, modelLanguage) {
+    const locale = modelLanguage === "ja" ? "ja" : modelLanguage || "en";
+    const segments = Array.from(
+        new Intl.Segmenter(locale, { granularity: "sentence" }).segment(text),
+        (entry) => entry.segment.trim()
+    ).filter(Boolean);
+    const compatibleSegments = segments.filter((sentence) => {
+        const hasHan = /\p{Script=Han}/u.test(sentence);
+        const hasKana =
+            /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(sentence);
+        const hasLatin = /\p{Script=Latin}/u.test(sentence);
+        if (modelLanguage === "ja") return hasKana;
+        return hasLatin && !hasHan && !hasKana;
+    });
+    return {
+        compatibleText: compatibleSegments.join(" "),
+        needsChineseFallback: segments.some((sentence) => {
+            const hasHan = /\p{Script=Han}/u.test(sentence);
+            const hasKana =
+                /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(sentence);
+            return hasHan && !(modelLanguage === "ja" && hasKana);
+        })
+    };
 }
 
 function upstreamError(message, status = 502) {
@@ -346,10 +385,55 @@ function decodeMiniMaxAudio(payload) {
 async function synthesizeExpressiveSpeech({
     text,
     emotionHint = "",
+    providerConfig = null,
     env = process.env,
     fetchImpl = fetch
 }) {
     const capabilities = getExpressiveSpeechCapabilities(env);
+    if (providerConfig?.provider === "disabled") {
+        const error = new Error("当前账号已关闭云端发声。");
+        error.status = 409;
+        error.code = "VOICE_OUTPUT_DISABLED";
+        throw error;
+    }
+    if (providerConfig?.provider === "deepgram") {
+        const speechText = prepareSpeechText(text, MAX_DEEPGRAM_CHARACTERS);
+        if (!speechText) {
+            const error = new Error("这条 AI 回复没有可朗读的文字。");
+            error.status = 400;
+            throw error;
+        }
+        const modelLanguage = deepgramModelLanguage(providerConfig.model);
+        const languageAnalysis = analyzeDeepgramSentences(
+            speechText,
+            modelLanguage
+        );
+        const needsChineseFallback = languageAnalysis.needsChineseFallback;
+        if (!needsChineseFallback) {
+            return synthesizeDeepgramSpeech({
+                text: speechText,
+                apiKey: providerConfig.apiKey,
+                model: providerConfig.model,
+                region: providerConfig.region,
+                speed: providerConfig.speed,
+                timeoutMs: env.EXPRESSIVE_TTS_TIMEOUT_MS,
+                fetchImpl
+            });
+        }
+        if (!capabilities.configured) {
+            const compatibleText = languageAnalysis.compatibleText;
+            if (!compatibleText) throw voiceLanguageUnsupported();
+            return synthesizeDeepgramSpeech({
+                text: compatibleText,
+                apiKey: providerConfig.apiKey,
+                model: providerConfig.model,
+                region: providerConfig.region,
+                speed: providerConfig.speed,
+                timeoutMs: env.EXPRESSIVE_TTS_TIMEOUT_MS,
+                fetchImpl
+            });
+        }
+    }
     if (!capabilities.configured) {
         throw serviceUnavailable(
             "服务器尚未同时配置 MiniMax API Key 和 voice_id，本次无法生成自然语音；文字聊天不受影响。"

@@ -776,7 +776,7 @@ assert.equal(
                 return {
                   done: false,
                   value: new TextEncoder().encode(
-                    'data: {"type":"text","content":"你好"}\n\ndata: {"type":"done","ok":true}\n\n',
+                    'data: {"type":"monologue","phase":"delta","source":"model_authored_visible_monologue","content":"我先认真回应你","offset":0}\n\ndata: {"type":"monologue","phase":"end","source":"model_authored_visible_monologue","state":"complete"}\n\ndata: {"type":"text","content":"你好"}\n\ndata: {"type":"done","ok":true}\n\n',
                   ),
                 };
               }
@@ -799,6 +799,19 @@ assert.equal(
     });
     assert.equal(receivedSignal, controller.signal);
     assert.deepEqual(events, [
+      {
+        type: "monologue",
+        phase: "delta",
+        source: "model_authored_visible_monologue",
+        content: "我先认真回应你",
+        offset: 0,
+      },
+      {
+        type: "monologue",
+        phase: "end",
+        source: "model_authored_visible_monologue",
+        state: "complete",
+      },
       { type: "text", content: "你好" },
       { type: "done", ok: true },
     ]);
@@ -919,6 +932,8 @@ await assert.rejects(
   const originalWindow = globalThis.window;
   let cancelled = false;
   let released = false;
+  let notifyReaderStarted;
+  const readerStarted = new Promise(resolve => { notifyReaderStarted = resolve; });
 
   globalThis.window = {
     setTimeout: globalThis.setTimeout,
@@ -932,6 +947,7 @@ await assert.rejects(
       getReader() {
         return {
           read() {
+            notifyReaderStarted();
             return new Promise((resolve, reject) => {
               if (options.signal.aborted) {
                 reject(options.signal.reason);
@@ -958,7 +974,7 @@ await assert.rejects(
   try {
     const controller = new AbortController();
     const promise = streamChat({}, () => {}, { signal: controller.signal });
-    await Promise.resolve();
+    await readerStarted;
     controller.abort(new DOMException("页面已离开", "AbortError"));
     await assert.rejects(promise, { name: "AbortError" });
     assert.equal(cancelled, true);

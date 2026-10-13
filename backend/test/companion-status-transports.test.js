@@ -121,6 +121,10 @@ async function main() {
                     delta: character
                 });
             }
+            sendEvent(response, {
+                type: "response.completed",
+                response: { status: "completed" }
+            });
             response.end("data: [DONE]\n\n");
             return;
         }

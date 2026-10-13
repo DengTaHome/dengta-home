@@ -86,6 +86,43 @@ assert.equal(
     "模型选择冷却中或未提供的招式时必须回退到本回合可用招式"
 );
 
+const refusedResult = {
+    companion_skill: null,
+    reaction: "",
+    narration: "",
+    refused: true,
+    refusal_code: "provider_boundary_residue"
+};
+for (const field of ["reaction", "narration"]) {
+    for (const wrapper of [text => text, text => "```json\n" + text + "\n```"] ) {
+        assert.deepEqual(
+            parseDuelModelResponse(wrapper(JSON.stringify({
+                companion_skill: "thigh",
+                reaction: "Fictional ordinary reaction.",
+                narration: "Fictional ordinary scene.",
+                [field]: "I can't provide sexual content."
+            })), parsed),
+            refusedResult,
+            "a refusal in the decoded " + field + " must not become a normal round"
+        );
+    }
+}
+assert.deepEqual(
+    parseDuelModelResponse(JSON.stringify({
+        companion_skill: "thigh",
+        reaction: "我拒绝邀请，随后继续正常对话。",
+        narration: "角色拒绝邀请后走进花园。"
+    }), parsed),
+    { companion_skill: "thigh", reaction: "我拒绝邀请，随后继续正常对话。", narration: "角色拒绝邀请后走进花园。" },
+    "ordinary fictional dialogue must keep the existing narrow verdict"
+);
+assert.deepEqual(
+    parseDuelModelResponse(JSON.stringify({
+        companion_skill: "thigh", reaction: "", narration: JSON.stringify({ error: { code: "fixture_failure", message: "Fictional provider error" } })
+    }), parsed),
+    { ...refusedResult, refusal_code: "provider_error_document" }
+);
+
 assert.throws(
     () => parseDuelNarrationRequest({ ...body, player_skill: "unknown" }),
     /不是允许的招式/

@@ -1,0 +1,42 @@
+name: Trigger companion background jobs
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dengta-background-jobs
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run one protected background-job tick
+        env:
+          BACKGROUND_JOB_TRIGGER_SECRET: ${{ secrets.DENGTA_BACKGROUND_JOB_TRIGGER_SECRET_V3 }}
+          BACKGROUND_JOB_API_URL: ${{ vars.DENGTA_BACKGROUND_JOB_API_URL || 'https://your-project.onrender.com' }}
+        run: |
+          if [ -z "$BACKGROUND_JOB_TRIGGER_SECRET" ]; then
+            echo "DENGTA_BACKGROUND_JOB_TRIGGER_SECRET_V3 is not configured; skipping this tick."
+            exit 0
+          fi
+
+          status=$(curl --silent --show-error \
+            --output response.json \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "x-dengta-job-secret: $BACKGROUND_JOB_TRIGGER_SECRET" \
+            "$BACKGROUND_JOB_API_URL/internal/background-jobs/tick")
+
+          if [ "$status" != "200" ] && [ "$status" != "202" ]; then
+            echo "Background-job route returned HTTP $status."
+            exit 1
+          fi
+
+          jq -r '"ok=\(.ok // false), code=\(.code // "unknown"), status=\(.status // "unknown")"' response.json

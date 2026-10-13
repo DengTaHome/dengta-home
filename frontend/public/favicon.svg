@@ -1,17 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="b" x1="8" y1="4" x2="58" y2="60">
-      <stop stop-color="#373d49"/>
-      <stop offset="1" stop-color="#080b10"/>
+    <linearGradient id="night" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0b1830"/>
+      <stop offset="1" stop-color="#153457"/>
     </linearGradient>
-    <linearGradient id="s" x1="12" y1="9" x2="54" y2="56">
-      <stop stop-color="#fff"/>
-      <stop offset=".55" stop-color="#bde8ff"/>
-      <stop offset="1" stop-color="#ffd0ef"/>
+    <radialGradient id="glow" cx=".5" cy=".5" r=".5">
+      <stop stop-color="#fff6d8" stop-opacity="0"/>
+      <stop offset=".6" stop-color="#ffe9b0" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#ffd76a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beam" x1="0" y1="1" x2="1" y2="0">
+      <stop stop-color="#ffd98a" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffe9b8" stop-opacity=".55"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="15" fill="url(#b)"/>
-  <path d="M17 17c5-1 7 0 8 3m-4-2c2 8 2 25 0 31m3-31c11-7 27-2 29 13 2 14-10 24-25 20-3-1-5-2-7-4m0 4c10-1 22 1 31 7"
-    fill="none" stroke="url(#s)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M27 14c2-2 3 1 5 0 2-1 3-2 4 0 1 2-1 3 0 5 1 2 3 2 2 4-1 2-3 0-5 2-1 1-1 4-3 4-3 0-2-3-4-4-1-1-4 0-4-2-1-3 2-3 3-5 1-2-1-3 1-5Z" fill="url(#s)" stroke="#fff" stroke-width=".5"/>
+  <rect width="64" height="64" rx="15" fill="url(#night)"/>
+  <!-- 灯光 -->
+  <circle cx="26" cy="21" r="17" fill="url(#glow)"/>
+  <path d="M26 21 6 42l24-4Z" fill="url(#beam)" opacity=".5"/>
+  <!-- 灯塔 -->
+  <path d="M20 42h12l-4 8H24Z" fill="#e05a45"/>
+  <path d="M21.5 34h11l-4 8h-3Z" fill="#fff6ea"/>
+  <path d="M22 30h10l3 4h-16Z" fill="#e05a45"/>
+  <rect x="23.5" y="23.5" width="7" height="7" rx="2" fill="#ffd76a" stroke="#fff6ea" stroke-width=".8"/>
+  <path d="M24 21h6l-2 4h-2Z" fill="#c3cede"/>
+  <!-- 灯光主点 -->
+  <circle cx="27" cy="27" r="2.6" fill="#fff8e6"/>
+  <!-- 海面 -->
+  <path d="M0 52h64v12H0z" fill="#0a1e3a"/>
+  <path d="M16 55h4M30 55h6" stroke="#ffd76a" stroke-width="1.4" stroke-linecap="round" opacity=".55"/>
+  <path d="M10 59h6M40 59h8" stroke="#ffd76a" stroke-width="1.1" stroke-linecap="round" opacity=".4"/>
+  <!-- 星星 -->
+  <circle cx="12" cy="10" r="1.3" fill="#fff" opacity=".8"/>
+  <circle cx="46" cy="8" r="1" fill="#fff" opacity=".7"/>
+  <circle cx="54" cy="20" r="1.3" fill="#fff" opacity=".5"/>
 </svg>

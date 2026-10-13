@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { apiRequest } from "./api";
+import { authSession } from "./auth-session.js";
 import { AuthenticatedImage } from "./PrivateMedia";
 
 const EMPTY_STATUS = {
@@ -18,12 +19,78 @@ const EMPTY_STATUS = {
     model: "",
     enabled: false,
     auth_configured: false,
+    credential_state: "missing",
+    credential_reentry_required: false,
     last_status: "untested",
     last_error_code: null,
   },
   usage: { day: 0, month: 0 },
   surprise_shutdown_required: false,
 };
+
+const CREATIVE_CREDENTIAL_RECOVERY_CODES = new Set([
+  "creative_secret_invalid",
+  "creative_secret_scope_invalid",
+  "creative_provider_credential_unreadable",
+  "creative_provider_credential_reentry_required",
+]);
+
+const IMAGE_PROVIDER_CREDENTIAL_RECOVERY_MESSAGE =
+  "旧部署保存的图片接口凭据无法由当前后端解密。已有图片与手动上传文件仍保留；如需生成新图片，请重新填写图片接口。 / The saved image API credential cannot be decrypted by this backend. Existing images and manual uploads remain stored. Re-enter the image API settings to generate new images.";
+
+const ARTWORK_METADATA_RECOVERY_MESSAGE =
+  "已有图片与手动上传文件仍保留；旧作品文案可能暂不可读，未完成作品需要重新构思。重新填写图片 API Key 不能恢复旧作品文案。 / Existing images and manual uploads remain stored. Text from old artwork may be unavailable, and unfinished artwork must be recreated. Re-entering the image API key cannot restore old artwork text.";
+
+function isCreativeCredentialRecoveryError(error) {
+  return (
+    CREATIVE_CREDENTIAL_RECOVERY_CODES.has(String(error?.code || "")) ||
+    /图片接口或作品凭据.*(?:无法解密|不匹配)|(?:image|artwork).*(?:credential|secret).*(?:cannot|could not).*decrypt/i.test(
+      String(error?.message || ""),
+    )
+  );
+}
+
+function providerNeedsCredentialReentry(provider) {
+  return (
+    provider?.credential_reentry_required === true ||
+    provider?.credential_state === "needs_reentry"
+  );
+}
+
+function artworkNeedsMetadataRecovery(artwork) {
+  return (
+    artwork?.metadata_reentry_required === true ||
+    artwork?.metadata_state === "needs_reentry"
+  );
+}
+
+function isArtworkMetadataRecoveryError(error) {
+  return (
+    String(error?.code || "") ===
+      "creative_artwork_metadata_reentry_required" ||
+    error?.metadata_reentry_required === true ||
+    error?.metadata_state === "needs_reentry"
+  );
+}
+
+function creativeErrorFeedback(
+  error,
+  recoveryMessage = ARTWORK_METADATA_RECOVERY_MESSAGE,
+) {
+  return isCreativeCredentialRecoveryError(error)
+    ? recoveryMessage
+    : error?.message || "请求失败，请稍后重试。";
+}
+
+function normalizeCreativeStatus(value = {}) {
+  return {
+    ...EMPTY_STATUS,
+    ...value,
+    settings: { ...EMPTY_STATUS.settings, ...(value.settings || {}) },
+    provider: { ...EMPTY_STATUS.provider, ...(value.provider || {}) },
+    usage: { ...EMPTY_STATUS.usage, ...(value.usage || {}) },
+  };
+}
 
 const CREATIVE_FAILURE_MESSAGES = Object.freeze({
   creative_provider_not_enabled: "图片接口尚未启用，请先在设置里勾选启用并保存。",
@@ -50,6 +117,72 @@ function creativeFailureMessage(code) {
 
 function creativeRequest(path, options) {
   return apiRequest(`/api/v2/creative${path}`, options);
+}
+
+function loadCreativeLibraryResources(request = creativeRequest) {
+  // Provider health and the artwork library are independent. A stale provider
+  // credential must never prevent a readable stored image from being shown.
+  return Promise.allSettled([
+    request("/status"),
+    request("/artworks"),
+  ]);
+}
+
+function useCreativeLibraryScope() {
+  const [scope] = useState(() => {
+    let owner, controller, active = false, generation = 0, operation = null;
+    const matches = () => {
+      const current = authSession.getSnapshot();
+      return Boolean(owner?.user?.id && owner.activeCompanionId) &&
+        current?.user?.id === owner.user.id && current?.activeCompanionId === owner.activeCompanionId;
+    };
+    const current = token => active && !controller.signal.aborted && matches() && (!token || token.generation === generation);
+    const assertCurrent = () => {
+      if (!current()) throw new DOMException("旧画室操作已取消。", "AbortError");
+    };
+    const cancel = () => { active = false; generation++; controller?.abort(); operation = null; };
+    return {
+      activate() { owner = authSession.getSnapshot(); controller = new AbortController(); active = true; generation++; },
+      cancel, current, capture: () => ({ generation }),
+      busy: () => operation !== null,
+      begin() {
+        if (!current() || operation) return null;
+        operation = { generation };
+        return operation;
+      },
+      finish(token) { if (operation === token) operation = null; },
+      async request(path, options = {}) {
+        assertCurrent();
+        const token = { generation }, requestOwner = owner, requestController = controller;
+        const assertRequest = () => {
+          if (!current(token)) throw new DOMException("旧画室请求已取消。", "AbortError");
+        };
+        const data = await creativeRequest(path, { ...options, signal: requestController.signal,
+          authSession: {
+            getSnapshot: () => requestOwner,
+            async getRequestContext() {
+              assertRequest();
+              const context = await authSession.getRequestContext();
+              assertRequest();
+              if (context?.companionId !== requestOwner.activeCompanionId) throw new DOMException("画室伴侣已切换。", "AbortError");
+              return context;
+            },
+            captureCompanionFromResponse: response => { if (current(token)) authSession.captureCompanionFromResponse?.(response); },
+            invalidateSession: message => { if (current(token)) return authSession.invalidateSession?.(message); },
+          },
+        });
+        // JSON decoding can finish after an account switch even when fetch was aborted.
+        assertRequest();
+        return data;
+      },
+    };
+  });
+  useLayoutEffect(() => {
+    scope.activate();
+    const unsubscribe = authSession.subscribe?.(() => { if (!scope.current()) scope.cancel(); });
+    return () => { unsubscribe?.(); scope.cancel(); };
+  }, [scope]);
+  return scope;
 }
 
 function modeLabel(value) {
@@ -153,64 +286,139 @@ async function prepareArtworkUpload(file) {
   };
 }
 
-export function CompanionArtworkLibrary({ aiName = "伴侣", onNotice }) {
+export function CompanionArtworkLibrary({
+  aiName = "伴侣",
+  onNotice,
+  onOpenImageProviderSettings,
+}) {
+  const scope = useCreativeLibraryScope();
   const [artworks, setArtworks] = useState([]);
   const [status, setStatus] = useState(EMPTY_STATUS);
   const [busy, setBusy] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [providerCredentialRecoveryRequired, setProviderCredentialRecoveryRequired] =
+    useState(false);
+  const [artworkMetadataUnavailable, setArtworkMetadataUnavailable] =
+    useState(false);
+
+  const applyLoadResults = useCallback((results) => {
+    const [statusResult, artworkResult] = results;
+    let providerRecoveryRequired = false;
+    let metadataUnavailable = false;
+    const ordinaryErrors = [];
+
+    if (statusResult.status === "fulfilled") {
+      const nextStatus = normalizeCreativeStatus(statusResult.value);
+      setStatus(nextStatus);
+      providerRecoveryRequired = providerNeedsCredentialReentry(
+        nextStatus.provider,
+      );
+    } else if (isCreativeCredentialRecoveryError(statusResult.reason)) {
+      providerRecoveryRequired = true;
+    } else {
+      ordinaryErrors.push(statusResult.reason);
+    }
+
+    if (artworkResult.status === "fulfilled") {
+      const returnedArtworks = Array.isArray(artworkResult.value.artworks)
+        ? artworkResult.value.artworks
+        : [];
+      setArtworks(returnedArtworks);
+      metadataUnavailable =
+        artworkResult.value.metadata_reentry_required === true ||
+        returnedArtworks.some(artworkNeedsMetadataRecovery);
+    } else if (isCreativeCredentialRecoveryError(artworkResult.reason)) {
+      metadataUnavailable = true;
+    } else {
+      ordinaryErrors.push(artworkResult.reason);
+    }
+
+    setProviderCredentialRecoveryRequired(providerRecoveryRequired);
+    setArtworkMetadataUnavailable(metadataUnavailable);
+    if (ordinaryErrors.length > 0) {
+      setFeedback(
+        ordinaryErrors[0]?.message || "作品库暂时无法读取，请稍后重试。",
+      );
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
-    const [statusData, artworkData] = await Promise.all([
-      creativeRequest("/status"),
-      creativeRequest("/artworks"),
-    ]);
-    setStatus({ ...EMPTY_STATUS, ...statusData });
-    setArtworks(Array.isArray(artworkData.artworks) ? artworkData.artworks : []);
-  }, []);
+    const token = scope.capture();
+    const results = await loadCreativeLibraryResources(scope.request);
+    if (!scope.current(token)) throw new DOMException("旧画室操作已取消。", "AbortError");
+    applyLoadResults(results);
+    return results;
+  }, [applyLoadResults, scope]);
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      creativeRequest("/status"),
-      creativeRequest("/artworks"),
-    ])
-      .then(([statusData, artworkData]) => {
-        if (!active) return;
-        setStatus({ ...EMPTY_STATUS, ...statusData });
-        setArtworks(
-          Array.isArray(artworkData.artworks) ? artworkData.artworks : [],
-        );
-      })
-      .catch((error) => {
-        if (active) setFeedback(error.message);
+    loadCreativeLibraryResources(scope.request)
+      .then((results) => {
+        if (!active || !scope.current()) return;
+        applyLoadResults(results);
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [applyLoadResults, scope]);
 
   async function requestIdea(kind) {
+    const operation = scope.begin();
+    if (!operation) return;
     setBusy(`idea:${kind}`);
     setFeedback("");
     try {
-      const data = await creativeRequest("/ideas", {
+      const data = await scope.request("/ideas", {
         method: "POST",
         body: JSON.stringify({ kind, acknowledge_cost: false }),
       });
       await refresh();
+      if (!scope.current(operation)) return;
       const message = data.created
         ? `${aiName}已经留下构思，图片还没有生成。`
         : data.reason || `${aiName}这次没有勉强自己画。`;
       setFeedback(message);
       onNotice?.(message);
     } catch (error) {
-      setFeedback(error.message);
+      if (!scope.current(operation)) return;
+      setFeedback(creativeErrorFeedback(error));
     } finally {
-      setBusy("");
+      scope.finish(operation);
+      if (scope.current(operation)) setBusy("");
+    }
+  }
+
+  async function refreshArtworks() {
+    const operation = scope.begin();
+    if (!operation) return;
+    setBusy("refresh");
+    setFeedback("");
+    try {
+      await refresh();
+    } catch (error) {
+      if (scope.current(operation)) setFeedback(creativeErrorFeedback(error));
+    } finally {
+      scope.finish(operation);
+      if (scope.current(operation)) setBusy("");
     }
   }
 
   async function generateArtwork(artwork) {
+    if (!scope.current() || scope.busy()) return;
+    if (artworkNeedsMetadataRecovery(artwork)) {
+      setFeedback(ARTWORK_METADATA_RECOVERY_MESSAGE);
+      return;
+    }
+    if (providerCredentialRecoveryRequired) {
+      setFeedback(IMAGE_PROVIDER_CREDENTIAL_RECOVERY_MESSAGE);
+      return;
+    }
+    if (!status.provider.enabled) {
+      setFeedback(
+        "图片接口尚未启用。请先前往设置保存并启用图片接口。 / The image API is not enabled. Save and enable it in Settings first.",
+      );
+      return;
+    }
     if (
       !window.confirm(
         `现在会真实调用“${status.provider.name || "图片接口"}”生成《${
@@ -220,40 +428,64 @@ export function CompanionArtworkLibrary({ aiName = "伴侣", onNotice }) {
     ) {
       return;
     }
+    const operation = scope.begin();
+    if (!operation) return;
     setBusy(`generate:${artwork.id}`);
     setFeedback("");
     try {
-      await creativeRequest(`/artworks/${artwork.id}/generate`, {
+      await scope.request(`/artworks/${artwork.id}/generate`, {
         method: "POST",
         body: JSON.stringify({ acknowledge_cost: true }),
       });
       await refresh();
+      if (!scope.current(operation)) return;
       const message = "图片已经生成并只保存在当前账号的私人作品库里。";
       setFeedback(message);
       onNotice?.(message);
     } catch (error) {
+      if (!scope.current(operation)) return;
       await refresh().catch(() => {});
-      setFeedback(error.message);
+      if (!scope.current(operation)) return;
+      if (isArtworkMetadataRecoveryError(error)) {
+        setArtworkMetadataUnavailable(true);
+      } else if (isCreativeCredentialRecoveryError(error)) {
+        setProviderCredentialRecoveryRequired(true);
+      }
+      setFeedback(
+        creativeErrorFeedback(
+          error,
+          isArtworkMetadataRecoveryError(error)
+            ? ARTWORK_METADATA_RECOVERY_MESSAGE
+            : IMAGE_PROVIDER_CREDENTIAL_RECOVERY_MESSAGE,
+        ),
+      );
     } finally {
-      setBusy("");
+      scope.finish(operation);
+      if (scope.current(operation)) setBusy("");
     }
   }
 
   async function removeArtwork(artwork) {
+    if (!scope.current() || scope.busy()) return;
     if (!window.confirm(`永久删除《${artwork.title}》吗？删除后无法恢复。`)) {
       return;
     }
+    const operation = scope.begin();
+    if (!operation) return;
     setBusy(`delete:${artwork.id}`);
     try {
-      await creativeRequest(`/artworks/${artwork.id}`, {
+      await scope.request(`/artworks/${artwork.id}`, {
         method: "DELETE",
       });
       await refresh();
+      if (!scope.current(operation)) return;
       setFeedback("作品已经从私人存储中删除。");
     } catch (error) {
-      setFeedback(error.message);
+      if (!scope.current(operation)) return;
+      setFeedback(creativeErrorFeedback(error));
     } finally {
-      setBusy("");
+      scope.finish(operation);
+      if (scope.current(operation)) setBusy("");
     }
   }
 
@@ -261,11 +493,14 @@ export function CompanionArtworkLibrary({ aiName = "伴侣", onNotice }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    const operation = scope.begin();
+    if (!operation) return;
     setBusy("upload");
     setFeedback("");
     try {
       const prepared = await prepareArtworkUpload(file);
-      await creativeRequest("/artworks/upload", {
+      if (!scope.current(operation)) return;
+      await scope.request("/artworks/upload", {
         method: "POST",
         body: JSON.stringify({
           ...prepared,
@@ -276,11 +511,14 @@ export function CompanionArtworkLibrary({ aiName = "伴侣", onNotice }) {
         }),
       });
       await refresh();
+      if (!scope.current(operation)) return;
       setFeedback("图片已去除可识别元数据并保存到私人作品库，没有调用图片模型。");
     } catch (error) {
-      setFeedback(error.message);
+      if (!scope.current(operation)) return;
+      setFeedback(creativeErrorFeedback(error));
     } finally {
-      setBusy("");
+      scope.finish(operation);
+      if (scope.current(operation)) setBusy("");
     }
   }
 
@@ -293,6 +531,28 @@ export function CompanionArtworkLibrary({ aiName = "伴侣", onNotice }) {
         </div>
         <small>{modeLabel(status.settings.generation_mode)}</small>
       </div>
+
+      {(providerCredentialRecoveryRequired || artworkMetadataUnavailable) && (
+        <div className="creative-credential-recovery" role="alert">
+          <div>
+            <strong>
+              {providerCredentialRecoveryRequired
+                ? "图片接口需要重新填写 / Image API setup required"
+                : "旧作品文案暂不可读 / Old artwork text unavailable"}
+            </strong>
+            <p>
+              {providerCredentialRecoveryRequired
+                ? IMAGE_PROVIDER_CREDENTIAL_RECOVERY_MESSAGE
+                : ARTWORK_METADATA_RECOVERY_MESSAGE}
+            </p>
+          </div>
+          {providerCredentialRecoveryRequired && (
+            <button type="button" onClick={onOpenImageProviderSettings}>
+              前往图片接口设置 / Open image settings
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="creative-invitation-card">
         <div>
@@ -369,7 +629,12 @@ export function CompanionArtworkLibrary({ aiName = "伴侣", onNotice }) {
               <div className="artwork-card-copy">
                 <span>{stateLabel(artwork.state)}</span>
                 <strong>{artwork.title}</strong>
-                <p>{artwork.description}</p>
+                <p>
+                  {artwork.description ||
+                    (artworkNeedsMetadataRecovery(artwork)
+                      ? "旧作品文案暂不可读；已保存图片不受影响，未完成作品需重新构思。 / Old artwork text is unavailable. Saved images are unaffected; unfinished artwork must be recreated."
+                      : "")}
+                </p>
                 {artwork.reason && <small>为什么想画：{artwork.reason}</small>}
                 {artwork.model && (
                   <small>
@@ -383,8 +648,24 @@ export function CompanionArtworkLibrary({ aiName = "伴侣", onNotice }) {
                     错误码：{artwork.failure_code}
                   </small>
                 )}
+                {artwork.state === "generating" && (
+                  <small>
+                    先刷新查看是否已画好。若长时间没有结果，可以删除本次作品，再从上方重新构思。
+                    删除不会撤回已提交的接口调用；重新生成可能产生新的接口费用。
+                  </small>
+                )}
               </div>
               <div className="artwork-card-actions">
+                {artwork.state === "generating" && (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={Boolean(busy)}
+                    onClick={refreshArtworks}
+                  >
+                    {busy === "refresh" ? "正在刷新…" : "刷新作品状态"}
+                  </button>
+                )}
                 {["awaiting_confirmation", "failed"].includes(
                   artwork.state,
                 ) && (
@@ -392,13 +673,18 @@ export function CompanionArtworkLibrary({ aiName = "伴侣", onNotice }) {
                     type="button"
                     disabled={
                       Boolean(busy) ||
-                      !status.provider.enabled ||
                       status.settings.generation_mode === "off"
                     }
                     onClick={() => generateArtwork(artwork)}
                   >
                     {busy === `generate:${artwork.id}`
                       ? "正在画…"
+                      : artworkNeedsMetadataRecovery(artwork)
+                        ? "重新构思后生成 / Recreate idea"
+                        : providerCredentialRecoveryRequired
+                          ? "重新配置后生成 / Reconfigure"
+                          : !status.provider.enabled
+                            ? "先启用图片接口 / Enable image API"
                       : artwork.state === "failed"
                         ? "确认费用后重试"
                         : "确认费用并生成"}
@@ -432,7 +718,7 @@ export default function CompanionCreativeSettings() {
 
   const load = useCallback(async () => {
     const data = await creativeRequest("/status");
-    const next = { ...EMPTY_STATUS, ...data };
+    const next = normalizeCreativeStatus(data);
     setStatus(next);
     setSettingsDraft(next.settings);
     setProviderDraft(next.provider);
@@ -444,13 +730,19 @@ export default function CompanionCreativeSettings() {
     creativeRequest("/status")
       .then((data) => {
         if (!active) return;
-        const next = { ...EMPTY_STATUS, ...data };
+        const next = normalizeCreativeStatus(data);
         setStatus(next);
         setSettingsDraft(next.settings);
         setProviderDraft(next.provider);
       })
       .catch((error) => {
-        if (active) setFeedback(error.message);
+        if (active) {
+          setFeedback(
+            isCreativeCredentialRecoveryError(error)
+              ? IMAGE_PROVIDER_CREDENTIAL_RECOVERY_MESSAGE
+              : error.message,
+          );
+        }
       });
     return () => {
       active = false;
@@ -488,7 +780,7 @@ export default function CompanionCreativeSettings() {
           : "图片创作权限已保存。",
       );
     } catch (error) {
-      setFeedback(error.message);
+      setFeedback(creativeErrorFeedback(error));
     } finally {
       setBusy("");
     }
@@ -514,7 +806,9 @@ export default function CompanionCreativeSettings() {
       await load();
       setFeedback(data.message);
     } catch (error) {
-      setFeedback(error.message);
+      setFeedback(
+        creativeErrorFeedback(error, IMAGE_PROVIDER_CREDENTIAL_RECOVERY_MESSAGE),
+      );
     } finally {
       setBusy("");
     }
@@ -527,6 +821,9 @@ export default function CompanionCreativeSettings() {
   function updateProvider(field, value) {
     setProviderDraft((current) => ({ ...current, [field]: value }));
   }
+
+  const providerCredentialRecoveryRequired =
+    providerNeedsCredentialReentry(status.provider);
 
   return (
     <section className="settings-card companion-creative-settings">
@@ -643,7 +940,19 @@ export default function CompanionCreativeSettings() {
         </button>
       </form>
 
-      <form className="creative-provider-form" onSubmit={saveProvider}>
+      <form
+        id="creative-provider-settings"
+        className="creative-provider-form"
+        onSubmit={saveProvider}
+      >
+        {providerCredentialRecoveryRequired && (
+          <div className="creative-provider-reentry" role="alert">
+            <strong>请重新填写图片 API Key / Re-enter image API key</strong>
+            <small>
+              旧密钥无法由当前后端解密；请在下方填写新密钥并保存。保存配置不会调用图片模型，也不会产生生成费用。 / The old key cannot be decrypted by this backend. Enter a new key below and save. Saving does not call the image model or incur generation charges.
+            </small>
+          </div>
+        )}
         <div className="provider-section-title">
           <div>
             <strong>独立图片生成接口</strong>
@@ -703,15 +1012,20 @@ export default function CompanionCreativeSettings() {
             <label>
               {providerDraft.auth_configured
                 ? "更新图片 API Key（可留空）"
-                : "图片 API Key"}
+                : providerCredentialRecoveryRequired
+                  ? "重新填写图片 API Key / Re-enter image API key"
+                  : "图片 API Key"}
               <input
                 type="password"
+                required={providerCredentialRecoveryRequired}
                 value={credential}
                 onChange={(event) => setCredential(event.target.value)}
                 placeholder={
                   providerDraft.auth_configured
                     ? "已加密保存；只在更换时填写"
-                    : "粘贴图片供应商 API Key"
+                    : providerCredentialRecoveryRequired
+                      ? "必须重新粘贴；旧密钥无法恢复"
+                      : "粘贴图片供应商 API Key"
                 }
                 autoComplete="new-password"
               />

@@ -1,0 +1,1099 @@
+/* ============================================================
+   B站风格深色影院放映厅 — Cast Player UI
+   ───────────────────────────────────────────────
+   暖深色背景 · 影院式排版 · 双布局（窄屏/宽屏）
+   Hallmark 设计原则：不纯黑、单锚点色、克制留白
+   ============================================================ */
+
+/* ─── 基础变量 ─── */
+.cast-root {
+  --cast-bg: #0A0808;        /* 暖深色背景，非纯黑 */
+  --cast-surface: #1A1515;   /* 暖深色表面 */
+  --cast-surface-raised: #1E1919;
+  --cast-surface-card: #221D1D;
+  --cast-border: rgba(255,255,255,0.06);
+  --cast-border-strong: rgba(255,255,255,0.12);
+  --cast-text-primary: #E8E4E0;
+  --cast-text-secondary: #9A9692;
+  --cast-text-muted: #6A6662;
+  --cast-text-accent: #FFD9A8;   /* 单一锚点强调色 */
+  --cast-text-blue: #8BD8FF;
+  --cast-control-bg: rgba(255,255,255,0.05);
+  --cast-control-hover: rgba(255,255,255,0.10);
+  --cast-overlay: rgba(0,0,0,0.7);
+  --cast-radius-sm: 6px;
+  --cast-radius-md: 10px;
+  --cast-radius-lg: 16px;
+  --cast-font: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  color: var(--cast-text-primary);
+  font-family: var(--cast-font);
+  background: var(--cast-bg);
+  min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── 窄屏：播放确认页（404px 设计） ─── */
+
+/* 状态栏占位 */
+.cast-status-bar {
+  height: 44px;
+  background: var(--cast-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  font-size: 12px;
+  color: var(--cast-text-secondary);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* 导航栏 */
+.cast-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--cast-bg);
+  border-bottom: 1px solid var(--cast-border);
+}
+.cast-nav-back {
+  font-size: 14px;
+  color: var(--cast-text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--cast-radius-sm);
+  transition: background 0.15s;
+}
+.cast-nav-back:hover {
+  background: var(--cast-control-bg);
+}
+.cast-nav-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cast-text-primary);
+}
+.cast-nav-right {
+  font-size: 13px;
+  color: var(--cast-text-accent);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--cast-radius-sm);
+  transition: background 0.15s;
+}
+.cast-nav-right:hover {
+  background: var(--cast-control-bg);
+}
+
+/* 最近观看区域 */
+.cast-recent {
+  padding: 16px 16px 12px;
+}
+.cast-recent-title {
+  font-size: 13px;
+  color: var(--cast-text-secondary);
+  margin-bottom: 10px;
+}
+.cast-recent-cards {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cast-recent-cards::-webkit-scrollbar { display: none; }
+.cast-recent-card {
+  flex: 0 0 120px;
+  height: 72px;
+  border-radius: var(--cast-radius-md);
+  background: var(--cast-surface-card);
+  border: 1px solid var(--cast-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--cast-text-muted);
+}
+
+/* 确认提示区域 */
+.cast-confirm {
+  text-align: center;
+  padding: 20px 16px 8px;
+}
+.cast-confirm-text {
+  font-size: 15px;
+  color: var(--cast-text-primary);
+  font-weight: 500;
+}
+
+/* 共看信息卡 */
+.cast-ticket {
+  margin: 8px 16px 4px;
+  padding: 16px;
+  background: var(--cast-surface-card);
+  border-radius: var(--cast-radius-lg);
+  border: 1px solid var(--cast-border);
+}
+.cast-ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.cast-ticket-label {
+  color: var(--cast-text-secondary);
+}
+.cast-ticket-value {
+  color: var(--cast-text-primary);
+}
+.cast-ticket-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--cast-control-bg);
+  color: var(--cast-text-accent);
+  border: 1px solid rgba(255,217,168,0.2);
+}
+
+/* 共看时长 */
+.cast-duration {
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--cast-text-muted);
+}
+
+/* 视频标题区域 */
+.cast-video-title {
+  padding: 4px 16px 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+}
+
+/* 分析费用区 */
+.cast-cost {
+  margin: 4px 16px;
+  padding: 14px 16px;
+  background: var(--cast-surface-card);
+  border-radius: var(--cast-radius-md);
+  border: 1px solid var(--cast-border);
+}
+.cast-cost-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.cast-cost-title {
+  font-size: 13px;
+  color: var(--cast-text-secondary);
+}
+.cast-cost-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--cast-text-accent);
+}
+.cast-cost-status {
+  font-size: 12px;
+  color: var(--cast-text-blue);
+}
+.cast-cost-detail {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--cast-text-muted);
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--cast-border);
+}
+
+/* 底部操作条 */
+.cast-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 20px 16px 16px;
+  padding: 0;
+  background: #F0F0F0;
+  border-radius: var(--cast-radius-md);
+  overflow: hidden;
+}
+.cast-action-btn {
+  flex: 1;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cast-action-btn:hover {
+  background: rgba(0,0,0,0.05);
+}
+.cast-action-btn + .cast-action-btn {
+  border-left: 1px solid rgba(0,0,0,0.1);
+}
+
+/* 底部资源准备区 */
+.cast-resource {
+  padding: 12px 16px 24px;
+  border-top: 1px solid var(--cast-border);
+  margin-top: 8px;
+}
+.cast-resource-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--cast-text-muted);
+}
+.cast-resource-value {
+  color: var(--cast-text-secondary);
+}
+
+/* ─── 宽屏：播放器页面（1200px 设计） ─── */
+
+/* 顶部标题区 */
+.cast-player-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px 8px;
+  position: relative;
+}
+.cast-player-header-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cast-text-primary);
+}
+.cast-player-header-more {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--cast-text-secondary);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--cast-radius-sm);
+  background: var(--cast-control-bg);
+  transition: background 0.15s;
+}
+.cast-player-header-more:hover {
+  background: var(--cast-control-hover);
+}
+
+/* 同步标签 */
+.cast-sync-label {
+  text-align: center;
+  padding: 4px 0 12px;
+  font-size: 13px;
+  color: var(--cast-text-accent);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+.cast-sync-label::before {
+  content: "●";
+  margin-right: 6px;
+  font-size: 10px;
+  color: #4CAF50;
+}
+
+/* 视频播放器容器 */
+.cast-video-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 650px;
+  background: #050505;
+  overflow: hidden;
+  cursor: pointer;
+}
+.cast-video-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, #111 0%, #000 100%);
+}
+.cast-video-placeholder-text {
+  font-size: 14px;
+  color: var(--cast-text-muted);
+  letter-spacing: 1px;
+}
+/* 视频封面 overlay */
+.cast-video-cover {
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* 播放器控制栏 */
+.cast-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.85));
+  transition: opacity 0.3s;
+  z-index: 10;
+}
+.cast-controls-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.cast-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+.cast-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cast-control-btn {
+  background: none;
+  border: none;
+  color: var(--cast-text-primary);
+  font-size: 18px;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+.cast-control-btn:hover {
+  background: var(--cast-control-bg);
+}
+.cast-control-time {
+  font-size: 12px;
+  color: var(--cast-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cast-control-speed {
+  font-size: 12px;
+  color: var(--cast-text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--cast-radius-sm);
+  transition: background 0.15s;
+}
+.cast-control-speed:hover {
+  background: var(--cast-control-bg);
+}
+.cast-control-fullscreen {
+  font-size: 12px;
+  color: var(--cast-text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--cast-radius-sm);
+  transition: background 0.15s;
+}
+.cast-control-fullscreen:hover {
+  background: var(--cast-control-bg);
+}
+
+/* 进度条（视频底部） */
+.cast-progress-track {
+  position: absolute;
+  bottom: 52px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.15);
+  cursor: pointer;
+  z-index: 10;
+}
+.cast-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--cast-text-accent);
+  transition: width 0.2s;
+  border-radius: 0 2px 2px 0;
+}
+.cast-progress-track:hover {
+  height: 5px;
+}
+.cast-progress-track:hover .cast-progress-fill {
+  height: 5px;
+}
+
+/* 分 P 信息 */
+.cast-episode {
+  text-align: center;
+  padding: 8px 0 4px;
+  font-size: 12px;
+  color: var(--cast-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 内容标题（宽屏） */
+.cast-content-title {
+  padding: 4px 24px 12px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+}
+
+/* ─── AI 剧情分析状态 ─── */
+.cast-analysis {
+  margin: 4px 24px 8px;
+  padding: 12px 16px;
+  background: var(--cast-surface-card);
+  border-radius: var(--cast-radius-md);
+  border: 1px solid var(--cast-border);
+}
+.cast-analysis-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cast-analysis-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--cast-border);
+  border-top-color: var(--cast-text-accent);
+  border-radius: 50%;
+  animation: cast-spin 0.8s linear infinite;
+}
+@keyframes cast-spin {
+  to { transform: rotate(360deg); }
+}
+.cast-analysis-text {
+  font-size: 13px;
+  color: var(--cast-text-secondary);
+}
+.cast-analysis-progress {
+  font-size: 12px;
+  color: var(--cast-text-muted);
+  margin-top: 4px;
+}
+.cast-analysis-degraded {
+  font-size: 12px;
+  color: var(--cast-text-accent);
+  opacity: 0.8;
+  margin-top: 4px;
+}
+.cast-analysis-error {
+  font-size: 13px;
+  color: #FF6B6B;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cast-analysis-retry {
+  font-size: 12px;
+  color: var(--cast-text-blue);
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 8px;
+}
+.cast-analysis-complete {
+  font-size: 13px;
+  color: #4CAF50;
+}
+.cast-analysis-never {
+  font-size: 12px;
+  color: var(--cast-text-muted);
+}
+
+/* ─── 对话区域 ─── */
+.cast-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px 8px;
+}
+.cast-chat-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+}
+.cast-chat-danmaku-toggle {
+  font-size: 12px;
+  color: var(--cast-text-secondary);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--cast-control-bg);
+  transition: background 0.15s;
+}
+.cast-chat-danmaku-toggle:hover {
+  background: var(--cast-control-hover);
+}
+.cast-chat-danmaku-toggle.is-active {
+  color: var(--cast-text-accent);
+  background: rgba(255,217,168,0.1);
+}
+
+/* 聊天消息区 */
+.cast-chat-messages {
+  padding: 4px 24px 12px;
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+.cast-chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+.cast-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+}
+.cast-chat-empty {
+  text-align: center;
+  padding: 24px 0;
+  font-size: 13px;
+  color: var(--cast-text-muted);
+}
+
+/* 消息气泡 */
+.cast-message {
+  display: flex;
+  margin-bottom: 12px;
+  max-width: 85%;
+}
+.cast-message-user {
+  align-self: flex-end;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+.cast-message-ai {
+  align-self: flex-start;
+  justify-content: flex-start;
+}
+.cast-message-bubble {
+  padding: 10px 14px;
+  border-radius: var(--cast-radius-md);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.cast-message-user .cast-message-bubble {
+  background: var(--cast-surface-card);
+  border: 1px solid var(--cast-border);
+  color: var(--cast-text-primary);
+  border-bottom-right-radius: 4px;
+}
+.cast-message-ai .cast-message-bubble {
+  background: transparent;
+  border: 1px solid var(--cast-border);
+  color: var(--cast-text-primary);
+  border-bottom-left-radius: 4px;
+}
+.cast-message-sender {
+  font-size: 11px;
+  color: var(--cast-text-muted);
+  margin-bottom: 3px;
+}
+.cast-message-ai .cast-message-sender {
+  color: var(--cast-text-accent);
+}
+.cast-message-user .cast-message-sender {
+  color: var(--cast-text-blue);
+  text-align: right;
+}
+
+/* 底部输入区 */
+.cast-input-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px 16px;
+  background: var(--cast-bg);
+  border-top: 1px solid var(--cast-border);
+}
+.cast-input {
+  flex: 1;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+  background: var(--cast-surface);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  color: var(--cast-text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.cast-input::placeholder {
+  color: var(--cast-text-muted);
+}
+.cast-input:focus {
+  border-color: var(--cast-border-strong);
+}
+.cast-send-btn {
+  height: 40px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+  background: var(--cast-control-bg);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.cast-send-btn:hover {
+  background: var(--cast-control-hover);
+}
+.cast-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── 放映厅房间管理 ─── */
+.cast-room-panel {
+  padding: 16px 24px;
+  border-top: 1px solid var(--cast-border);
+  margin-top: 8px;
+}
+.cast-room-code-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--cast-surface-card);
+  border-radius: var(--cast-radius-md);
+  border: 1px solid var(--cast-border);
+}
+.cast-room-code-label {
+  font-size: 12px;
+  color: var(--cast-text-muted);
+}
+.cast-room-code {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--cast-text-accent);
+  font-family: "SF Mono", "Menlo", monospace;
+}
+.cast-room-share-btn {
+  margin-top: 4px;
+  padding: 8px 24px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+  background: var(--cast-control-bg);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cast-room-share-btn:hover {
+  background: var(--cast-control-hover);
+}
+.cast-room-leave-btn {
+  margin-top: 8px;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: var(--cast-text-muted);
+  background: transparent;
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cast-room-leave-btn:hover {
+  color: #FF6B6B;
+  border-color: rgba(255,107,107,0.3);
+}
+
+/* 房间创建/加入（窄屏） */
+.cast-room-actions {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cast-room-create-btn {
+  width: 100%;
+  height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+  background: var(--cast-control-bg);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cast-room-create-btn:hover {
+  background: var(--cast-control-hover);
+}
+.cast-room-create-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cast-room-join-row {
+  display: flex;
+  gap: 8px;
+}
+.cast-room-join-input {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  font-size: 14px;
+  background: var(--cast-surface);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  color: var(--cast-text-primary);
+  outline: none;
+}
+.cast-room-join-input::placeholder {
+  color: var(--cast-text-muted);
+}
+.cast-room-join-btn {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+  background: var(--cast-control-bg);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  cursor: pointer;
+}
+.cast-room-join-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cast-room-error {
+  font-size: 12px;
+  color: #FF6B6B;
+  text-align: center;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.cast-nav-back,
+.cast-control-speed,
+.cast-control-fullscreen,
+.cast-chat-danmaku-toggle,
+.cast-player-header-more {
+  border: 0;
+  font-family: inherit;
+  touch-action: manipulation;
+}
+.cast-nav-back,
+.cast-control-speed,
+.cast-control-fullscreen { background: transparent; }
+.cast-root button:focus-visible {
+  outline: 2px solid var(--cast-text-accent);
+  outline-offset: 3px;
+}
+.cast-sync-label.is-error { color: #ff9890; }
+.cast-sync-label.is-error::before { color: #ff9890; }
+.cast-sync-label.is-pending::before { color: var(--cast-text-accent); }
+.cast-retry-button {
+  display: block;
+  margin: 0 auto 12px;
+  padding: 9px 16px;
+  border: 1px solid var(--cast-border-strong);
+  border-radius: var(--cast-radius-md);
+  background: var(--cast-control-bg);
+  color: var(--cast-text-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.cast-retry-button:hover { background: var(--cast-control-hover); }
+.cast-player-body > .cast-room-error {
+  margin: 8px 16px 12px;
+  padding: 8px 12px;
+  line-height: 1.6;
+  border-radius: var(--cast-radius-md);
+  background: rgba(255,107,107,0.06);
+}
+
+/* ─── 邀请弹窗 ─── */
+.cast-invite-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.75);
+  padding: 20px;
+}
+.cast-invite-card {
+  background: var(--cast-surface-card);
+  border: 1px solid var(--cast-border-strong);
+  border-radius: var(--cast-radius-lg);
+  padding: 28px 24px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  animation: cast-invite-in 0.25s ease-out;
+}
+@keyframes cast-invite-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.cast-invite-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+.cast-invite-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cast-text-primary);
+  margin: 0 0 6px;
+  line-height: 1.4;
+}
+.cast-invite-meta {
+  font-size: 13px;
+  color: var(--cast-text-secondary);
+  margin: 4px 0;
+}
+.cast-invite-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 18px;
+}
+.cast-invite-accept {
+  min-width: 100px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #000;
+  background: var(--cast-text-accent);
+  border: none;
+  border-radius: var(--cast-radius-md);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.cast-invite-accept:hover {
+  opacity: 0.85;
+}
+.cast-invite-accept:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cast-invite-decline {
+  min-width: 100px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cast-text-secondary);
+  background: var(--cast-control-bg);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cast-invite-decline:hover {
+  background: var(--cast-control-hover);
+}
+
+/* ─── 等待/加载状态 ─── */
+.cast-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  text-align: center;
+}
+.cast-waiting-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+.cast-waiting-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+  margin-bottom: 8px;
+}
+.cast-waiting-hint {
+  font-size: 13px;
+  color: var(--cast-text-muted);
+}
+.cast-waiting-url-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  width: 100%;
+  max-width: 400px;
+}
+.cast-waiting-url-input {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  font-size: 14px;
+  background: var(--cast-surface);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  color: var(--cast-text-primary);
+  outline: none;
+}
+.cast-waiting-url-input::placeholder {
+  color: var(--cast-text-muted);
+}
+.cast-waiting-extract-btn {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cast-text-primary);
+  background: var(--cast-control-bg);
+  border: 1px solid var(--cast-border);
+  border-radius: var(--cast-radius-md);
+  cursor: pointer;
+}
+.cast-waiting-extract-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── 双高亮归属名 ─── */
+.cast-attr-user {
+  transition: opacity 0.2s;
+}
+.cast-attr-ai {
+  transition: opacity 0.2s;
+}
+.cast-attr-user.is-active {
+  color: var(--cast-text-blue);
+  font-weight: 600;
+}
+.cast-attr-user.is-dim {
+  color: rgba(255,255,255,0.35);
+}
+.cast-attr-ai.is-active {
+  color: var(--cast-text-accent);
+  font-weight: 600;
+}
+.cast-attr-ai.is-dim {
+  color: rgba(255,255,255,0.35);
+}
+.cast-attr-amp {
+  color: rgba(255,255,255,0.25);
+  margin: 0 2px;
+  font-size: 0.85em;
+}
+
+/* ─── 响应式调整 ─── */
+@media (max-width: 768px) {
+  .cast-controls {
+    padding: 6px 12px;
+  }
+  .cast-control-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+  .cast-chat-messages {
+    max-height: 250px;
+    padding: 4px 16px 8px;
+  }
+  .cast-input-area {
+    padding: 6px 16px 12px;
+  }
+  .cast-analysis {
+    margin: 4px 16px 8px;
+  }
+  .cast-content-title {
+    padding: 4px 16px 8px;
+  }
+  .cast-player-header {
+    padding: 12px 16px 4px;
+  }
+  .cast-player-header-title {
+    font-size: 16px;
+  }
+  .cast-room-panel {
+    padding: 12px 16px;
+  }
+  .cast-cost {
+    margin: 4px 12px;
+  }
+  .cast-ticket {
+    margin: 8px 12px 4px;
+  }
+  .cast-video-container {
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* ─── 参与者列表 ─── */
+.cast-participants {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 24px 0;
+}
+.cast-participant-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #000;
+}
+.cast-participant-dot.user {
+  background: var(--cast-text-blue);
+}
+.cast-participant-dot.ai {
+  background: var(--cast-text-accent);
+}
+.cast-participant-dot.other {
+  background: var(--cast-text-muted);
+}
+.cast-participant-count {
+  font-size: 12px;
+  color: var(--cast-text-muted);
+  margin-left: 4px;
+}
+
+/* ─── 播放器底部间距 ─── */
+.cast-player-body {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+/* ─── 窄屏滚动容器 ─── */
+.cast-narrow-scroll {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--cast-bg);
+}

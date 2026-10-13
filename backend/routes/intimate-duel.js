@@ -9,6 +9,7 @@ const {
 const {
     filterMemoriesForContext
 } = require("../services/persistent-memory-filter");
+const { providerOutputBlockCode } = require("../services/provider-output-guard");
 const {
     interactiveGenerationSettings
 } = require("../services/interactive-generation-profile");
@@ -244,7 +245,20 @@ function fallbackCompanionSkill(event) {
 }
 
 function parseDuelModelResponse(value, event) {
+    const raw = String(value || "").trim();
     const parsed = extractJsonObject(value);
+    const blockCode = [raw, parsed?.reaction, parsed?.narration]
+        .map(providerOutputBlockCode)
+        .find(Boolean);
+    if (blockCode) {
+        return {
+            companion_skill: null,
+            reaction: "",
+            narration: "",
+            refused: true,
+            refusal_code: blockCode
+        };
+    }
     const allowed = new Set(
         event.availableCompanionSkills.map((skill) => skill.id)
     );
@@ -316,7 +330,7 @@ function createIntimateDuelRouter({ getSettings, generateReply } = {}) {
                     ? parseDuelModelResponse("", event)
                     : parseDuelModelResponse(generated.text, event);
             res.set("Cache-Control", "private, no-store");
-            res.json({ ok: true, ...modelResponse });
+            res.json({ ok: modelResponse.refused !== true, ...modelResponse });
         } catch (error) {
             next(error);
         }

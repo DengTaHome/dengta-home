@@ -18,6 +18,35 @@ export function shouldHandleComposerPointerDown(event = {}) {
   );
 }
 
+export function resolveComposerSendActivation(
+  action,
+  event = {},
+  pointerDownHandled = false,
+) {
+  if (action === "pointerdown") {
+    const handled = shouldHandleComposerPointerDown(event);
+    return { dispatch: handled, pointerDownHandled: handled };
+  }
+
+  if (action === "pointercancel") {
+    return { dispatch: false, pointerDownHandled: false };
+  }
+
+  if (action === "click") {
+    const nativeEvent = event.nativeEvent || {};
+    const pointerType = event.pointerType || nativeEvent.pointerType || "";
+    const detail = Number(event.detail ?? nativeEvent.detail ?? 0);
+    const followsPointer =
+      pointerType === "touch" || pointerType === "pen" || detail > 0;
+    return {
+      dispatch: !(pointerDownHandled && followsPointer),
+      pointerDownHandled: false,
+    };
+  }
+
+  return { dispatch: false, pointerDownHandled };
+}
+
 export function transitionComposerOverlays(
   { statusExpanded = false, composerMenuOpen = false } = {},
   action,

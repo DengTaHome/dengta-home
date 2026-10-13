@@ -22,7 +22,7 @@ function assertPromptFieldsDoNotContainSecrets(fields = {}) {
     ]) {
         if (promptContainsLikelySecret(fields[field])) {
             const error = new Error(
-                "提示词中疑似包含 API Key、令牌、密码或私钥。请删除密钥后再保存；模型密钥只能放在服务器环境变量中。"
+                "提示词中疑似包含 API Key、令牌、密码或私钥。请删除密钥后再保存；模型密钥只能通过多供应商 API 控制台加密保存，不能写入提示词。 / The prompt appears to contain a secret. Save model credentials through the encrypted provider console instead of putting them in a prompt."
             );
             error.status = 400;
             throw error;

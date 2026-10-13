@@ -11,7 +11,7 @@ const DAY_KEYS = Object.freeze([
   { minute: 1120, colors: ["#173f76", "#315b91", "#506ea0", "#7181a7", "#9a91ab"] },
   { minute: 1180, colors: ["#101d42", "#1d315b", "#344873", "#55577e", "#796683"] },
   { minute: 1260, colors: ["#050a1b", "#0a1430", "#101e42", "#1a294c", "#263457"] },
-  { minute: 1440, colors: ["#050817", "#0a1024", "#11172c", "#171a31", "#202039"] },
+  { minute: 1440, colors: ["#020613", "#061027", "#0a1735", "#111d3b", "#182545"] },
 ]);
 
 function clamp(value, minimum = 0, maximum = 1) {
@@ -39,7 +39,8 @@ function triangle(minute, center, radius) {
 }
 
 export function getSunGlassSky(minute) {
-  const normalized = ((Number(minute) % 1440) + 1440) % 1440;
+  const input = Number(minute);
+  const normalized = Number.isFinite(input) ? ((input % 1440) + 1440) % 1440 : 0;
   const rightIndex = DAY_KEYS.findIndex((key) => key.minute >= normalized);
   const right = DAY_KEYS[Math.max(1, rightIndex)];
   const left = DAY_KEYS[Math.max(0, rightIndex - 1)];
@@ -61,7 +62,8 @@ export function getSunGlassSky(minute) {
   );
   const night = clamp(1 - daylight * 1.5 + blueHour * 0.22);
   const progress = clamp((normalized - 450) / 720);
-  const nightMinute = normalized < 420 ? normalized + 1440 : normalized;
+  // Reset the night trajectory at noon while the moon is completely hidden.
+  const nightMinute = normalized < 720 ? normalized + 1440 : normalized;
   const moonProgress = clamp((nightMinute - 1230) / 630);
   const transitionLight = Math.max(sunrise, sunset, blueHour);
 

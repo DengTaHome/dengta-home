@@ -31,12 +31,36 @@ const {
 } = require("../services/provider-reasoning-effort");
 const {
     DEFAULT_SETTINGS,
-    buildSettingsChanges
+    buildSettingsChanges,
+    stripLegacyProviderFields
 } = require("../services/settings-store");
 
 const env = {
     MCP_ENCRYPTION_KEY: "a-very-long-provider-encryption-secret-value"
 };
+
+assert.deepEqual(
+    stripLegacyProviderFields(
+        {
+            provider: "custom",
+            api_url: "https://legacy.example/v1",
+            model: "legacy-model",
+            reasoning_effort: "none",
+            ai_name: "保留"
+        },
+        { provider_profile_id: "profile-1" }
+    ),
+    { ai_name: "保留" },
+    "an active provider profile must ignore legacy single-interface fields"
+);
+assert.deepEqual(
+    stripLegacyProviderFields(
+        { provider: "custom", api_url: "https://legacy.example/v1" },
+        { provider: "custom" }
+    ),
+    {},
+    "legacy provider fields must be ignored even when no profile is configured"
+);
 
 const encrypted = encryptCredential("gateway-key-value", env);
 assert.notEqual(encrypted, "gateway-key-value");
@@ -107,17 +131,14 @@ const legacyResponsesSettings = buildSettingsChanges(
     { reasoning_effort: "XHIGH" },
     { NODE_ENV: "test" }
 );
-assert.equal(legacyResponsesSettings.reasoning_effort, "xhigh");
-assert.throws(
-    () =>
-        buildSettingsChanges(
-            { ...DEFAULT_SETTINGS, provider: "openai-compatible" },
-            { reasoning_effort: "xhigh" },
-            { NODE_ENV: "test" }
-        ),
-    (error) =>
-        error.code ===
-        "AI_PROVIDER_REASONING_EFFORT_CHAT_TOOLS_UNSUPPORTED"
+assert.equal(legacyResponsesSettings.reasoning_effort, "");
+assert.equal(
+    buildSettingsChanges(
+        { ...DEFAULT_SETTINGS, provider: "openai-compatible" },
+        { reasoning_effort: "xhigh" },
+        { NODE_ENV: "test" }
+    ).reasoning_effort,
+    ""
 );
 const legacyChatSettings = buildSettingsChanges(
     {
@@ -128,7 +149,7 @@ const legacyChatSettings = buildSettingsChanges(
     { provider: "openai-compatible" },
     { NODE_ENV: "test" }
 );
-assert.equal(legacyChatSettings.reasoning_effort, "");
+assert.equal(legacyChatSettings.reasoning_effort, "xhigh");
 
 const rawSensitiveMarker = "raw-sensitive-marker-123";
 const sanitizedProbeError = providerProbeError(
@@ -406,6 +427,7 @@ assert.equal(receipt.reasoning_effort_field, "reasoning.effort");
     const statusRows = [
         {
             ...successfulProbeResult.profile,
+            secret_ciphertext: encrypted,
             id: "provider-routable",
             name: "Routable provider",
             enabled: true,
@@ -414,6 +436,7 @@ assert.equal(receipt.reasoning_effort_field, "reasoning.effort");
         },
         {
             ...successfulProbeResult.profile,
+            secret_ciphertext: encrypted,
             id: "provider-expired",
             name: "Expired provider",
             enabled: true,
@@ -422,6 +445,7 @@ assert.equal(receipt.reasoning_effort_field, "reasoning.effort");
         },
         {
             ...successfulProbeResult.profile,
+            secret_ciphertext: encrypted,
             id: "provider-disabled",
             name: "Disabled provider",
             enabled: false,
@@ -455,6 +479,7 @@ assert.equal(receipt.reasoning_effort_field, "reasoning.effort");
     assert.equal(providerStatus.enabled_profiles, 2);
     assert.equal(providerStatus.routable_profiles, 1);
     assert.equal(providerStatus.active_profile.id, "provider-routable");
+    assert.equal(providerStatus.credential_reentry_required, false);
 
     const damagedBackupCiphertext = "damaged-backup-ciphertext";
     assert.throws(() => decryptCredential(damagedBackupCiphertext, env));
@@ -516,6 +541,79 @@ assert.equal(receipt.reasoning_effort_field, "reasoning.effort");
     assert.equal(defaultRuntime.provider_profile_id, "provider-healthy-default");
     assert.equal(defaultRuntime.model, "gpt-healthy");
     assert.equal(defaultRuntime.runtime_api_key, "gateway-key-value");
+
+    const rotatedEnv = {
+        MCP_ENCRYPTION_KEY:
+            "a-different-provider-encryption-secret-after-migration"
+    };
+    const rotatedRows = [runtimeRows[0]];
+    const rotatedCenter = createAiProviderCenter({
+        supabase: {
+            from() {
+                return {
+                    select() {
+                        return this;
+                    },
+                    order() {
+                        return this;
+                    },
+                    eq() {
+                        return this;
+                    },
+                    maybeSingle() {
+                        return Promise.resolve({
+                            data: rotatedRows[0],
+                            error: null
+                        });
+                    },
+                    then(resolve, reject) {
+                        return Promise.resolve({
+                            data: rotatedRows,
+                            error: null
+                        }).then(resolve, reject);
+                    }
+                };
+            }
+        },
+        env: rotatedEnv,
+        lookup: async () => [{ address: "203.0.113.12", family: 4 }]
+    });
+    const recoveredSettings = await rotatedCenter.resolveDefaultSettings({
+        model: "legacy-model",
+        ai_name: "小灯"
+    });
+    assert.equal(recoveredSettings.provider_profile_id, null);
+    assert.equal(recoveredSettings.runtime_api_key, "");
+    assert.equal(recoveredSettings.ai_name, "小灯");
+
+    const rotatedStatus = await rotatedCenter.status();
+    assert.equal(rotatedStatus.available, true);
+    assert.equal(rotatedStatus.routable_profiles, 0);
+    assert.equal(rotatedStatus.credentials_requiring_reentry, 1);
+    assert.equal(rotatedStatus.credential_reentry_required, true);
+    assert.equal(rotatedStatus.active_profile.routable, false);
+    assert.equal(
+        rotatedStatus.active_profile.credential_state,
+        "needs_reentry"
+    );
+
+    const rotatedProfiles = await rotatedCenter.listProfiles();
+    assert.equal(rotatedProfiles[0].auth_configured, false);
+    assert.equal(rotatedProfiles[0].credential_reentry_required, true);
+    assert.equal(rotatedProfiles[0].credential_state, "needs_reentry");
+    assert.equal(
+        JSON.stringify({ rotatedStatus, rotatedProfiles }).includes(
+            runtimeRows[0].secret_ciphertext
+        ),
+        false
+    );
+    await assert.rejects(
+        () =>
+            rotatedCenter.updateProfile(rotatedRows[0].id, {
+                name: "仍需重新填写的接口"
+            }),
+        (error) => error.code === "AI_PROVIDER_CREDENTIAL_REQUIRED"
+    );
 
     const failedHealthWrite = probeSupabase({
         code: "DATABASE_TEST_ERROR",

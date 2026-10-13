@@ -12,6 +12,24 @@ export const BackgroundNotifications = registerPlugin(
   "BackgroundNotifications",
 );
 
+export function reminderChannelSettingsAvailable(capacitor = Capacitor) {
+  return (
+    capacitor.isNativePlatform() &&
+    capacitor.getPlatform() === "android" &&
+    capacitor.isPluginAvailable("BackgroundNotifications")
+  );
+}
+
+export async function openReminderNotificationSettings({
+  capacitor = Capacitor,
+  plugin = BackgroundNotifications,
+} = {}) {
+  if (!reminderChannelSettingsAvailable(capacitor)) {
+    return { opened: false, reason: "unsupported" };
+  }
+  return plugin.openReminderChannelSettings();
+}
+
 export function readOrCreateNotificationDeviceId(
   storage = globalThis.localStorage,
   randomUUID = globalThis.crypto?.randomUUID,

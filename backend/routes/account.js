@@ -1,10 +1,12 @@
 const express = require("express");
 const { requireRequestScope } = require("../services/request-scope");
+const { createAccountExportService } = require("../services/account-export");
 
 const requireScope = requireRequestScope;
 
-function createAccountRouter() {
+function createAccountRouter({ exportService } = {}) {
     const router = express.Router();
+    const accountExport = exportService || null;
 
     router.get("/", (req, res, next) => {
         try {
@@ -54,6 +56,24 @@ function createAccountRouter() {
                 .single();
             if (error) throw error;
             res.status(201).json({ companion: data });
+        } catch (error) {
+            next(error);
+        }
+    });
+
+    router.post("/export", async (req, res, next) => {
+        try {
+            const scope = requireScope(req);
+            if (!accountExport) {
+                res.status(503).json({
+                    code: "export_unavailable",
+                    message: "导出服务尚未就绪。"
+                });
+                return;
+            }
+            const result = await accountExport.exportAccount(scope, req.body?.format);
+            res.set("Cache-Control", "private, no-store");
+            res.json(result);
         } catch (error) {
             next(error);
         }

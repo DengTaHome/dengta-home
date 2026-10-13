@@ -25,14 +25,14 @@ const serviceWorker = await readFile(
 
 assert.match(app, /<CompanionDiary/);
 assert.doesNotMatch(app, /secret-crush-diary\.html|className="diary-frame"/);
-assert.match(diary, /apiRequest\("\/api\/v2\/diary"\)/);
+assert.match(diary, /apiRequest\("\/api\/v2\/diary", \{/);
 assert.match(diary, /source_message_count/);
 assert.match(diary, /source_window_start/);
 assert.doesNotMatch(diary, /现实核验|不能虚构|真实记忆/);
 assert.match(css, /\.companion-diary-page/);
 assert.match(css, /\.diary-entry-list/);
 assert.doesNotMatch(serviceWorker, /secret-crush-diary\.html/);
-assert.match(serviceWorker, /dengta-home-v12/);
+assert.match(serviceWorker, /dengta-home-v14-fonts/);
 assert.match(app, /<FeatureAtmosphere kind="moments"\s*\/>/);
 assert.match(app, /<FeatureAtmosphere kind="memory"\s*\/>/);
 assert.match(diary, /<FeatureAtmosphere kind="diary"\s*\/>/);

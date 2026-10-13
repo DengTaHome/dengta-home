@@ -1,5 +1,7 @@
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_PROTOCOL_VERSION = "2024-11-05";
+const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024;
+const { readResponseTextLimited } = require("./bounded-response");
 
 function cleanBaseUrl(value) {
     return String(value || "").trim().replace(/\/+$/, "");
@@ -21,6 +23,14 @@ function getMcpConfig(env = process.env) {
                 Number(env.OMBRE_DASHBOARD_TIMEOUT_MS) ||
                 DEFAULT_TIMEOUT_MS
         ),
+        maxResponseBytes: Math.min(
+            2 * 1024 * 1024,
+            Math.max(
+                64 * 1024,
+                Number(env.OMBRE_MCP_MAX_RESPONSE_BYTES) ||
+                    DEFAULT_MAX_RESPONSE_BYTES
+            )
+        ),
         protocolVersion: String(
             env.OMBRE_MCP_PROTOCOL_VERSION || DEFAULT_PROTOCOL_VERSION
         ).trim()
@@ -41,6 +51,15 @@ function normalizeMcpConfig(value = {}, env = process.env) {
         timeoutMs: Math.max(
             1000,
             Number(value.timeoutMs) || DEFAULT_TIMEOUT_MS
+        ),
+        maxResponseBytes: Math.min(
+            2 * 1024 * 1024,
+            Math.max(
+                64 * 1024,
+                Number(value.maxResponseBytes) ||
+                    Number(env.OMBRE_MCP_MAX_RESPONSE_BYTES) ||
+                    DEFAULT_MAX_RESPONSE_BYTES
+            )
         ),
         protocolVersion: String(
             value.protocolVersion || DEFAULT_PROTOCOL_VERSION
@@ -90,7 +109,7 @@ function assertMcpConfig(config, env = process.env) {
     }
 }
 
-function parseMcpPayload(text) {
+function parseMcpPayload(text, expectedId) {
     const source = String(text || "").trim();
     if (!source) return null;
 
@@ -131,7 +150,8 @@ function parseMcpPayload(text) {
                 (item) =>
                     item &&
                     typeof item === "object" &&
-                    (item.result !== undefined || item.error || item.jsonrpc)
+                    (item.result !== undefined || item.error) &&
+                    (expectedId === undefined || item.id === expectedId)
             ) ||
         events.at(-1) ||
         null
@@ -141,7 +161,7 @@ function parseMcpPayload(text) {
 function extractMcpText(value) {
     const result = value?.result || value || {};
     const content = Array.isArray(result.content) ? result.content : [];
-    return content
+    const text = content
         .map((item) => {
             if (item?.type === "text") return String(item.text || "");
             if (item?.type === "json" && item.json !== undefined) {
@@ -152,6 +172,8 @@ function extractMcpText(value) {
         .filter(Boolean)
         .join("\n")
         .trim();
+    return text || (result.structuredContent && typeof result.structuredContent === "object"
+        ? JSON.stringify(result.structuredContent) : "");
 }
 
 function normalizeMcpTools(value) {
@@ -204,19 +226,21 @@ function createOmbreMcpClient({
     let initializedOnce = false;
     let serverInfo = null;
     let serverCapabilities = {};
+    let negotiatedVersion = "";
 
     function resetSession() {
         sessionId = "";
         serverInfo = null;
         serverCapabilities = {};
         initializedOnce = false;
+        negotiatedVersion = "";
     }
 
     function requestHeaders(config, includeSession) {
         const headers = {
             Accept: "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "MCP-Protocol-Version": config.protocolVersion
+            "MCP-Protocol-Version": negotiatedVersion || config.protocolVersion
         };
         if (includeSession && sessionId) {
             headers["Mcp-Session-Id"] = sessionId;
@@ -271,8 +295,44 @@ function createOmbreMcpClient({
             clearTimeout(timer);
         }
 
-        const rawText = await response.text().catch(() => "");
-        const parsed = parseMcpPayload(rawText);
+        let rawText = "";
+        const bodyTimer = setTimeout(
+            () => controller.abort(),
+            config.timeoutMs
+        );
+        try {
+            rawText = await readResponseTextLimited(response, {
+                maxBytes: config.maxResponseBytes,
+                stopWhen: response.headers.get("content-type")?.includes("text/event-stream") && payload.id !== undefined
+                    ? (text) => {
+                        const candidate = parseMcpPayload(text, payload.id);
+                        return candidate?.id === payload.id && (candidate.result !== undefined || Boolean(candidate.error));
+                    } : null,
+                createError: () =>
+                    createMcpError(
+                        "Ombre MCP 响应超过安全大小上限。 / The Ombre MCP response exceeded the safety limit.",
+                        "OMBRE_MCP_RESPONSE_TOO_LARGE",
+                        502
+                    )
+            });
+        } catch (error) {
+            if (error?.code === "OMBRE_MCP_RESPONSE_TOO_LARGE") throw error;
+            if (error?.name === "AbortError") {
+                throw createMcpError(
+                    "Ombre MCP 响应超时。 / The Ombre MCP response timed out.",
+                    "OMBRE_MCP_TIMEOUT",
+                    504
+                );
+            }
+            throw createMcpError(
+                "Ombre MCP 响应无法读取。 / The Ombre MCP response could not be read.",
+                "OMBRE_MCP_RESPONSE_INVALID",
+                502
+            );
+        } finally {
+            clearTimeout(bodyTimer);
+        }
+        const parsed = parseMcpPayload(rawText, payload.id);
 
         if (!response.ok) {
             throw createMcpError(
@@ -292,6 +352,10 @@ function createOmbreMcpClient({
             );
         }
 
+        if (payload.id !== undefined && (!parsed || (parsed.id !== undefined && parsed.id !== payload.id) || parsed.result === undefined)) {
+            throw createMcpError("MCP 未返回对应请求的有效结果。", "OMBRE_MCP_RESPONSE_INVALID", 502);
+        }
+
         return { response, payload: parsed };
     }
 
@@ -300,7 +364,8 @@ function createOmbreMcpClient({
             return {
                 sessionId,
                 serverInfo,
-                capabilities: serverCapabilities
+                capabilities: serverCapabilities,
+                protocolVersion: negotiatedVersion
             };
         }
         if (initializePromise) return initializePromise;
@@ -331,6 +396,10 @@ function createOmbreMcpClient({
             serverInfo = initialized.payload?.result?.serverInfo || null;
             serverCapabilities =
                 initialized.payload?.result?.capabilities || {};
+            negotiatedVersion = initialized.payload?.result?.protocolVersion || config.protocolVersion;
+            if (!["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"].includes(negotiatedVersion)) {
+                throw createMcpError("MCP 服务协商了尚不支持的协议版本。", "MCP_PROTOCOL_UNSUPPORTED", 400);
+            }
 
             await request({
                 jsonrpc: "2.0",
@@ -341,7 +410,8 @@ function createOmbreMcpClient({
             return {
                 sessionId,
                 serverInfo,
-                capabilities: serverCapabilities
+                capabilities: serverCapabilities,
+                protocolVersion: negotiatedVersion
             };
         })().finally(() => {
             initializePromise = null;
@@ -352,13 +422,22 @@ function createOmbreMcpClient({
 
     async function listTools() {
         await initialize();
-        const response = await request({
-            jsonrpc: "2.0",
-            method: "tools/list",
-            params: {},
-            id: ++callId
-        });
-        return normalizeMcpTools(response.payload);
+        const tools = new Map();
+        const cursors = new Set();
+        let cursor;
+        for (let page = 0; page < 20; page += 1) {
+            const response = await request({
+                jsonrpc: "2.0", method: "tools/list",
+                params: cursor ? { cursor } : {}, id: ++callId
+            });
+            for (const tool of normalizeMcpTools(response.payload)) tools.set(tool.name, tool);
+            cursor = response.payload?.result?.nextCursor;
+            if (tools.size > 1000) break;
+            if (!cursor) return [...tools.values()];
+            if (typeof cursor !== "string" || cursors.has(cursor)) break;
+            cursors.add(cursor);
+        }
+        throw createMcpError("MCP 工具列表分页异常或超过上限。", "MCP_PAGINATION_INVALID", 502);
     }
 
     async function callTool(name, args = {}, retried = false) {
@@ -392,10 +471,7 @@ function createOmbreMcpClient({
         } catch (error) {
             const retryable =
                 !retried &&
-                (error?.upstreamStatus === 400 ||
-                    error?.upstreamStatus === 404 ||
-                    error?.upstreamStatus === 409 ||
-                    error?.code === "OMBRE_MCP_RPC_ERROR");
+                Boolean(sessionId) && error?.upstreamStatus === 404;
             if (!retryable) throw error;
             resetSession();
             await initialize(true);

@@ -20,8 +20,7 @@ const styles = fs.readFileSync(
 );
 
 assert.match(app, /const SETTINGS_CATEGORIES = \[/);
-assert.match(app, /className="settings-folder-grid"/);
-assert.match(app, /setSettingsCategory\(id\)/);
+assert.match(app, /<SettingsHome key=\{privateMediaScope\} categories=\{SETTINGS_CATEGORIES\} onSelectCategory=\{settingsCategoryNavigation\.selectCategory\}/);
 assert.match(app, /settingsCategory === "appearance"/);
 assert.match(app, /settingsCategory === "services"/);
 assert.match(app, /settingsCategory === "devices"/);

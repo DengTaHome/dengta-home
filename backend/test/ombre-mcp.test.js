@@ -145,6 +145,29 @@ const client = createOmbreMcpClient({
         provider_independent: true
     });
 
+    const oversizedToken = "must-never-appear-in-errors";
+    const oversizedClient = createOmbreMcpClient({
+        env: { NODE_ENV: "test" },
+        config: {
+            endpoint: "https://ombre.example.com/mcp",
+            baseUrl: "https://ombre.example.com/mcp",
+            token: oversizedToken,
+            maxResponseBytes: 64 * 1024,
+            production: false
+        },
+        fetchImpl: async () =>
+            new Response("", {
+                status: 200,
+                headers: { "content-length": String(65 * 1024) }
+            })
+    });
+    await assert.rejects(
+        () => oversizedClient.initialize(),
+        (error) =>
+            error.code === "OMBRE_MCP_RESPONSE_TOO_LARGE" &&
+            !String(error.message).includes(oversizedToken)
+    );
+
     console.log("Ombre MCP client tests passed");
 })().catch((error) => {
     console.error(error);

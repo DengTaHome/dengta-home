@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import useReducedVisualMotion from "./use-reduced-visual-motion.js";
 
 import { createStatusFluidEngine } from "./status-fluid-engine";
 
@@ -31,24 +32,23 @@ function hsvToRgb(hue, saturation, value) {
 
 export default function StatusFlowField({ active }) {
   const canvasRef = useRef(null);
+  const reduceMotion = useReducedVisualMotion();
 
   useEffect(() => {
-    if (!active) return undefined;
+    if (!active || reduceMotion) return undefined;
     const canvas = canvasRef.current;
     const panel = canvas?.closest(".sun-glass-floating-status-panel");
     const field = canvas?.parentElement;
     if (!canvas || !panel || !field) return undefined;
 
-    let engine;
-    try {
-      engine = createStatusFluidEngine(canvas);
-    } catch {
-      engine = null;
-    }
-    if (!engine) {
-      field.classList.add("status-flow-field--fallback");
-      return undefined;
-    }
+    let engine = null;
+    const documentObject = globalThis.document;
+    const windowObject = globalThis.window;
+    const isHidden = () => documentObject?.hidden === true;
+    let disposed = false;
+    let resizePending = false;
+    let contextLost = false;
+    let restorePending = false;
 
     const pointerState = {
       active: false,
@@ -61,10 +61,64 @@ export default function StatusFlowField({ active }) {
       lastAt: performance.now(),
     };
     let animationFrame = 0;
+    let rendererGeneration = 0;
     let activeUntil = 0;
     let lastFrameAt = performance.now();
     let lastPointerEventAt = -Infinity;
     let hueSeed = Math.random();
+
+    const resetFeedback = () => {
+      rendererGeneration++;
+      cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      activeUntil = 0;
+      pointerState.active = false;
+      pointerState.pointerId = null;
+      pointerState.touchId = null;
+    };
+    const releaseEngine = () => {
+      const previous = engine;
+      engine = null;
+      previous?.dispose();
+    };
+    const showFallback = () => {
+      resetFeedback();
+      releaseEngine();
+      field.classList.remove("status-flow-field--ready");
+      field.classList.add("status-flow-field--fallback");
+    };
+    const runEngine = (operation) => {
+      if (disposed || contextLost || !engine) return false;
+      try {
+        operation();
+        return true;
+      } catch {
+        showFallback();
+        return false;
+      }
+    };
+    const initialize = () => {
+      if (disposed) return;
+      if (contextLost || isHidden()) {
+        restorePending = true;
+        return;
+      }
+      restorePending = false;
+      resetFeedback();
+      releaseEngine();
+      try {
+        engine = createStatusFluidEngine(canvas);
+      } catch {
+        engine = null;
+      }
+      if (!engine) {
+        showFallback();
+        return;
+      }
+      resizePending = false;
+      field.classList.remove("status-flow-field--fallback");
+      field.classList.add("status-flow-field--ready");
+    };
 
     const localPoint = (clientX, clientY) => {
       const rect = panel.getBoundingClientRect();
@@ -85,25 +139,36 @@ export default function StatusFlowField({ active }) {
       return color.map((channel) => channel * 0.72);
     };
 
-    const draw = (now) => {
+    const draw = (now, generation) => {
+      if (generation !== rendererGeneration) return;
       animationFrame = 0;
+      if (disposed || isHidden() || !engine) return;
       const elapsed = clamp((now - lastFrameAt) / 1000, 1 / 240, 0.022);
       lastFrameAt = now;
-      engine.step(elapsed);
-      engine.render();
-      if (now < activeUntil) {
-        animationFrame = requestAnimationFrame(draw);
-      } else {
-        engine.clear();
+      if (!runEngine(() => {
+        engine.step(elapsed);
         engine.render();
+        if (now >= activeUntil) {
+          engine.clear();
+          engine.render();
+        }
+      })) return;
+      if (now < activeUntil) {
+        queueDraw();
       }
     };
 
+    const queueDraw = () => {
+      const generation = rendererGeneration;
+      animationFrame = requestAnimationFrame((now) => draw(now, generation));
+    };
+
     const requestDraw = () => {
+      if (disposed || isHidden() || !engine) return;
       activeUntil = performance.now() + FLOW_LIFETIME_MS;
       if (!animationFrame) {
         lastFrameAt = performance.now() - FRAME_INTERVAL_MS;
-        animationFrame = requestAnimationFrame(draw);
+        queueDraw();
       }
     };
 
@@ -152,6 +217,7 @@ export default function StatusFlowField({ active }) {
     };
 
     const startTrail = (clientX, clientY, now = performance.now()) => {
+      if (disposed || isHidden() || !engine) return;
       const point = localPoint(clientX, clientY);
       pointerState.active = true;
       pointerState.x = point.x;
@@ -159,11 +225,11 @@ export default function StatusFlowField({ active }) {
       pointerState.clientX = clientX;
       pointerState.clientY = clientY;
       pointerState.lastAt = now;
-      splatTap(point);
+      runEngine(() => splatTap(point));
     };
 
     const continueTrail = (clientX, clientY, now = performance.now()) => {
-      if (!pointerState.active) return;
+      if (!pointerState.active || disposed || isHidden() || !engine) return;
       const next = localPoint(clientX, clientY);
       const previous = {
         x: pointerState.x,
@@ -172,7 +238,7 @@ export default function StatusFlowField({ active }) {
         clientY: pointerState.clientY,
       };
       const elapsed = clamp((now - pointerState.lastAt) / 1000, 1 / 240, 0.08);
-      splatPointerPath(previous, next, elapsed);
+      if (!runEngine(() => splatPointerPath(previous, next, elapsed))) return;
       pointerState.x = next.x;
       pointerState.y = next.y;
       pointerState.clientX = clientX;
@@ -232,8 +298,37 @@ export default function StatusFlowField({ active }) {
     };
 
     const resize = () => {
-      engine.resize();
-      engine.render();
+      if (disposed) return;
+      if (isHidden()) {
+        resizePending = true;
+        return;
+      }
+      if (runEngine(() => {
+        engine.resize();
+        engine.render();
+      })) resizePending = false;
+    };
+    const handleVisibility = () => {
+      resetFeedback();
+      if (disposed || isHidden()) return;
+      if (restorePending) {
+        initialize();
+        return;
+      }
+      if (runEngine(() => {
+        if (resizePending) engine.resize();
+        engine.clear();
+        engine.render();
+      })) resizePending = false;
+    };
+    const handleContextLost = (event) => {
+      event.preventDefault();
+      contextLost = true;
+      showFallback();
+    };
+    const handleContextRestored = () => {
+      contextLost = false;
+      initialize();
     };
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(panel);
@@ -245,10 +340,19 @@ export default function StatusFlowField({ active }) {
     panel.addEventListener("touchmove", moveTouchFlow, { passive: true });
     panel.addEventListener("touchend", stopTouchFlow, { passive: true });
     panel.addEventListener("touchcancel", stopTouchFlow, { passive: true });
-    field.classList.add("status-flow-field--ready");
+    windowObject?.addEventListener?.("pointerup", stopPointerFlow);
+    windowObject?.addEventListener?.("pointercancel", stopPointerFlow);
+    windowObject?.addEventListener?.("touchend", stopTouchFlow, { passive: true });
+    windowObject?.addEventListener?.("touchcancel", stopTouchFlow, { passive: true });
+    windowObject?.addEventListener?.("blur", stopTrail);
+    documentObject?.addEventListener?.("visibilitychange", handleVisibility);
+    canvas.addEventListener("webglcontextlost", handleContextLost);
+    canvas.addEventListener("webglcontextrestored", handleContextRestored);
+    initialize();
 
     return () => {
-      cancelAnimationFrame(animationFrame);
+      disposed = true;
+      resetFeedback();
       resizeObserver.disconnect();
       panel.removeEventListener("pointerdown", startPointerFlow);
       panel.removeEventListener("pointermove", movePointerFlow);
@@ -258,10 +362,19 @@ export default function StatusFlowField({ active }) {
       panel.removeEventListener("touchmove", moveTouchFlow);
       panel.removeEventListener("touchend", stopTouchFlow);
       panel.removeEventListener("touchcancel", stopTouchFlow);
+      windowObject?.removeEventListener?.("pointerup", stopPointerFlow);
+      windowObject?.removeEventListener?.("pointercancel", stopPointerFlow);
+      windowObject?.removeEventListener?.("touchend", stopTouchFlow);
+      windowObject?.removeEventListener?.("touchcancel", stopTouchFlow);
+      windowObject?.removeEventListener?.("blur", stopTrail);
+      documentObject?.removeEventListener?.("visibilitychange", handleVisibility);
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
       field.classList.remove("status-flow-field--ready");
-      engine.dispose();
+      field.classList.remove("status-flow-field--fallback");
+      releaseEngine();
     };
-  }, [active]);
+  }, [active, reduceMotion]);
 
   return (
     <div className="status-flow-field" aria-hidden="true">

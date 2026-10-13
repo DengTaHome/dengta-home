@@ -9,11 +9,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.app.RemoteInput;
 import androidx.core.content.ContextCompat;
 import androidx.work.BackoffPolicy;
 import androidx.work.Constraints;
@@ -51,11 +55,12 @@ import java.util.concurrent.TimeUnit;
  * 拉取尚未见过的主动消息，并交给 Android 通知栏。它不持有模型或数据库密钥。
  */
 public final class PushNotificationWorker extends Worker {
-    public static final String CHANNEL_ID = "dengta-home-reminders-v1";
+    public static final String CHANNEL_ID = "dengta-home-reminders-v2";
     private static final String UNIQUE_WORK_NAME = "dengta-home-background-push";
     private static final String PREFS_NAME = "dengta_home_background_push";
     private static final String CURSOR_KEY = "push_cursor";
     private static final String SEEN_IDS_KEY = "seen_push_ids";
+    private static final Object SEEN_IDS_LOCK = new Object();
     private static final int MAX_SEEN_IDS = 200;
     private static final int HTTP_TIMEOUT_MS = 15000;
 
@@ -133,6 +138,15 @@ public final class PushNotificationWorker extends Worker {
             NotificationManager.IMPORTANCE_HIGH
         );
         channel.setDescription("AI 伙伴在合适时间主动想说的话");
+        Uri defaultSoundUri = RingtoneManager.getDefaultUri(
+            RingtoneManager.TYPE_NOTIFICATION
+        );
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build();
+        channel.setSound(defaultSoundUri, audioAttributes);
+        channel.enableVibration(true);
         manager.createNotificationChannel(channel);
     }
 
@@ -172,16 +186,23 @@ public final class PushNotificationWorker extends Worker {
         SharedPreferences preferences,
         BackgroundNotificationCredentials.Identity identity
     ) throws Exception {
+        String capturedScopeKey = identity.userId + ":" + identity.companionId;
         JSONObject settingsResponse = getJson(
             context,
             identity,
             "/api/v2/settings"
         );
+        if (!isDeliveryScopeCurrent(context, capturedScopeKey)) {
+            return Result.success();
+        }
         JSONObject settings = settingsResponse.optJSONObject("settings");
 
         String cursor = preferences.getString(CURSOR_KEY, "");
         if (cursor == null || cursor.isEmpty()) {
-            preferences.edit().putString(CURSOR_KEY, nowIso()).apply();
+            if (!isDeliveryScopeCurrent(context, capturedScopeKey)) {
+                return Result.success();
+            }
+            preferences.edit().putString(CURSOR_KEY, nowIso()).commit();
             return Result.success();
         }
 
@@ -196,20 +217,31 @@ public final class PushNotificationWorker extends Worker {
                 encodedCursor +
                 "&limit=50"
         );
+        if (!isDeliveryScopeCurrent(context, capturedScopeKey)) {
+            return Result.success();
+        }
         JSONArray messages = response.optJSONArray("messages");
         if (messages == null || messages.length() == 0) return Result.success();
 
-        Set<String> seenIds = readSeenIds(preferences);
         List<JSONObject> unseen = new ArrayList<>();
         String latestCreatedAt = cursor;
-
-        for (int index = 0; index < messages.length(); index += 1) {
-            JSONObject message = messages.optJSONObject(index);
-            if (message == null) continue;
-            String id = message.optString("id", "").trim();
-            String createdAt = message.optString("created_at", "").trim();
-            if (!createdAt.isEmpty()) latestCreatedAt = createdAt;
-            if (!id.isEmpty() && !seenIds.contains(id)) unseen.add(message);
+        synchronized (SEEN_IDS_LOCK) {
+            if (!isDeliveryScopeCurrent(context, capturedScopeKey)) {
+                return Result.success();
+            }
+            Set<String> seenIds = readSeenIds(preferences);
+            for (int index = 0; index < messages.length(); index += 1) {
+                JSONObject message = messages.optJSONObject(index);
+                if (message == null) continue;
+                String id = message.optString("id", "").trim();
+                String createdAt = message.optString("created_at", "").trim();
+                if (!createdAt.isEmpty()) latestCreatedAt = createdAt;
+                if (!id.isEmpty() && seenIds.add(id)) unseen.add(message);
+            }
+            preferences.edit()
+                .putString(CURSOR_KEY, latestCreatedAt)
+                .putString(SEEN_IDS_KEY, serializeSeenIds(seenIds))
+                .commit();
         }
 
         boolean appVisible = isAppVisible(context);
@@ -222,17 +254,23 @@ public final class PushNotificationWorker extends Worker {
         if (aiName.isEmpty()) aiName = "DengTa home";
 
         for (JSONObject message : unseen) {
+            if (!isDeliveryScopeCurrent(context, capturedScopeKey)) {
+                return Result.success();
+            }
             String id = message.optString("id", "").trim();
             if (id.isEmpty()) continue;
             if (!appVisible) postNotification(context, aiName, message);
-            seenIds.add(id);
         }
-
-        preferences.edit()
-            .putString(CURSOR_KEY, latestCreatedAt)
-            .putString(SEEN_IDS_KEY, serializeSeenIds(seenIds))
-            .apply();
         return Result.success();
+    }
+
+    private boolean isDeliveryScopeCurrent(
+        Context context,
+        String capturedScopeKey
+    ) {
+        return !isStopped() && capturedScopeKey.equals(
+            BackgroundNotificationCredentials.currentScopeKey(context)
+        );
     }
 
     private static void postNotification(
@@ -243,6 +281,7 @@ public final class PushNotificationWorker extends Worker {
         String id = message.optString("id", "");
         String content = cleanText(message.optString("content", ""), 240);
         if (content.isEmpty()) return;
+        ensureNotificationChannel(context);
 
         Intent openApp = new Intent(context, MainActivity.class)
             .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -266,8 +305,117 @@ public final class PushNotificationWorker extends Worker {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            notification.setDefaults(
+                NotificationCompat.DEFAULT_SOUND |
+                    NotificationCompat.DEFAULT_VIBRATE
+            );
+        }
 
         NotificationManagerCompat.from(context).notify(notificationId(id), notification.build());
+    }
+
+    static boolean markImmediateMessageSeen(Context context, String messageId) {
+        String normalizedId = cleanText(messageId, 100);
+        if (normalizedId.isEmpty()) return false;
+        SharedPreferences prefs = preferences(context.getApplicationContext());
+        synchronized (SEEN_IDS_LOCK) {
+            Set<String> seenIds = readSeenIds(prefs);
+            if (!seenIds.add(normalizedId)) return false;
+            prefs.edit()
+                .putString(SEEN_IDS_KEY, serializeSeenIds(seenIds))
+                .commit();
+            return true;
+        }
+    }
+
+    public static void showImmediateCoWatchMessage(
+        Context context,
+        String title,
+        String messageId,
+        String conversationId,
+        String coWatchSessionId,
+        String content,
+        int mediaPositionSeconds
+    ) {
+        String normalizedContent = cleanText(content, 420);
+        String normalizedMessageId = cleanText(messageId, 100);
+        String normalizedSessionId = cleanText(coWatchSessionId, 100);
+        if (
+            normalizedContent.isEmpty() ||
+            normalizedMessageId.isEmpty() ||
+            normalizedSessionId.isEmpty()
+        ) return;
+
+        if (!markImmediateMessageSeen(context, normalizedMessageId)) return;
+        if (!notificationsAllowed(context)) return;
+        ensureNotificationChannel(context);
+
+        Intent openApp = new Intent(context, MainActivity.class)
+            .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra("dengta_view", "together")
+            .putExtra("dengta_session_id", conversationId)
+            .putExtra("dengta_co_watch_session_id", normalizedSessionId);
+        PendingIntent contentIntent = PendingIntent.getActivity(
+            context,
+            notificationId(normalizedMessageId),
+            openApp,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        Intent replyIntent = new Intent(context, CoWatchReplyReceiver.class)
+            .setAction(CoWatchReplyReceiver.ACTION_REPLY)
+            .putExtra(CoWatchReplyReceiver.EXTRA_SESSION_ID, normalizedSessionId)
+            .putExtra(CoWatchReplyReceiver.EXTRA_CONVERSATION_ID, conversationId)
+            .putExtra(CoWatchReplyReceiver.EXTRA_TITLE, cleanText(title, 50))
+            .putExtra(CoWatchReplyReceiver.EXTRA_MEDIA_POSITION_SECONDS, mediaPositionSeconds);
+        PendingIntent replyPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId(normalizedMessageId + ":reply"),
+            replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE
+        );
+        RemoteInput remoteInput = new RemoteInput.Builder(
+            CoWatchReplyReceiver.REMOTE_INPUT_TEXT
+        )
+            .setLabel("回复一起看")
+            .build();
+        NotificationCompat.Action replyAction = new NotificationCompat.Action.Builder(
+            0,
+            "回复",
+            replyPendingIntent
+        )
+            .addRemoteInput(remoteInput)
+            .setAllowGeneratedReplies(true)
+            .build();
+        Uri sound = RingtoneManager.getDefaultUri(
+            RingtoneManager.TYPE_NOTIFICATION
+        );
+        long[] vibration = {0L, 180L, 90L, 180L};
+        String normalizedTitle = cleanText(title, 50);
+        if (normalizedTitle.isEmpty()) normalizedTitle = "一起看";
+        NotificationCompat.Builder notification = new NotificationCompat.Builder(
+            context,
+            CHANNEL_ID
+        )
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(normalizedTitle)
+            .setContentText(normalizedContent)
+            .setStyle(
+                new NotificationCompat.BigTextStyle().bigText(normalizedContent)
+            )
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setSound(sound)
+            .setVibrate(vibration)
+            .setAutoCancel(true)
+            .setContentIntent(contentIntent)
+            .addAction(replyAction);
+
+        NotificationManagerCompat.from(context).notify(
+            notificationId(normalizedMessageId),
+            notification.build()
+        );
     }
 
     public static void showImmediateCompanionMessage(
@@ -277,13 +425,17 @@ public final class PushNotificationWorker extends Worker {
         String conversationId,
         String content
     ) {
+        String normalizedMessageId = cleanText(messageId, 100);
+        String normalizedContent = cleanText(content, 420);
+        if (normalizedMessageId.isEmpty() || normalizedContent.isEmpty()) return;
+        if (!markImmediateMessageSeen(context, normalizedMessageId)) return;
         if (!notificationsAllowed(context)) return;
         ensureNotificationChannel(context);
         JSONObject message = new JSONObject();
         try {
-            message.put("id", messageId);
+            message.put("id", normalizedMessageId);
             message.put("conversation_id", conversationId);
-            message.put("content", content);
+            message.put("content", normalizedContent);
         } catch (Exception ignored) {
             return;
         }

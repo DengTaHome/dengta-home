@@ -143,6 +143,7 @@ function buildCreativeDecisionPrompt({
     return [
         "你正在为自己的私人陪伴关系判断是否要创作一张图片。",
         "请依据聊天、已有角色档案与此刻氛围创作，并沿用个性化指令决定的叙事世界和人物关系。",
+        "不得虚构共同经历：只能把聊天、角色档案、记忆和当前上下文中真实出现的事件移入作品描述；想象的情节必须明确作为创作设定，不要写成我们已经共同经历过的事实。",
         autonomous
             ? "这是自主创作检查。你完全可以选择不画；不要为了完成任务而勉强生成。"
             : "这是用户主动邀请你构思。若素材仍不足，也可以选择不画并保持诚实。",
@@ -181,7 +182,9 @@ async function recentCreativeMessages(database, settings) {
         database
             .from("messages")
             .select("id, role, content, created_at")
-            .in("role", ["user", "assistant"]),
+            .in("role", ["user", "assistant"])
+            .eq("visible", true)
+            .eq("context_visible", true),
         settings
     )
         .order("created_at", { ascending: false })
@@ -624,16 +627,18 @@ async function publishArtworkMessage({
     surpriseReveal = false,
     now = () => new Date()
 }) {
+    const isVisibleArtwork =
+        (artwork?.visibility === "ordinary" && artwork.state === "ready") ||
+        (artwork?.visibility === "surprise" && artwork.state === "revealed");
     if (
         !artwork?.id ||
         !artwork.storage_path ||
-        !["ready", "revealed"].includes(artwork.state)
+        !isVisibleArtwork
     ) {
         return null;
     }
-    if (await existingArtworkMessage(database, artwork.id)) {
-        return null;
-    }
+    const existing = await existingArtworkMessage(database, artwork.id);
+    if (existing) return existing;
     const conversation = await latestConversation(database);
     if (!conversation) return null;
     const visible = center.publicArtwork(artwork);
@@ -664,7 +669,15 @@ async function publishArtworkMessage({
         })
         .select("id")
         .single();
-    if (error) throw error;
+    if (error) {
+        if (error.code !== "23505") throw error;
+        const concurrent = await existingArtworkMessage(
+            database,
+            artwork.id
+        );
+        if (concurrent) return concurrent;
+        throw error;
+    }
     const touched = await database
         .from("conversations")
         .update({ updated_at: createdAt })
@@ -727,6 +740,7 @@ module.exports = {
     handleTenantSurpriseReveal,
     parseCreativeDecision,
     planCreativeArtwork,
+    publishArtworkMessage,
     scheduleCreativeCheck,
     scheduleSurpriseReveal
 };

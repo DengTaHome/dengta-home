@@ -112,7 +112,7 @@ async function main() {
     assert.equal(trustedMessages[0].content, "请按附件执行");
 
     const pdfBuffer = fs.readFileSync(
-        path.join(__dirname, "..", "node_modules", "pdf-parse", "test", "data", "01-valid.pdf")
+        path.join(__dirname, "fixtures", "sample.pdf")
     );
     const pdf = detectAttachment(file("sample.pdf", "application/pdf", pdfBuffer));
     assert.ok((await extractDocumentText(pdf)).length > 0);

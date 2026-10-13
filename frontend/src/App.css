@@ -182,3 +182,259 @@
     border-right-color: var(--border);
   }
 }
+
+/* 风格提纯文件导入 */
+.style-distill-file-row {
+  display: block;
+  margin: 8px 0 6px;
+  padding: 10px 12px;
+  border: 1px dashed #c9a88e;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 13px;
+  color: #8a6a55;
+}
+.style-distill-file-row input[type="file"] {
+  width: 100%;
+  font-size: 12px;
+  color: #7a5a4a;
+}
+.style-distill-file-row span { display: block; margin-top: 4px; }
+.style-distill-file-info {
+  margin: 4px 0 6px;
+  font-size: 12px;
+  color: #4a7a55;
+}
+/* ===== 错误日志面板（设置-错误日志）=====
+.error-logs-card { display: flex; flex-direction: column; gap: 10px; }
+.error-logs-actions { display: flex; gap: 8px; align-items: center; }
+.error-logs-actions button {
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border, rgba(120,120,120,.35));
+  background: var(--accent-bg, rgba(120,120,120,.12));
+  color: var(--accent, #6a8fb5);
+  cursor: pointer;
+  font-size: 13px;
+}
+.error-logs-actions button:disabled { opacity: .5; cursor: default; }
+.error-logs-load-error { color: #d05656; font-size: 13px; padding: 8px 0; }
+.error-logs-empty { color: var(--text-2, #888); font-size: 14px; padding: 16px 0; }
+.error-logs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.error-log-item {
+  border: 1px solid rgba(120,120,120,.25);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(120,120,120,.06);
+}
+.error-log-summary {
+  display: flex; gap: 10px; align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: start;
+}
+.error-log-time { color: var(--text-2, #888); flex: 0 0 auto; font-size: 12px; }
+.error-log-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: #d05656;
+  background: rgba(208,86,86,.1);
+  border-radius: 6px;
+  padding: 2px 6px;
+  flex: 0 0 auto;
+}
+.error-log-path {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--text-2, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+.error-log-detail { padding: 4px 12px 12px; border-top: 1px dashed rgba(120,120,120,.2); }
+.error-log-message { margin: 8px 0 6px; font-size: 13px; line-height: 1.5; }
+.error-log-meta { margin: 0 0 8px; font-size: 12px; color: var(--text-2, #888); line-height: 1.6; }
+.error-log-stack {
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(0,0,0,.35);
+  color: #c8c8c8;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 260px;
+  overflow-y: auto;
+}
+/* ===== 聊天页错误详情面板（成品样式）=====
+.chat-error-panel {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(208,86,86,.45);
+  border-radius: 12px;
+  background: rgba(208,86,86,.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-error-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.chat-error-code-badge {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: #d05656;
+  border-radius: 8px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.chat-error-location {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: #d05656;
+  background: rgba(208,86,86,.12);
+  border-radius: 6px;
+  padding: 2px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.chat-error-time {
+  font-size: 11px;
+  color: var(--text-2, #888);
+  margin-inline-start: auto;
+}
+.chat-error-log-toggle {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(208,86,86,.5);
+  background: transparent;
+  color: #d05656;
+  cursor: pointer;
+  font-size: 12px;
+}
+.chat-error-log-toggle:hover { background: rgba(208,86,86,.12); }
+.chat-error-no-log { font-size: 12px; color: var(--text-2, #888); }
+.chat-error-log-detail {
+  border-top: 1px dashed rgba(208,86,86,.35);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chat-error-log-line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-1, #333);
+  word-break: break-all;
+}
+.chat-error-log-line strong { color: #d05656; }
+.chat-error-log-stack {
+  margin: 6px 0 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(0,0,0,.35);
+  color: #c8c8c8;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.chat-error-log-loading, .chat-error-log-failed {
+  font-size: 12px;
+  color: var(--text-2, #888);
+}
+/* ===== 拒答标注条（消息最上方） ===== */
+.chat-refusal-banner {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(208,86,86,.55);
+  border-radius: 10px;
+  background: rgba(208,86,86,.1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.chat-refusal-badge {
+  font-weight: 700;
+  color: #fff;
+  background: #d05656;
+  border-radius: 8px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.chat-refusal-source { color: var(--text-1, #333); line-height: 1.5; }
+.chat-refusal-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: #d05656;
+  background: rgba(208,86,86,.12);
+  border-radius: 6px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+.chat-refusal-log-toggle { margin-inline-start: auto; }
+.chat-refusal-banner .chat-error-log-detail { width: 100%; }
+/* ===== 记忆导入卡片 ===== */
+.memory-import-card { display: flex; flex-direction: column; gap: 10px; }
+.memory-import-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.memory-import-actions input[type=file] {
+  font-size: 13px;
+  color: var(--text-2, #888);
+  flex: 1 1 auto;
+  min-width: 220px;
+}
+.memory-import-run {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border, rgba(120,120,120,.35));
+  background: var(--accent-bg, rgba(120,120,120,.12));
+  color: var(--accent, #6a8fb5);
+  cursor: pointer;
+  font-size: 13px;
+}
+.memory-import-run:disabled { opacity: .5; cursor: default; }
+.memory-import-history {
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(74,138,85,.5);
+  background: rgba(74,138,85,.1);
+  color: #4a8a55;
+  cursor: pointer;
+  font-size: 13px;
+}
+.memory-import-history:disabled { opacity: .5; cursor: default; }
+.memory-import-error { color: #d05656; font-size: 13px; margin: 0; }
+.memory-import-result {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(74,138,85,.12);
+  border: 1px solid rgba(74,138,85,.4);
+  font-size: 13px;
+}
+.memory-import-result strong { color: #4a8a55; }

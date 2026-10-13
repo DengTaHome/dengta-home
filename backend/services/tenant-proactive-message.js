@@ -2,8 +2,8 @@ const { createHash } = require("node:crypto");
 
 const MIN_NEXT_CHECK_MINUTES = 1;
 const MAX_NEXT_CHECK_MINUTES = 14 * 60;
-const MIN_SEED_DELAY_MINUTES = 15;
-const MAX_SEED_DELAY_MINUTES = 10 * 60;
+const MIN_SEED_DELAY_MINUTES = 3;
+const MAX_SEED_DELAY_MINUTES = 120;
 const DEFAULT_MAX_PUSH_PER_DAY = 7;
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
 
@@ -123,6 +123,8 @@ async function countProactiveMessagesForDay({
         .from("messages")
         .select("id")
         .eq("role", "assistant")
+        .eq("visible", true)
+        .eq("context_visible", true)
         .contains("tool_calls", { is_proactive: true })
         .gte("created_at", window.start.toISOString())
         .lt("created_at", window.end.toISOString())
@@ -163,7 +165,7 @@ function parseProactiveDecision(text, random = Math.random) {
               MAX_NEXT_CHECK_MINUTES,
               Math.max(MIN_NEXT_CHECK_MINUTES, requestedMinutes)
           )
-        : randomInteger(60, MAX_SEED_DELAY_MINUTES, random);
+        : randomInteger(10, MAX_SEED_DELAY_MINUTES, random);
     return {
         send: parsed.send === true && Boolean(message),
         message,

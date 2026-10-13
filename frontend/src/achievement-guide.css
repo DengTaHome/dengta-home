@@ -1,0 +1,22 @@
+.achievement-guide { color: inherit; border: 1px solid rgba(173,137,106,.3); border-radius: 16px; background: rgba(190,154,118,.09); padding: 12px; margin: 10px 0; text-align: left; flex-shrink: 0; }
+.achievement-guide-heading { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.achievement-guide strong { font-size: 14px; }
+.achievement-guide small { display: block; font-size: 12px; line-height: 1.6; margin-top: 4px; opacity: .8; }
+.achievement-guide button, .achievement-notice button { min-height: 40px; font: inherit; font-size: 12px; padding: 8px 12px; border: 1px solid rgba(173,137,106,.4); border-radius: 12px; background: rgba(190,154,118,.12); color: inherit; cursor: pointer; }
+.achievement-guide button:disabled { opacity: .55; cursor: default; }
+.achievement-guide-heading > button { flex-shrink: 0; }
+.achievement-guide-body nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.achievement-guide-body nav button[aria-current="step"] { background: rgba(190,154,118,.3); border-color: #ac815b; }
+.achievement-guide-body h3 { font-size: 15px; margin: 14px 0 6px; }
+.achievement-guide-body p { font-size: 13px; line-height: 1.75; margin: 6px 0 12px; }
+.achievement-guide-body > .achievement-guide-skip { background: transparent; margin-left: 8px; }
+.achievement-guide-positive { border-left: 3px solid #8fac90; padding-left: 10px; }
+.achievement-guide :focus-visible, .achievement-notice :focus-visible { outline: 2px solid #ac815b; outline-offset: 3px; }
+.achievement-notice { position: fixed; top: calc(env(safe-area-inset-top) + 76px); right: 16px; width: min(320px, calc(100vw - 32px)); box-sizing: border-box; z-index: 90; padding: 14px; border: 1px solid #ccb89c; border-radius: 16px; background: #fff9ef; color: #4b3d32; box-shadow: 0 8px 30px #0002; }
+.achievement-notice p { margin: 8px 0; font-size: 13px; }
+.achievement-notice small { display: block; font-size: 12px; line-height: 1.6; opacity: .8; }
+.achievement-notice > div:last-child { display: flex; gap: 8px; }
+:root[data-dengta-appearance="night"] .achievement-notice { background: #302923; color: #f3e6d7; }
+.fun-achievements-grid .fun-achievement-card:not(.is-unlocked) { filter: none; opacity: 1; background: rgba(190,154,118,.06); }
+.fun-achievements-grid .fun-achievement-card > button { margin-top: 8px; min-height: 40px; padding: 8px; border: 1px solid rgba(173,137,106,.4); border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.fun-achievements-grid .fun-achievement-card > button:focus-visible { outline: 2px solid #ac815b; outline-offset: 3px; }

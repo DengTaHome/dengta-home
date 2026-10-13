@@ -191,6 +191,29 @@
   line-height: 1.65;
 }
 
+.web-install {
+  display: grid;
+  gap: 8px;
+}
+
+.web-install-button {
+  min-height: 42px;
+  padding: 9px 14px;
+  border: 1px solid #d7c6c3;
+  border-radius: 7px;
+  color: #703a4c;
+  background: #fffdf9;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.web-install-guidance {
+  margin: 0;
+  color: #78656b;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 .auth-verification {
   justify-items: start;
   padding: 18px;
@@ -525,3 +548,40 @@
     animation: none;
   }
 }
+.app-startup-page {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 28px;
+  color: #27352f;
+  background: radial-gradient(circle at 50% 28%, #f8e7d4 0, #e8edf0 42%, #c9d8df 100%);
+  text-align: center;
+}
+
+.app-startup-mark {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 20px;
+  color: #fff;
+  background: linear-gradient(145deg, #738da0, #b58b7f);
+  box-shadow: 0 16px 38px rgba(63, 82, 91, .22);
+  font: 700 25px Georgia, "Songti SC", serif;
+}
+
+.app-startup-page strong { font: 700 1.25rem Georgia, "Songti SC", serif; }
+.app-startup-page span { max-width: 340px; color: #66736d; line-height: 1.6; }
+.app-startup-page small { color: #66736d; font: 500 .78rem ui-monospace, SFMono-Regular, Consolas, monospace; }
+.app-startup-failure button { min-height: 44px; margin-top: 8px; padding: 0 18px; border: 0; border-radius: 14px; color: #fff; background: #27352f; font: inherit; }
+.app-startup-failure button:disabled { opacity: .58; }
+
+:root[data-dengta-appearance="night"] .app-startup-page {
+  color: #edf3f0;
+  background: radial-gradient(circle at 50% 25%, #283b35 0, #151d1a 55%, #0b0f0e 100%);
+}
+
+:root[data-dengta-appearance="night"] .app-startup-page span { color: #b2beb8; }
+:root[data-dengta-appearance="night"] .app-startup-page small { color: #b2beb8; }

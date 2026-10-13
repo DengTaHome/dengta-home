@@ -44,7 +44,7 @@ export function findSynchronizedAssistantMessage(
         (message) => normalizedText(message?.content) === localText,
       )
     : [];
-  const pool = exactText.length > 0 ? exactText : candidates;
+  const pool = exactText;
   if (pool.length === 0) return null;
 
   const closest = [...pool].sort((left, right) => {
@@ -58,7 +58,7 @@ export function findSynchronizedAssistantMessage(
   })[0];
   if (!closest) return null;
 
-  const maximumDistanceMs = exactText.length > 0 ? 10 * 60_000 : 2 * 60_000;
+  const maximumDistanceMs = 10 * 60_000;
   if (
     localTime &&
     Math.abs(timestamp(closest?.created_at) - localTime) > maximumDistanceMs
@@ -101,7 +101,7 @@ export async function recoverSynchronizedAssistantMessage({
       }
     }
     return { message: null, messages, error: pending };
-  } catch {
-    return { message: null, messages: null, error: pending };
+  } catch (cause) {
+    return { message: null, messages: null, error: pending, cause };
   }
 }

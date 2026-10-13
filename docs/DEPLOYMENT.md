@@ -9,7 +9,7 @@
 
 ## Supabase
 
-Create a new project and apply every SQL migration in `backend/supabase/` in numeric order. Use the project URL and anon key in the frontend. Keep the secret/service-role key on the backend only.
+Create an independent development project and review the SQL files in `backend/supabase/`, their dependencies, and the target database's migration history before applying the required files. Some files share numeric prefixes; a numeric sort alone does not establish a complete dependency order. Verify Auth, table permissions, Row Level Security, Storage and account initialization after setup. Do not blindly reapply every file to an existing database; production upgrades require a backup and a verified rollback plan. Use the project URL and public publishable/legacy anon key in the frontend. Keep the secret/service-role key on the backend only.
 
 ## Backend
 
@@ -30,6 +30,8 @@ The manual GitHub Actions APK workflow requires three Repository Secrets: `VITE_
 ## Background jobs
 
 Leave background jobs disabled until all required migrations are applied. Configure trigger secrets and worker identity only in the deployment platform. Start with one worker, then raise concurrency after observing database load and provider rate limits.
+
+`backend/.github/workflows/shadow-push.yml` is an optional workflow template. It does not run from this monorepo's nested directory. If you install it into a deployment repository, set `DENGTA_BACKGROUND_JOB_API_URL` as a repository variable and `DENGTA_BACKGROUND_JOB_TRIGGER_SECRET_V3` as a repository secret for your own backend. Never reuse another deployment's secret.
 
 ## Before going live
 

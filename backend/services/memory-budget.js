@@ -1,5 +1,5 @@
-const DEFAULT_MEMORY_CHAR_BUDGET = 2600;
-const DEFAULT_MEMORY_MAX_ITEMS = 5;
+const DEFAULT_MEMORY_CHAR_BUDGET = 6000;
+const DEFAULT_MEMORY_MAX_ITEMS = 12;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function memoryBudgetEnabled(value = process.env.MEMORY_BUDGET_ENABLED) {
@@ -108,14 +108,14 @@ function selectMemoriesForContext(
     const itemLimit = Math.max(
         1,
         Math.min(
-            20,
+            40,
             Math.round(finiteNumber(maxItems, DEFAULT_MEMORY_MAX_ITEMS))
         )
     );
     const budget = Math.max(
         200,
         Math.min(
-            12000,
+            24000,
             Math.round(
                 finiteNumber(charBudget, DEFAULT_MEMORY_CHAR_BUDGET)
             )
@@ -162,7 +162,7 @@ function selectMemoriesForContext(
                   ? "summary"
                   : "cold";
         if (tier === "cold" && memory.relevance === 0) continue;
-        const perItemLimit = tier === "full" ? 900 : 220;
+        const perItemLimit = tier === "full" ? 1200 : 400;
         const summary = truncateMemory(
             memory.summary,
             Math.min(perItemLimit, remaining)

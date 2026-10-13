@@ -761,27 +761,6 @@ body,
   transform: translate(-50%, -50%);
   filter: drop-shadow(0 1px 1px rgb(255 255 255 / .72)) drop-shadow(0 3px 5px rgb(39 64 112 / .42));
   animation: rainbow-agent-star-breathe 3.8s ease-in-out infinite;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: linear-gradient(145deg, #fff7c7 8%, #ffdb62 34%, #77e6ff 66%, #c48aff 92%);
-  color: #17202a;
-  font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
-  font-size: 18px;
-  font-weight: 900;
-  line-height: 1;
-  text-shadow: 0 1px 0 rgb(255 255 255 / .72);
-}
-
-.rainbow-agent-mark-glint {
-  position: absolute;
-  z-index: 7;
-  inset: 3px 9px auto;
-  height: 8px;
-  border-radius: 50%;
-  background: linear-gradient(180deg, rgb(255 255 255 / .68), transparent);
-  mix-blend-mode: screen;
-  pointer-events: none;
 }
 
 .rainbow-star-stop-top {
@@ -1139,11 +1118,11 @@ body,
 .celestial-prototype-sky .celestial-milky-way {
   position: absolute;
   z-index: 1;
+  inset: auto;
   left: -14%;
   top: 15%;
   width: 132%;
   height: 42%;
-  inset: auto;
   opacity: clamp(0, calc(var(--milky-opacity, 0) * var(--moon-light-intensity, .86)), 1);
   transform: rotate(-23deg);
   transform-origin: center;
@@ -1318,6 +1297,16 @@ body,
   border-radius: inherit;
   box-shadow: inset 12px 0 24px rgb(255 255 255 / .05), inset -10px 0 30px rgb(108 126 168 / .045);
   background: linear-gradient(122deg, rgb(255 255 255 / .1), transparent 22%, transparent 73%, rgb(255 255 255 / .055));
+}
+
+.rainbow-agent-mark-glint {
+  position: absolute;
+  inset: 1px 8px auto;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgb(255 255 255 / .52), transparent);
+  mix-blend-mode: screen;
+  pointer-events: none;
 }
 
 @media (max-width: 520px) {

@@ -1,5 +1,9 @@
 const { randomUUID } = require("node:crypto");
 
+const {
+    runCalendarConsolidation
+} = require("./calendar-consolidation");
+
 const DEFAULT_CONCURRENCY = 4;
 const DEFAULT_CLAIM_LIMIT = 5;
 const DEFAULT_LEASE_SECONDS = 300;
@@ -722,6 +726,20 @@ function createBackgroundJobWorker({
         await mapWithConcurrency(claimed, normalizedConcurrency, (item) =>
             processClaimedJob(item, stats)
         );
+
+        try {
+            const calResult = await runCalendarConsolidation({
+                database: adminSupabase,
+                logger,
+                now: () => new Date(now()).getTime()
+            });
+            if (!calResult.skipped) {
+                stats.calendarConsolidated = calResult.completed;
+            }
+        } catch {
+            // Calendar consolidation is a best-effort optimization.
+            // Never let it break the main job loop.
+        }
 
         writeLog(logger, "info", "background_job_run_complete", stats);
         return stats;

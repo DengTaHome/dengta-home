@@ -13,6 +13,13 @@ const UUID_PATTERN =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GENERATION_MODES = new Set(["confirm", "autonomous", "off"]);
 const ARTWORK_KINDS = new Set(["avatar", "doodle", "gift"]);
+const CREDENTIAL_STATES = new Set([
+    "missing",
+    "needs_reentry",
+    "not_required",
+    "ready",
+    "unavailable"
+]);
 const IMAGE_SIGNATURES = Object.freeze({
     "image/jpeg": {
         extension: "jpg",
@@ -64,12 +71,36 @@ function creativeError(message, code, status = 400, details = {}) {
 
 function publicCreativeError(error) {
     if (error?.isPublicCreativeError === true) {
+        const credentialState = CREDENTIAL_STATES.has(error.credential_state)
+            ? error.credential_state
+            : null;
+        const credentialScope = ["artwork", "image_provider"].includes(
+            error.credential_scope
+        )
+            ? error.credential_scope
+            : null;
+        const metadataState = CREDENTIAL_STATES.has(error.metadata_state)
+            ? error.metadata_state
+            : null;
         return {
             status: Number(error.status) || 500,
             code: cleanText(error.code, 100) || "creative_request_failed",
             message:
                 cleanText(error.message, 400) ||
                 "创作请求暂时没有完成，请稍后再试。",
+            ...(credentialState
+                ? { credential_state: credentialState }
+                : {}),
+            ...(error.credential_reentry_required === true
+                ? { credential_reentry_required: true }
+                : {}),
+            ...(credentialScope
+                ? { credential_scope: credentialScope }
+                : {}),
+            ...(metadataState ? { metadata_state: metadataState } : {}),
+            ...(error.metadata_reentry_required === true
+                ? { metadata_reentry_required: true }
+                : {}),
             ...(Number(error.upstream_status)
                 ? { upstream_status: Number(error.upstream_status) }
                 : {})
@@ -213,6 +244,7 @@ function encryptScopedSecret(value, identity, type, env = process.env) {
 
 function decryptScopedSecret(value, identity, type, env = process.env) {
     if (!value) return "";
+    const providerCredential = type === "image-provider";
     const [version, digest, ...cipherParts] = String(value).split(".");
     if (
         version !== "ctx1" ||
@@ -220,20 +252,89 @@ function decryptScopedSecret(value, identity, type, env = process.env) {
         cipherParts.length !== 4
     ) {
         throw creativeError(
-            "图片接口或作品凭据与当前账号不匹配，请重新配置。",
+            providerCredential
+                ? "图片接口凭据与当前账号不匹配，请重新填写图片 API Key。 / The image provider credential does not match this account. Re-enter the image API key."
+                : "旧作品文案与当前账号不匹配，暂时无法读取；已有图片仍可查看，未完成作品需要重新构思。 / This legacy artwork metadata does not match the current account. Existing images remain viewable; unfinished artwork must be recreated.",
             "creative_secret_scope_invalid",
-            503
+            503,
+            providerCredential
+                ? {
+                      credential_state: "needs_reentry",
+                      credential_reentry_required: true,
+                      credential_scope: "image_provider"
+                  }
+                : {
+                      metadata_state: "needs_reentry",
+                      metadata_reentry_required: true
+                  }
         );
     }
     try {
         return decryptCredential(cipherParts.join("."), env);
     } catch {
         throw creativeError(
-            "图片接口或作品凭据无法解密，请重新配置。",
+            providerCredential
+                ? "图片接口凭据无法解密，请重新填写图片 API Key。 / The image provider credential cannot be decrypted. Re-enter the image API key."
+                : "旧作品文案暂时无法解密；已有图片仍可查看，未完成作品需要重新构思。 / This legacy artwork metadata cannot be decrypted. Existing images remain viewable; unfinished artwork must be recreated.",
             "creative_secret_invalid",
-            503
+            503,
+            providerCredential
+                ? {
+                      credential_state: "needs_reentry",
+                      credential_reentry_required: true,
+                      credential_scope: "image_provider"
+                  }
+                : {
+                      metadata_state: "needs_reentry",
+                      metadata_reentry_required: true
+                  }
         );
     }
+}
+
+function inspectScopedSecret(value, identity, type, env = process.env) {
+    if (!value) {
+        return { state: "missing", usable: false, value: "" };
+    }
+    try {
+        return {
+            state: "ready",
+            usable: true,
+            value: decryptScopedSecret(value, identity, type, env)
+        };
+    } catch (error) {
+        return {
+            state: [
+                "creative_secret_invalid",
+                "creative_secret_scope_invalid"
+            ].includes(error?.code)
+                ? "needs_reentry"
+                : "unavailable",
+            usable: false,
+            value: ""
+        };
+    }
+}
+
+function inspectImageProviderCredential(row, identity, env = process.env) {
+    if (row?.auth_type === "none") {
+        return {
+            state: "not_required",
+            usable: true,
+            credential: ""
+        };
+    }
+    const inspection = inspectScopedSecret(
+        row?.secret_ciphertext,
+        identity,
+        "image-provider",
+        env
+    );
+    return {
+        state: inspection.state,
+        usable: inspection.usable,
+        credential: inspection.value
+    };
 }
 
 function imageEndpoint(baseUrl) {
@@ -282,17 +383,30 @@ async function normalizeImageBaseUrl(
     }
 }
 
-function publicImageProvider(row) {
+function publicImageProvider(row, credentialInspection = null) {
     if (!row) {
         return {
             configured: false,
             enabled: false,
             auth_configured: false,
+            credential_state: "missing",
+            credential_reentry_required: false,
             last_status: "untested",
             last_error_code: null,
             last_checked_at: null
         };
     }
+    const credentialState =
+        credentialInspection?.state ||
+        (row.auth_type === "none"
+            ? "not_required"
+            : row.secret_ciphertext
+              ? "stored"
+              : "missing");
+    const credentialUsable =
+        typeof credentialInspection?.usable === "boolean"
+            ? credentialInspection.usable
+            : row.auth_type === "none" || Boolean(row.secret_ciphertext);
     return {
         configured: true,
         id: row.id,
@@ -300,8 +414,10 @@ function publicImageProvider(row) {
         protocol: "openai-images",
         base_url: row.base_url,
         auth_type: row.auth_type || "bearer",
-        auth_configured:
-            row.auth_type === "none" || Boolean(row.secret_ciphertext),
+        auth_configured: credentialUsable,
+        credential_state: credentialState,
+        credential_reentry_required: credentialState === "needs_reentry",
+        routable: row.enabled === true && credentialUsable,
         model: row.model || "",
         enabled: row.enabled === true,
         last_status: row.last_status || "untested",
@@ -840,18 +956,31 @@ function hiddenArtwork(row) {
 }
 
 function publicArtwork(row, identity, env = process.env) {
-    const description = decryptScopedSecret(
+    const descriptionInspection = inspectScopedSecret(
         row.description_ciphertext,
         identity,
         `artwork-description:${row.id}`,
         env
     );
-    const reason = decryptScopedSecret(
+    const reasonInspection = inspectScopedSecret(
         row.generation_reason_ciphertext,
         identity,
         `artwork-reason:${row.id}`,
         env
     );
+    const credentialState = [descriptionInspection, reasonInspection].some(
+        (inspection) => inspection.state === "needs_reentry"
+    )
+        ? "needs_reentry"
+        : [descriptionInspection, reasonInspection].some(
+                (inspection) => inspection.state === "unavailable"
+            )
+          ? "unavailable"
+          : [descriptionInspection, reasonInspection].every(
+                  (inspection) => inspection.state === "ready"
+              )
+            ? "ready"
+            : "missing";
     const hasImage =
         Boolean(row.storage_path) &&
         ["ready", "revealed"].includes(row.state);
@@ -860,8 +989,17 @@ function publicArtwork(row, identity, env = process.env) {
         kind: row.kind,
         state: row.state,
         title: row.title,
-        description,
-        reason,
+        description: descriptionInspection.value,
+        reason: reasonInspection.value,
+        metadata_state: credentialState,
+        metadata_reentry_required: credentialState === "needs_reentry",
+        ...(credentialState === "needs_reentry"
+            ? {
+                  metadata_message: hasImage
+                      ? "旧作品文案暂不可读，但已有图片仍可查看。 / Legacy artwork text is temporarily unreadable, but the existing image remains viewable."
+                      : "旧作品文案暂不可读，未完成作品需要重新构思。 / Legacy artwork text is temporarily unreadable; unfinished artwork must be recreated."
+              }
+            : {}),
         alt_text: row.alt_text || "AI 伴侣创作的图片",
         image_url: hasImage
             ? `/api/v2/creative/artworks/${encodeURIComponent(
@@ -1016,6 +1154,9 @@ function createCompanionCreativeCenter({
 
     async function saveProvider(input = {}) {
         const existing = await getProviderRow();
+        const existingCredential = existing
+            ? inspectImageProviderCredential(existing, owner, env)
+            : null;
         const name =
             cleanText(input.name ?? existing?.name, 80) ||
             "我的图片接口";
@@ -1052,8 +1193,34 @@ function createCompanionCreativeCenter({
         }
         if (authType === "bearer" && !secretCiphertext) {
             throw creativeError(
-                "请填写图片接口 API Key。",
-                "creative_provider_credential_required"
+                "请填写图片接口 API Key。 / Please enter the image provider API key.",
+                "creative_provider_credential_required",
+                400,
+                {
+                    credential_state: "missing",
+                    credential_scope: "image_provider"
+                }
+            );
+        }
+        if (
+            authType === "bearer" &&
+            input.enabled === true &&
+            !suppliedCredential &&
+            existingCredential?.usable !== true
+        ) {
+            throw creativeError(
+                "旧图片接口凭据无法使用，请重新填写图片 API Key 后再启用。 / The legacy image provider credential is unavailable. Re-enter the image API key before enabling it.",
+                "creative_provider_credential_reentry_required",
+                409,
+                {
+                    credential_state:
+                        existingCredential?.state === "needs_reentry"
+                            ? "needs_reentry"
+                            : "missing",
+                    credential_reentry_required:
+                        existingCredential?.state === "needs_reentry",
+                    credential_scope: "image_provider"
+                }
             );
         }
         const values = {
@@ -1082,7 +1249,10 @@ function createCompanionCreativeCenter({
                   .select("*")
                   .single();
         if (result.error) throw result.error;
-        return publicImageProvider(result.data);
+        return publicImageProvider(
+            result.data,
+            inspectImageProviderCredential(result.data, owner, env)
+        );
     }
 
     async function recentUsage() {
@@ -1135,12 +1305,19 @@ function createCompanionCreativeCenter({
             recentUsage(),
             hiddenSurpriseRows()
         ]);
+        const providerCredential = provider
+            ? inspectImageProviderCredential(provider, owner, env)
+            : null;
         return {
             ok: true,
             settings: publicCreativeSettings(settings),
-            provider: publicImageProvider(provider),
+            provider: publicImageProvider(provider, providerCredential),
             usage,
-            surprise_shutdown_required: hiddenSurprises.length > 0
+            surprise_shutdown_required: hiddenSurprises.length > 0,
+            credential_reentry_required:
+                providerCredential?.state === "needs_reentry",
+            credentials_requiring_reentry:
+                providerCredential?.state === "needs_reentry" ? 1 : 0
         };
     }
 
@@ -1355,22 +1532,63 @@ function createCompanionCreativeCenter({
         return usage;
     }
 
-    async function recordCallStart(artwork, provider) {
+    function generationInProgress() {
+        return creativeError(
+            "这件作品正在生成或状态已变化，请刷新作品库查看结果，避免重复调用图片接口。",
+            "creative_generation_in_progress",
+            409
+        );
+    }
+
+    function ownedArtworkAttempt(artwork, attempt, changes) {
+        const query = changes === undefined
+            ? database.from("companion_artworks").select("id")
+            : database.from("companion_artworks").update(changes);
+        return query
+            .eq("id", artwork.id)
+            .eq("user_id", owner.userId)
+            .eq("companion_id", owner.companionId)
+            .eq("state", "generating")
+            .eq("actual_call_count", attempt)
+            .is("deleted_at", null);
+    }
+
+    async function assertArtworkAttemptOwned(artwork, attempt) {
+        const result = await ownedArtworkAttempt(artwork, attempt).maybeSingle();
+        if (result.error) throw result.error;
+        if (!result.data) throw generationInProgress();
+    }
+
+    async function recordCallStart(artwork, provider, options) {
+        const previousAttempt = Number(artwork.actual_call_count || 0);
         const attempt = Number(artwork.actual_call_count || 0) + 1;
         const startedAt = now().toISOString();
-        const { data, error } = await database
-            .from("image_generation_calls")
-            .insert({
-                artwork_id: artwork.id,
-                provider_profile_id: provider.id,
-                attempt,
-                status: "started",
-                model: provider.model,
-                started_at: startedAt
-            })
-            .select("*")
-            .single();
-        if (error) throw error;
+        if (!["idea", "awaiting_confirmation", "failed", "generating"].includes(artwork.state)) throw generationInProgress();
+        let previousCall = null;
+        if (artwork.state === "generating" && previousAttempt > 0) {
+            if (!artwork.source_job_id || typeof options.lease?.assertOwned !== "function") {
+                const started = Date.parse(artwork.updated_at);
+                if (Number.isFinite(started) && now().getTime() - started >= 300_000) {
+                    throw creativeError(
+                        "本次图片生成的结果未能确认。请先刷新作品库查看；仍无结果时，可删除本次作品后重新构思。重新生成可能产生新的接口费用。",
+                        "creative_generation_recovery_required",
+                        409
+                    );
+                }
+                throw generationInProgress();
+            }
+            await options.lease.assertOwned();
+            const previous = await database.from("image_generation_calls").select("*")
+                .eq("artwork_id", artwork.id).eq("attempt", previousAttempt).maybeSingle();
+            if (previous.error) throw previous.error;
+            previousCall = previous.data;
+            if (!["failed", "cancelled"].includes(previousCall?.status)) {
+                const started = Date.parse(previousCall?.started_at || artwork.updated_at);
+                // Only an owned background lease may recover an abandoned attempt,
+                // after the provider's 120s timeout plus time for storage completion.
+                if (previousCall?.status === "succeeded" || !Number.isFinite(started) || now().getTime() - started < 300_000) throw generationInProgress();
+            }
+        }
         const update = await database
             .from("companion_artworks")
             .update({
@@ -1382,10 +1600,33 @@ function createCompanionCreativeCenter({
                 updated_at: startedAt
             })
             .eq("id", artwork.id)
+            .eq("user_id", owner.userId)
+            .eq("companion_id", owner.companionId)
+            .eq("state", artwork.state)
+            .eq("actual_call_count", previousAttempt)
+            .is("deleted_at", null)
             .select("*")
-            .single();
+            .maybeSingle();
         if (update.error) throw update.error;
-        return { call: data, artwork: update.data };
+        if (!update.data) throw generationInProgress();
+        if (previousCall?.status === "started") {
+            await finishCall(previousCall.id, { status: "cancelled", error_code: "creative_attempt_superseded" }).catch(() => {});
+        }
+        const { data, error } = await database.from("image_generation_calls").insert({
+            artwork_id: artwork.id, provider_profile_id: provider.id,
+            attempt, status: "started", model: provider.model, started_at: startedAt
+        }).select("*").single();
+        if (error) {
+            try {
+                await ownedArtworkAttempt(artwork, attempt, {
+                    state: "failed", failure_code: "creative_call_record_failed", updated_at: now().toISOString()
+                });
+            } catch {
+                // A missing ledger receipt must never start an unrecorded provider call.
+            }
+            throw creativeError("图片调用记录暂时无法保存，本次没有调用图片接口，请稍后重试。", "creative_call_record_failed", 503);
+        }
+        return { call: data, artwork: update.data, attempt };
     }
 
     async function finishCall(callId, values) {
@@ -1395,7 +1636,10 @@ function createCompanionCreativeCenter({
                 ...values,
                 completed_at: now().toISOString()
             })
-            .eq("id", callId);
+            .eq("id", callId)
+            .eq("user_id", owner.userId)
+            .eq("companion_id", owner.companionId)
+            .eq("status", "started");
         if (error) throw error;
     }
 
@@ -1425,30 +1669,65 @@ function createCompanionCreativeCenter({
                 409
             );
         }
-        const credential =
-            provider.auth_type === "none"
-                ? ""
-                : decryptScopedSecret(
-                      provider.secret_ciphertext,
-                      owner,
-                      "image-provider",
-                      env
-                  );
+        const providerCredential = inspectImageProviderCredential(
+            provider,
+            owner,
+            env
+        );
+        if (!providerCredential.usable) {
+            const requiresReentry =
+                providerCredential.state === "needs_reentry";
+            throw creativeError(
+                requiresReentry
+                    ? "图片接口凭据无法解密，请在设置中重新填写图片 API Key 后再生成。 / The image provider credential cannot be decrypted. Re-enter the image API key in Settings before generating."
+                    : "图片接口还没有可用的 API Key，请先在设置中填写。 / The image provider does not have a usable API key. Enter one in Settings first.",
+                requiresReentry
+                    ? "creative_provider_credential_reentry_required"
+                    : "creative_provider_credential_required",
+                409,
+                {
+                    credential_state: providerCredential.state,
+                    credential_reentry_required: requiresReentry,
+                    credential_scope: "image_provider"
+                }
+            );
+        }
+        const promptInspection = inspectScopedSecret(
+            artwork.prompt_ciphertext,
+            owner,
+            `artwork-prompt:${artwork.id}`,
+            env
+        );
+        if (!promptInspection.usable) {
+            const requiresReentry =
+                promptInspection.state === "needs_reentry";
+            throw creativeError(
+                requiresReentry
+                    ? "这件旧作品的生成提示无法解密，请重新构思后再生成。 / This legacy artwork prompt cannot be decrypted. Create a new idea before generating."
+                    : "这件作品没有可用的生成提示，请重新构思后再生成。 / This artwork has no usable generation prompt. Create a new idea before generating.",
+                requiresReentry
+                    ? "creative_artwork_metadata_reentry_required"
+                    : "creative_artwork_prompt_missing",
+                409,
+                {
+                    metadata_state: promptInspection.state,
+                    metadata_reentry_required: requiresReentry
+                }
+            );
+        }
+        const credential = providerCredential.credential;
         await assertCallBudget(settings);
         await options.lease?.assertOwned?.();
-        const started = await recordCallStart(artwork, provider);
+        const started = await recordCallStart(artwork, provider, options);
         let image;
+        let uploadedPath = null, readyCommitted = false, completionUnknown = false;
         try {
-            const prompt = decryptScopedSecret(
-                artwork.prompt_ciphertext,
-                owner,
-                `artwork-prompt:${artwork.id}`,
-                env
-            );
+            await options.lease?.assertOwned?.();
+            await assertArtworkAttemptOwned(artwork, started.attempt);
             image = await fetchGeneratedImage({
                 provider,
                 credential,
-                prompt,
+                prompt: promptInspection.value,
                 fetchImpl,
                 lookup,
                 production: env.NODE_ENV === "production"
@@ -1461,11 +1740,12 @@ function createCompanionCreativeCenter({
                 );
             }
             await options.lease?.assertOwned?.();
+            await assertArtworkAttemptOwned(artwork, started.attempt);
             const storagePath = [
                 owner.userId,
                 owner.companionId,
                 now().toISOString().slice(0, 10),
-                `${artwork.id}.${image.extension}`
+                `${artwork.id}-${started.attempt}.${image.extension}`
             ].join("/");
             const uploaded = await storage
                 .from(ARTWORK_BUCKET)
@@ -1475,14 +1755,14 @@ function createCompanionCreativeCenter({
                     cacheControl: "3600"
                 });
             if (uploaded.error) throw uploaded.error;
+            uploadedPath = storagePath;
             await options.lease?.assertOwned?.();
             const nextState =
                 artwork.visibility === "surprise"
                     ? "ready_hidden"
                     : "ready";
-            const updated = await database
-                .from("companion_artworks")
-                .update({
+            completionUnknown = true;
+            const updated = await ownedArtworkAttempt(artwork, started.attempt, {
                     state: nextState,
                     storage_bucket: ARTWORK_BUCKET,
                     storage_path: storagePath,
@@ -1493,16 +1773,14 @@ function createCompanionCreativeCenter({
                         nextState === "ready" ? now().toISOString() : null,
                     updated_at: now().toISOString()
                 })
-                .eq("id", artwork.id)
                 .select("*")
-                .single();
-            if (updated.error) {
-                await storage
-                    .from(ARTWORK_BUCKET)
-                    .remove([storagePath])
-                    .catch(() => {});
-                throw updated.error;
+                .maybeSingle();
+            if (updated.error) throw updated.error;
+            if (!updated.data) {
+                completionUnknown = false;
+                throw generationInProgress();
             }
+            readyCommitted = true;
             await finishCall(started.call.id, { status: "succeeded" });
             await database
                 .from("image_provider_profiles")
@@ -1520,22 +1798,37 @@ function createCompanionCreativeCenter({
                 status: "failed",
                 error_code: publicError.code
             }).catch(() => {});
+            let failureOwned = false;
             try {
-                await database
-                    .from("companion_artworks")
-                    .update({
+                await options.lease?.assertOwned?.();
+                const failed = await ownedArtworkAttempt(artwork, started.attempt, {
                         state:
                             options.keepGeneratingForRetry === true
                                 ? "generating"
                                 : "failed",
                         failure_code: publicError.code,
                         updated_at: now().toISOString()
-                    })
-                    .eq("id", artwork.id);
+                    }).select("id").maybeSingle();
+                failureOwned = !failed.error && Boolean(failed.data);
             } catch {
                 // The original provider error remains the public failure.
             }
+            if (uploadedPath && !readyCommitted) {
+                try {
+                    const reference = await database.from("companion_artworks").select("state,actual_call_count,storage_path")
+                        .eq("id", artwork.id).eq("user_id", owner.userId).eq("companion_id", owner.companionId).maybeSingle();
+                    const stillUnknown = completionUnknown && reference.data?.state === "generating" && Number(reference.data.actual_call_count) === started.attempt;
+                    // A failed response can hide a committed UPDATE. Keep any referenced
+                    // image, and retain an uncertain upload until ownership is known.
+                    if (!reference.error && reference.data?.storage_path !== uploadedPath && !stillUnknown) {
+                        await storage.from(ARTWORK_BUCKET).remove([uploadedPath]);
+                    }
+                } catch {
+                    // Cleanup uncertainty must not delete an image that may be referenced.
+                }
+            }
             try {
+                if (!failureOwned) throw generationInProgress();
                 await database
                     .from("image_provider_profiles")
                     .update({
@@ -1678,6 +1971,8 @@ module.exports = {
     decryptScopedSecret,
     encryptScopedSecret,
     fetchGeneratedImage,
+    inspectImageProviderCredential,
+    inspectScopedSecret,
     normalizeCreativeSettings,
     normalizeIdea,
     publicCreativeError,

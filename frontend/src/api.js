@@ -1,9 +1,9 @@
+import { diagnosticScopeKey, recordOperationFailure } from "./operation-diagnostics.js";
+import { requestErrorLog } from "./error-log-request.js";
 import { isChatGenerationInProgress } from "./chat-idempotency.js";
 import { authSession as defaultAuthSession } from "./auth-session.js";
 import {
   COMMITTED_CHAT_ERROR_FALLBACK,
-  createProviderTextGuard,
-  isProviderErrorDocument,
   publicChatErrorMessage,
   sanitizeChatErrorEvent,
 } from "./chat-errors.js";
@@ -68,7 +68,13 @@ async function fetchFromApi(path, options = {}) {
     let timeoutId;
     let timedOut = false;
     const controller =
-      timeoutMs > 0 && !requestOptions.signal ? new AbortController() : null;
+      timeoutMs > 0 ? new AbortController() : null;
+    const forwardAbort = () => controller?.abort(requestOptions.signal?.reason);
+    if (controller && requestOptions.signal) {
+      if (requestOptions.signal.aborted) forwardAbort();
+      else requestOptions.signal.addEventListener("abort", forwardAbort, { once: true });
+    }
+    const effectiveSignal = controller?.signal || requestOptions.signal;
 
     try {
       if (controller) {
@@ -79,7 +85,7 @@ async function fetchFromApi(path, options = {}) {
       }
       const authContext = await awaitWithAbortSignal(
         authSession?.getRequestContext?.(),
-        controller?.signal,
+        effectiveSignal,
       );
       const headers = new Headers(requestOptions.headers || {});
       if (authContext?.accessToken) {
@@ -88,11 +94,14 @@ async function fetchFromApi(path, options = {}) {
       if (authContext?.companionId) {
         headers.set("X-DengTa-Companion-Id", authContext.companionId);
       }
-      const response = await fetch(`${API_BASE_URL}${path}`, {
-        ...requestOptions,
-        headers,
-        ...(controller ? { signal: controller.signal } : {}),
-      });
+      const response = await awaitWithAbortSignal(
+        fetch(`${API_BASE_URL}${path}`, {
+          ...requestOptions,
+          headers,
+          ...(controller ? { signal: controller.signal } : {}),
+        }),
+        effectiveSignal,
+      );
       authSession?.captureCompanionFromResponse?.(response);
       if (
         attempt < retryDelays.length - 1 &&
@@ -116,6 +125,7 @@ async function fetchFromApi(path, options = {}) {
       if (attempt === retryDelays.length - 1) break;
     } finally {
       window.clearTimeout(timeoutId);
+      requestOptions.signal?.removeEventListener("abort", forwardAbort);
     }
   }
 
@@ -128,18 +138,39 @@ export async function apiFetch(path, options = {}) {
     response.status === 401 &&
     typeof response.clone === "function"
   ) {
+    // 对任意 401 都触发 session 失效，不限于白名单 code（缺陷 5 修复）
     const data = await response.clone().json().catch(() => ({}));
     if (
       ["invalid_session", "authentication_required"].includes(data.code)
     ) {
       await (options.authSession || defaultAuthSession)
         ?.invalidateSession?.(data.message);
+    } else {
+      // 其他 code 的 401 也触发失效，用默认提示
+      await (options.authSession || defaultAuthSession)
+        ?.invalidateSession?.();
     }
   }
   return response;
 }
 
+export async function fetchErrorLogs(limit = 50) {
+  const data = await apiRequest(`/api/errors?limit=${limit}`, { retry: false });
+  return Array.isArray(data?.logs) ? data.logs : [];
+}
+
+export async function fetchErrorLogById(logId) {
+  return requestErrorLog(logId, apiRequest);
+}
+
 export async function apiRequest(path, options = {}) {
+  const snapshot = (options.authSession || defaultAuthSession)?.getSnapshot?.();
+  const scope = diagnosticScopeKey(snapshot?.user?.id, snapshot?.activeCompanionId);
+  try { return await requestJson(path, options); }
+  catch (error) { recordOperationFailure(scope, path, error); throw error; }
+}
+
+async function requestJson(path, options = {}) {
   const response = await apiFetch(path, {
     ...options,
     headers: {
@@ -167,6 +198,12 @@ export async function apiRequest(path, options = {}) {
     );
     error.status = response.status;
     error.code = data.code || "api_request_failed";
+    if (data.provider_code) error.provider_code = data.provider_code;
+    if (data.error_source) error.error_source = data.error_source;
+    if (data.provider_phase) error.provider_phase = data.provider_phase;
+    if (data.upstream_status) error.upstream_status = data.upstream_status;
+    if (data.error_location) error.error_location = data.error_location;
+    if (data.error_log_id) error.error_log_id = data.error_log_id;
     throw error;
   }
 
@@ -247,17 +284,15 @@ export async function streamChat(
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/event-stream")) {
     const data = await response.json().catch(() => ({}));
-    if (
-      response.status === 401 &&
-      ["invalid_session", "authentication_required"].includes(data.code)
-    ) {
-      await authSession?.invalidateSession?.(data.message);
-    }
+    // 401 处理由 apiFetch 统一完成（缺陷 7 修复：移除重复 401 处理）
     const error = new Error(
       publicChatErrorMessage(data, "无法开始流式回复。"),
     );
     error.status = response.status;
     error.code = data.code || "stream_request_failed";
+    for (const key of ["provider_code", "error_source", "provider_phase", "upstream_status", "error_location", "error_log_id"]) {
+      if (data[key] !== undefined) error[key] = data[key];
+    }
     throw error;
   }
 
@@ -271,8 +306,6 @@ export async function streamChat(
   let streamError = null;
   let completionEvent = null;
   let userMessageCommitted = false;
-  const providerTextGuard = createProviderTextGuard();
-
   function createStreamError(source) {
     const message = publicChatErrorMessage(
       source,
@@ -283,40 +316,14 @@ export async function streamChat(
     const error = new Error(message);
     error.userMessageCommitted = userMessageCommitted;
     if (source?.code) error.code = source.code;
+    if (source?.provider_code) error.provider_code = source.provider_code;
+    if (source?.error_source) error.error_source = source.error_source;
+    if (source?.provider_phase) error.provider_phase = source.provider_phase;
+    if (source?.upstream_status) error.upstream_status = source.upstream_status;
+    if (source?.error_location) error.error_location = source.error_location;
+    if (source?.error_log_id) error.error_log_id = source.error_log_id;
     error.generationInProgress = isChatGenerationInProgress(source);
     return error;
-  }
-
-  function emitProviderDocumentError() {
-    if (streamError?.code === "provider_error_document") return;
-    streamError = sanitizeChatErrorEvent({
-      type: "error",
-      code: "provider_error_document",
-      content: "",
-      user_message_committed: userMessageCommitted,
-    });
-    onEvent(streamError);
-  }
-
-  function emitScreenedProviderText(event) {
-    const screened = providerTextGuard.push(event.content);
-    if (screened.blocked) {
-      emitProviderDocumentError();
-      return;
-    }
-    if (screened.content) onEvent({ ...event, content: screened.content });
-  }
-
-  function finishProviderText() {
-    const screened = providerTextGuard.finish();
-    if (screened.blocked) {
-      emitProviderDocumentError();
-      return false;
-    }
-    if (screened.content) {
-      onEvent({ type: "text", content: screened.content });
-    }
-    return true;
   }
 
   function processLine(rawLine) {
@@ -334,7 +341,7 @@ export async function streamChat(
         userMessageCommitted = true;
       }
       if (event.type === "text") {
-        emitScreenedProviderText(event);
+        onEvent(event);
         return;
       }
       if (event.type === "error") {
@@ -343,13 +350,6 @@ export async function streamChat(
         return;
       }
       if (event.type === "done") {
-        if (
-          isProviderErrorDocument(event.assistant_message?.content || event.reply)
-        ) {
-          emitProviderDocumentError();
-          return;
-        }
-        if (!finishProviderText()) return;
         completionEvent = event;
         if (event.ok === false) {
           streamError = streamError || event;
@@ -375,7 +375,7 @@ export async function streamChat(
     buffer += decoder.decode();
     if (buffer.trim()) processLine(buffer);
 
-    if (!completionEvent && !streamError) finishProviderText();
+    void completionEvent;
 
     if (streamError) {
       throw createStreamError(streamError);
@@ -387,11 +387,20 @@ export async function streamChat(
           message: userMessageCommitted
             ? "回复连接提前结束，但你的消息已经保存。"
             : "回复连接提前结束，服务器没有确认本轮已保存。附件仍保留，可稍后重试。",
+          code: "chat_stream_interrupted",
         },
       );
     }
 
     return completionEvent;
+  } catch (error) {
+    if (signal?.aborted || error?.code || streamError) throw error;
+    throw createStreamError({
+      code: "chat_stream_interrupted",
+      message: userMessageCommitted
+        ? "回复连接中断，但你的消息已经保存；收到的回复片段仅临时显示，可以重试。"
+        : "回复连接中断，服务器尚未确认保存，可以稍后重试。",
+    });
   } finally {
     if (signal?.aborted) {
       await reader.cancel(signal.reason).catch(() => {});

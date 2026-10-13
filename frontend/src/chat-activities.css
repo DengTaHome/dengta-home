@@ -1,0 +1,23 @@
+.chat-activities { border: 1px solid rgba(180, 150, 117, .3); border-radius: 16px; background: rgba(180, 150, 117, .06); color: inherit; }
+.chat-activities summary { cursor: pointer; padding: 14px; display: flex; align-items: center; gap: 10px; list-style: none; }
+.chat-activities summary::-webkit-details-marker { display: none; }
+.chat-activities summary small { margin-left: auto; opacity: .7; font-size: 12px; }
+.chat-activities summary::after { content: "+"; }
+.chat-activities[open] summary::after { content: "−"; }
+.chat-activities-body { padding: 0 14px 14px; }
+.chat-activity-categories { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chat-activity-categories button { background: transparent; border: 1px solid rgba(180,150,117,.3); border-radius: 20px; padding: 8px 10px; color: inherit; cursor: pointer; min-height: 40px; }
+.chat-activity-categories button[aria-pressed="true"] { background: rgba(180,150,117,.22); }
+.chat-activity-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.chat-activity-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; color: inherit; background: rgba(180,150,117,.08); border: 1px solid transparent; border-radius: 12px; padding: 14px; cursor: pointer; }
+.chat-activity-card[aria-pressed="true"] { border-color: #b49675; }
+.chat-activity-icon { font-size: 24px; color: #b49675; }
+.chat-activity-card strong { font-size: 14px; line-height: 1.5; }
+.chat-activity-card small, .chat-activity-hint, .chat-activity-preview p { opacity: .75; font-size: 12px; line-height: 1.6; }
+.chat-activity-preview { margin-top: 14px; }
+.chat-activity-preview label { display: block; margin-bottom: 8px; font-size: 13px; }
+.chat-activity-preview textarea { box-sizing: border-box; width: 100%; min-height: 116px; resize: vertical; color: inherit; font: inherit; font-size: 14px; line-height: 1.6; background: rgba(180,150,117,.06); border: 1px solid rgba(180,150,117,.4); border-radius: 10px; padding: 10px; }
+.chat-activity-use { width: 100%; min-height: 44px; border: 0; border-radius: 10px; background: #b49675; color: #201a15; cursor: pointer; font-weight: 600; }
+.chat-activity-use:disabled { opacity: .5; cursor: default; }
+.chat-activities :focus-visible { outline: 2px solid #b49675; outline-offset: 3px; }
+@media (max-width: 360px) { .chat-activity-cards { grid-template-columns: 1fr; } }

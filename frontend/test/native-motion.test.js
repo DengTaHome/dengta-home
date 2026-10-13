@@ -95,12 +95,16 @@ test("the settings flow stays GPU-backed and freezes its visible frame while scr
   assert.doesNotMatch(flowStyles, /filter:\s*blur\(/);
   assert.doesNotMatch(flowStyles, /mix-blend-mode:\s*(?:multiply|screen|soft-light)/);
   assert.match(flowSource, /powerPreference:\s*"high-performance"/);
-  assert.match(flowSource, /const ACTIVE_FRAME_MS = 1000 \/ 24/);
+  assert.match(flowSource, /const ACTIVE_FRAME_MS = 1000 \/ 15/);
   assert.match(flowSource, /classList\.contains\("is-scrolling"\)/);
   assert.match(flowSource, /preserveDrawingBuffer:\s*true/);
   assert.match(flowSource, /if \(disposed \|\| scrolling\) return/);
   assert.match(flowSource, /cancelAnimationFrame\(animationFrame\)/);
-  assert.match(flowSource, /\? 0\.64\s*:\s*0\.82/);
+  assert.match(
+    flowSource,
+    /reducedMotion\.matches \? 0\.64 : \(elapsed % LOOP_SECONDS\) \/ LOOP_SECONDS/,
+    "reduced motion must freeze the visible frame while scrolling",
+  );
   assert.match(flowSource, /760 \/ Math\.max\(longestSide, 1\)/);
   assert.match(
     styles,
@@ -136,7 +140,7 @@ test("the sky does not repaint invisible weather layers at animation speed", () 
   assert.match(backdropSource, /const starsVisible = sky\.night > 0\.08/);
   assert.match(
     backdropSource,
-    /if \(hasVisibleMotion\) animationFrame = requestAnimationFrame\(paint\)/,
+    /createVisualLoop\(paint, \{ animated: hasVisibleMotion/,
   );
 });
 
@@ -149,7 +153,8 @@ test("dialogs share a layout-free jelly spring on the compositor", () => {
   assert.match(styles, /\.settings-sheet,[\s\S]*?\.account-menu-popover/);
   assert.match(styles, /@keyframes dengta-jelly-pop/);
   assert.match(styles, /@keyframes dengta-jelly-sheet-pop/);
-  assert.match(styles, /scale3d\(1\.035, 1\.02, 1\)/);
+  assert.match(styles, /--dengta-jelly-enter: 220ms/);
+  assert.doesNotMatch(jellyFrames, /scale3d\(1\.0[1-9]/);
   assert.doesNotMatch(
     jellyFrames,
     /(?:height|width|margin|padding|top|left|border-radius)\s*:/,

@@ -12,6 +12,9 @@ const {
 const {
     applyContextResetCutoff
 } = require("../services/context-reset");
+const {
+    isProviderBoundaryResidue
+} = require("../services/persistent-memory-filter");
 
 const UUID_PATTERN =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -109,6 +112,26 @@ function createChatSkinRouter({
         return data;
     }
 
+    async function recentMessagesWithBoundaryResidue(database, conversationId, settings) {
+        const messagesQuery = applyContextResetCutoff(
+            database
+                .from("messages")
+                .select("role, content, created_at")
+                .eq("conversation_id", conversationId)
+                .eq("visible", true)
+                .eq("context_visible", true),
+            settings
+        ).order("created_at", { ascending: false }).limit(50);
+        const { data, error } = await messagesQuery;
+        if (error) throw error;
+        const containsResidue = (data || []).some(
+            (message) =>
+                message?.role === "assistant" &&
+                isProviderBoundaryResidue(String(message?.content || ""))
+        );
+        return { containsResidue, messages: data || [] };
+    }
+
     async function ensureConversation(database, conversationId) {
         if (!UUID_PATTERN.test(conversationId)) {
             throw requestError(400, "invalid_conversation_id", "会话编号格式不正确。");
@@ -154,6 +177,22 @@ function createChatSkinRouter({
         try {
             const scope = requireRequestScope(req);
             await ensureConversation(scope.db, req.params.conversationId);
+            const settings = await getSettings(scope.db);
+            const { containsResidue } = await recentMessagesWithBoundaryResidue(
+                scope.db,
+                req.params.conversationId,
+                settings
+            );
+            if (containsResidue) {
+                // 最近对话含被拒对话：动态输入框提示不读取该内容，并清除可能已污染的旧提示。
+                const { error: deleteError } = await scope.db
+                    .from("conversation_composer_hints")
+                    .delete()
+                    .eq("conversation_id", req.params.conversationId);
+                if (deleteError) throw deleteError;
+                res.json({ ok: true, hint: null, reason: "refusal_present" });
+                return;
+            }
             const { data, error } = await scope.db
                 .from("conversation_composer_hints")
                 .select("hint, mood_revision, generated_at, updated_at")
@@ -222,7 +261,8 @@ function createChatSkinRouter({
                             "conversation_id",
                             req.params.conversationId
                         )
-                        .eq("visible", true),
+                        .eq("visible", true)
+                        .eq("context_visible", true),
                     settings
                 ).order("created_at", { ascending: true });
                 const {
@@ -230,6 +270,31 @@ function createChatSkinRouter({
                     error: messagesError
                 } = await messagesQuery;
                 if (messagesError) throw messagesError;
+                if (
+                    (messages || []).some(
+                        (message) =>
+                            message?.role === "assistant" &&
+                            isProviderBoundaryResidue(
+                                String(message?.content || "")
+                            )
+                    )
+                ) {
+                    // 含被拒对话：动态输入框提示不允许读取该内容，不生成并清除旧提示。
+                    if (currentHint) {
+                        const { error: deleteError } = await scope.db
+                            .from("conversation_composer_hints")
+                            .delete()
+                            .eq("id", currentHint.id);
+                        if (deleteError) throw deleteError;
+                    }
+                    res.json({
+                        ok: true,
+                        updated: false,
+                        reason: "refusal_present",
+                        hint: null
+                    });
+                    return;
+                }
                 if (!hasEnoughComposerHintContext(messages)) {
                     res.json({
                         ok: true,

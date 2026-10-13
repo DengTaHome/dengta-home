@@ -24,6 +24,7 @@ function sourceMessages() {
             role: "assistant",
             content: "我其实很喜欢雨天安静待着。",
             visible: true,
+            context_visible: true,
             created_at: "2026-07-27T01:00:00.000Z"
         },
         {
@@ -32,6 +33,7 @@ function sourceMessages() {
             role: "assistant",
             content: "下雨的时候我还是更想慢慢说话。",
             visible: true,
+            context_visible: true,
             created_at: "2026-07-27T02:00:00.000Z"
         },
         {
@@ -40,6 +42,7 @@ function sourceMessages() {
             role: "assistant",
             content: "雨声会让我安静下来，这点一直没变。",
             visible: true,
+            context_visible: true,
             created_at: "2026-07-27T03:00:00.000Z"
         },
         {
@@ -48,6 +51,7 @@ function sourceMessages() {
             role: "user",
             content: "那今晚一起听雨。",
             visible: true,
+            context_visible: true,
             created_at: "2026-07-27T04:00:00.000Z"
         }
     ];

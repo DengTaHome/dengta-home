@@ -155,6 +155,17 @@ function sanitizeVoiceFeatures(value) {
     return features;
 }
 
+function sanitizeHervoiceAnalysisFallback(value) {
+    // 降级模式：只保留转写文本，情感/声学特征用默认值，不抛出异常
+    return {
+        text: truncateText(value?.text, 30000) || "",
+        emotion: "neutral",
+        confidence: 0,
+        hint: "",
+        features: {}
+    };
+}
+
 function sanitizeHervoiceAnalysis(value) {
     if (!isPlainObject(value)) {
         throw upstreamError("语音分析服务没有返回有效结果。");
@@ -178,11 +189,15 @@ function sanitizeHervoiceAnalysis(value) {
         throw upstreamError("语音分析服务返回的情绪说明格式不正确。");
     }
 
+    // 上游降级标记（emotion analysis failed）不注入到模型上下文，视为无额外说明
+    const rawHint = truncateText(value.hint, 500);
+    const hint = /emotion analysis failed/i.test(rawHint) ? "" : rawHint;
+
     return {
         text,
         emotion,
         confidence,
-        hint: truncateText(value.hint, 500),
+        hint,
         features: sanitizeVoiceFeatures(value.features)
     };
 }
@@ -412,6 +427,10 @@ async function analyzeVoiceWithHervoice({
             throw upstreamError("语音分析服务返回了无法读取的结果。");
         }
         if (!response.ok) {
+            // 即使上游返回错误，尽可能提取转写文本，确保语音交互不中断
+            if (payload && typeof payload === "object" && typeof payload.text === "string" && payload.text.trim()) {
+                return sanitizeHervoiceAnalysisFallback(payload);
+            }
             const error = upstreamError(
                 `语音分析服务暂时不可用（HTTP ${response.status}）。`
             );
@@ -419,7 +438,12 @@ async function analyzeVoiceWithHervoice({
             throw error;
         }
 
-        return sanitizeHervoiceAnalysis(payload);
+        try {
+            return sanitizeHervoiceAnalysis(payload);
+        } catch {
+            // 情感分析校验失败时降级：只保留转写文本，忽略情绪/声学特征
+            return sanitizeHervoiceAnalysisFallback(payload);
+        }
     } finally {
         clearTimeout(timer);
     }
@@ -485,5 +509,6 @@ module.exports = {
     parseTurnContext,
     parseVoiceTurnFields,
     sanitizeHervoiceAnalysis,
+    sanitizeHervoiceAnalysisFallback,
     sanitizeVoiceFeatures
 };

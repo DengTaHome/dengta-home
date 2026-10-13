@@ -150,6 +150,15 @@ async function runVisibleInnerMonologue({ body, services }) {
         error.status = 502;
         throw error;
     }
+    // 拒答残留检测：模型在心声里输出"我不能输出露骨内容"等拒绝语时，
+    // 不当作心声展示，转成明确错误码（与主聊天拒答处理一致）。
+    if (isProviderBoundaryResidue(innerMonologue)) {
+        const error = new Error("模型没有生成有效心声（检测到拒答残留）。");
+        error.status = 502;
+        error.code = "provider_boundary_residue";
+        error.upstreamStatus = 502;
+        throw error;
+    }
 
     return {
         inner_monologue: innerMonologue,

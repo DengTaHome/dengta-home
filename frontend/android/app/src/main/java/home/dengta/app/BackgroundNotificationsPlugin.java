@@ -1,5 +1,8 @@
 package home.dengta.app;
 
+import android.content.Intent;
+import android.provider.Settings;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -8,6 +11,29 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "BackgroundNotifications")
 public final class BackgroundNotificationsPlugin extends Plugin {
+    private JSObject pendingLaunchTarget;
+
+    @Override
+    public void load() {
+        captureLaunchTarget(getActivity().getIntent(), false);
+    }
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        captureLaunchTarget(intent, true);
+    }
+
+    @PluginMethod
+    public void consumeLaunchTarget(PluginCall call) {
+        JSObject target = pendingLaunchTarget;
+        pendingLaunchTarget = null;
+        if (target == null) {
+            target = new JSObject();
+            target.put("available", false);
+        }
+        call.resolve(target);
+    }
+
     @PluginMethod
     public void configure(PluginCall call) {
         String installationToken = clean(
@@ -38,6 +64,9 @@ public final class BackgroundNotificationsPlugin extends Plugin {
                     getContext()
                 )
             );
+            if (scopeChanged) {
+                stopScreenGlanceAndClearCache();
+            }
             BackgroundNotificationCredentials.store(
                 getContext(),
                 installationToken,
@@ -61,11 +90,64 @@ public final class BackgroundNotificationsPlugin extends Plugin {
 
     @PluginMethod
     public void clear(PluginCall call) {
+        stopScreenGlanceAndClearCache();
         BackgroundNotificationCredentials.clear(getContext());
         PushNotificationWorker.clear(getContext());
         JSObject result = new JSObject();
         result.put("configured", false);
         call.resolve(result);
+    }
+
+    @PluginMethod
+    public void openReminderChannelSettings(PluginCall call) {
+        PushNotificationWorker.ensureNotificationChannel(getContext());
+        Intent intent = new Intent(
+            Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+        )
+            .putExtra(
+                Settings.EXTRA_APP_PACKAGE,
+                getContext().getPackageName()
+            )
+            .putExtra(
+                Settings.EXTRA_CHANNEL_ID,
+                PushNotificationWorker.CHANNEL_ID
+            )
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getContext().startActivity(intent);
+            JSObject result = new JSObject();
+            result.put("opened", true);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("无法打开手机通知设置。");
+        }
+    }
+
+    private void stopScreenGlanceAndClearCache() {
+        ScreenGlanceService.sendAction(
+            getContext(),
+            ScreenGlanceService.ACTION_STOP
+        );
+        ScreenGlanceService.deleteLatestCapture(getContext());
+        ScreenGlanceService.deleteCoWatchPreview(getContext());
+    }
+
+    private void captureLaunchTarget(Intent intent, boolean notify) {
+        if (intent == null) return;
+        String view = clean(intent.getStringExtra("dengta_view"), 40);
+        String sessionId = clean(
+            intent.getStringExtra("dengta_session_id"),
+            100
+        );
+        if (view.isEmpty() && sessionId.isEmpty()) return;
+        JSObject target = new JSObject();
+        target.put("available", true);
+        target.put("view", view);
+        target.put("sessionId", sessionId);
+        pendingLaunchTarget = target;
+        intent.removeExtra("dengta_view");
+        intent.removeExtra("dengta_session_id");
+        if (notify) notifyListeners("notificationTarget", target, true);
     }
 
     private static String clean(String value, int maxLength) {

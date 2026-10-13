@@ -1,4 +1,5 @@
 import { GoTrueClient } from "@supabase/auth-js";
+import { resolveAuthStorage } from "./auth-native-storage.js";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -86,10 +87,12 @@ function storeCompanionId(storage, userId, companionId) {
 }
 
 function authFailure(error, fallbackMessage) {
-  const code = String(error?.code || "auth_error");
+  const code = String(error?.details?.code || error?.code || "auth_error");
   const messages = {
     invalid_credentials: "邮箱或密码不正确。",
-    email_not_confirmed: "请先完成邮箱验证，再登录 DengTa Home。",
+    email_not_confirmed: "邮箱尚未验证。请打开最新的验证邮件；链接失效时可在这里重新发送，不需要重新注册。",
+    otp_expired: "邮箱验证链接已过期或已使用。若已完成验证，请用注册时的邮箱和密码登录；否则重新发送验证邮件并打开最新一封。",
+    access_denied: "邮箱验证未完成，请重新发送验证邮件并打开最新链接。",
     user_already_exists: "这个邮箱已经注册，请直接登录。",
     user_already_registered: "这个邮箱已经注册，请直接登录。",
     over_email_send_rate_limit: "验证邮件发送得太频繁，请稍后再试。",
@@ -97,7 +100,7 @@ function authFailure(error, fallbackMessage) {
     validation_failed: "邮箱或密码格式不正确。",
   };
   return new AuthSessionError(
-    messages[code] || fallbackMessage || "账号操作失败，请稍后再试。",
+    `${messages[code] || fallbackMessage || "账号操作失败，请稍后再试。"}（错误代码：${/^[a-z0-9_]{1,80}$/i.test(code) ? code : "auth_error"}）`,
     {
       code,
       status: Number(error?.status || 0),
@@ -138,6 +141,7 @@ export function createAuthSessionManager({
   let authSubscription = null;
   let session = null;
   let passwordRecovery = false;
+  let callbackInitializationChecked = false;
   let snapshot = Object.freeze({
     status: configured(normalizedUrl, normalizedKey)
       ? AUTH_STATUS.loading
@@ -187,15 +191,17 @@ export function createAuthSessionManager({
     }
   }
 
-  function ensureClient() {
+  async function ensureClient() {
     requireConfiguration();
     if (client) return client;
+    // 缺陷 2 修复：原生端优先使用 @capacitor/preferences 持久化会话
+    const resolvedStorage = await resolveAuthStorage({ storage: persistentStorage });
     client = createClientFn(normalizedUrl, normalizedKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storage: persistentStorage,
+        storage: resolvedStorage || persistentStorage,
         storageKey: AUTH_STORAGE_KEY,
       },
     });
@@ -207,8 +213,21 @@ export function createAuthSessionManager({
     if (initialization) return initialization;
 
     initialization = (async () => {
-      const authClient = ensureClient();
+      const authClient = await ensureClient();
       publish({ status: AUTH_STATUS.loading, error: null });
+
+      // getSession() awaits SDK initialization but does not return its callback error.
+      // Consume that result once so a failed email link cannot block password login.
+      if (!callbackInitializationChecked && authClient.auth.initialize) {
+        callbackInitializationChecked = true;
+        const { error } = await authClient.auth.initialize();
+        if (error) {
+          const restored = await authClient.auth.getSession();
+          if (!restored.data?.session?.user?.id) {
+            throw authFailure(error, "邮箱链接验证失败，请重新发送验证邮件，或使用已验证的邮箱和密码登录。");
+          }
+        }
+      }
 
       if (!authSubscription) {
         const result = authClient.auth.onAuthStateChange(
@@ -266,7 +285,7 @@ export function createAuthSessionManager({
     if (emailRedirectTo) {
       options.emailRedirectTo = String(emailRedirectTo);
     }
-    const { data, error } = await ensureClient().auth.signUp({
+    const { data, error } = await (await ensureClient()).auth.signUp({
       email: cleanEmail(email),
       password: String(password || ""),
       ...(Object.keys(options).length ? { options } : {}),
@@ -288,7 +307,7 @@ export function createAuthSessionManager({
     requireConfiguration();
     await initialize();
     publish({ status: AUTH_STATUS.authenticating, error: null });
-    const { data, error } = await ensureClient().auth.signInWithPassword({
+    const { data, error } = await (await ensureClient()).auth.signInWithPassword({
       email: cleanEmail(email),
       password: String(password || ""),
     });
@@ -310,7 +329,7 @@ export function createAuthSessionManager({
     const options = emailRedirectTo
       ? { emailRedirectTo: String(emailRedirectTo) }
       : undefined;
-    const { error } = await ensureClient().auth.resend({
+    const { error } = await (await ensureClient()).auth.resend({
       type: "signup",
       email: cleanEmail(email),
       ...(options ? { options } : {}),
@@ -326,13 +345,37 @@ export function createAuthSessionManager({
     const options = redirectTo
       ? { redirectTo: String(redirectTo) }
       : undefined;
-    const { error } = await ensureClient().auth.resetPasswordForEmail(
+    const { error } = await (await ensureClient()).auth.resetPasswordForEmail(
       cleanEmail(email),
       options,
     );
     if (error) {
       throw authFailure(error, "密码重置邮件发送失败，请稍后再试。");
     }
+  }
+
+  async function verifyRegistrationLink(rawLink) {
+    requireConfiguration();
+    let tokenHash;
+    let type;
+    try {
+      const link = new URL(String(rawLink || "").trim());
+      const project = new URL(normalizedUrl);
+      type = link.searchParams.get("type");
+      tokenHash = link.searchParams.get("token_hash") || link.searchParams.get("token");
+      if (link.origin !== project.origin || link.pathname !== `${project.pathname.replace(/\/$/, "")}/auth/v1/verify` ||
+          link.username || link.password || !["email", "signup"].includes(type) ||
+          !/^[a-z0-9_-]{16,256}$/i.test(tokenHash || "")) throw new Error();
+    } catch {
+      throw new AuthSessionError("请粘贴本次灯塔注册邮件中“Confirm email address”按钮的原始链接；不要粘贴网页地址、其他网站或重置密码链接。", { code: "invalid_registration_link" });
+    }
+    await initialize();
+    const { data, error } = await (await ensureClient()).auth.verifyOtp({ token_hash: tokenHash, type });
+    if (error || !data?.session?.user?.id) {
+      throw authFailure(error || { code: "invalid_session" }, "邮箱验证未完成，请重新发送验证邮件并复制最新链接。");
+    }
+    applySession(data.session);
+    return { ok: true };
   }
 
   async function updatePassword({ password } = {}) {
@@ -344,7 +387,7 @@ export function createAuthSessionManager({
         status: 401,
       });
     }
-    const { data, error } = await ensureClient().auth.updateUser({
+    const { data, error } = await (await ensureClient()).auth.updateUser({
       password: String(password || ""),
     });
     if (error) {
@@ -362,7 +405,8 @@ export function createAuthSessionManager({
       return;
     }
     await initialize();
-    const { error } = await ensureClient().auth.signOut({ scope: "local" });
+    // 用户主动退出时通知服务端撤销 refresh token（缺陷 7 修复）
+    const { error } = await (await ensureClient()).auth.signOut();
     if (error) {
       throw authFailure(error, "退出登录失败，请稍后再试。");
     }
@@ -374,6 +418,28 @@ export function createAuthSessionManager({
     if (!configured(normalizedUrl, normalizedKey)) return {};
     await initialize();
     if (!session?.access_token) return {};
+    // 缺陷 5 修复：主动检查 token 是否临近/已过期，避免仅依赖后台定时器刷新。
+    // 后台标签页定时器可能被节流，回前台时携带过期 token 导致 401 强制登出。
+    if (
+      session.expires_at &&
+      client?.auth &&
+      typeof client.auth.refreshSession === "function"
+    ) {
+      const expiresAt = Number(session.expires_at) * 1000;
+      const now = Date.now();
+      // 剩余有效期不足 30 秒时主动刷新一次
+      if (expiresAt - now < 30_000) {
+        try {
+          const refreshed = await client.auth.refreshSession();
+          if (refreshed?.data?.session) {
+            session = refreshed.data.session;
+            publish({ status: AUTH_STATUS.authenticated });
+          }
+        } catch {
+          // 刷新失败保持现状，让请求层的 401 处理兜底
+        }
+      }
+    }
     return {
       accessToken: session.access_token,
       companionId: readCompanionId(
@@ -442,14 +508,56 @@ export function createAuthSessionManager({
     listeners.clear();
   }
 
+  // 缺陷 1 修复：处理 dengta://auth#access_token=... 深度链接回跳。
+  // 用户点击邮箱验证/密码重置链接后回跳到 App，把 fragment 里的 token
+  // 交给 GoTrueClient 换成正式会话。
+  async function handleAuthCallbackUrl(rawUrl) {
+    requireConfiguration();
+    await initialize();
+    try {
+      const parsed = new URL(String(rawUrl || ""));
+      const fragment = parsed.hash?.replace(/^#/, "") || "";
+      const params = new URLSearchParams(fragment);
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      if (!accessToken || !refreshToken) {
+        return { ok: false, reason: "missing_tokens" };
+      }
+      const { data, error } = await (await ensureClient()).auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (error) {
+        throw authFailure(error, "回跳登录失败，请重新登录。");
+      }
+      passwordRecovery = params.get("type") === "recovery";
+      applySession(
+        data?.session || null,
+        passwordRecovery ? AUTH_STATUS.recovery : undefined,
+      );
+      return { ok: true };
+    } catch (error) {
+      publish({
+        status: AUTH_STATUS.error,
+        error:
+          error instanceof AuthSessionError
+            ? error
+            : authFailure(error, "回跳登录失败，请重新登录。"),
+      });
+      throw error;
+    }
+  }
+
   return Object.freeze({
     initialize,
     signUp,
     signIn,
     signOut,
     resendVerification,
+    verifyRegistrationLink,
     requestPasswordReset,
     updatePassword,
+    handleAuthCallbackUrl,
     getRequestContext,
     setActiveCompanionId,
     captureCompanionFromResponse,

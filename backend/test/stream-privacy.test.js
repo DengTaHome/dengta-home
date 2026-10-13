@@ -1,13 +1,6 @@
 const assert = require("node:assert/strict");
 const http = require("node:http");
 
-const previousCustomApiKey = process.env.CUSTOM_API_KEY;
-const previousAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
-const previousOpenAiApiKey = process.env.OPENAI_COMPATIBLE_API_KEY;
-process.env.CUSTOM_API_KEY = "local-stream-test-key";
-process.env.ANTHROPIC_API_KEY = "local-stream-test-key";
-process.env.OPENAI_COMPATIBLE_API_KEY = "local-stream-test-key";
-
 const { generateReplyStream } = require("../services/ai-service");
 const {
     createReasoningEventEmitter
@@ -155,6 +148,13 @@ async function main() {
                 type: "content_block_delta",
                 delta: { type: "text_delta", text: "Anthropic visible reply" }
             });
+            sendEvent(response, {
+                type: "message_delta",
+                delta: { stop_reason: "end_turn" }
+            });
+            sendEvent(response, {
+                type: "message_stop"
+            });
         } else if (request.url.endsWith("/responses")) {
             sendEvent(response, {
                 type: "response.reasoning_text.delta",
@@ -186,6 +186,10 @@ async function main() {
                     delta
                 });
             }
+            sendEvent(response, {
+                type: "response.completed",
+                response: { status: "completed" }
+            });
         } else {
             sendEvent(response, {
                 choices: [
@@ -275,6 +279,7 @@ async function main() {
                     provider: testCase.provider,
                     api_url: `http://127.0.0.1:${port}/v1`,
                     model: testCase.model || "mock-model",
+                    runtime_api_key: "local-stream-test-key",
                     reasoning_effort: testCase.reasoningEffort || "",
                     system_prompt: "Test system rules",
                     personality: "Reliable",
@@ -347,15 +352,6 @@ async function main() {
         assert.equal(chatRequest?.body?.reasoning_effort, "none");
     } finally {
         await new Promise((resolve) => server.close(resolve));
-        if (previousCustomApiKey === undefined) delete process.env.CUSTOM_API_KEY;
-        else process.env.CUSTOM_API_KEY = previousCustomApiKey;
-        if (previousAnthropicApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
-        else process.env.ANTHROPIC_API_KEY = previousAnthropicApiKey;
-        if (previousOpenAiApiKey === undefined) {
-            delete process.env.OPENAI_COMPATIBLE_API_KEY;
-        } else {
-            process.env.OPENAI_COMPATIBLE_API_KEY = previousOpenAiApiKey;
-        }
     }
 }
 

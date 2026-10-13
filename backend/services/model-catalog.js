@@ -1,3 +1,7 @@
+const {
+    resolveContextWindow
+} = require("./context-budget");
+
 const MODEL_CACHE_TTL_MS = 10 * 60 * 1000;
 const MODEL_LIST_TIMEOUT_MS = 15_000;
 
@@ -16,23 +20,10 @@ function cleanModelId(value) {
 }
 
 function providerKey(provider, settings = {}) {
-    if (typeof settings.runtime_api_key === "string") {
-        return settings.runtime_api_key;
-    }
-    if (provider === "gemini") {
-        return process.env.GEMINI_API_KEY || process.env.MAIN_MODEL_API_KEY || "";
-    }
-    if (provider === "anthropic") {
-        return process.env.ANTHROPIC_API_KEY || process.env.MAIN_MODEL_API_KEY || "";
-    }
-    if (provider === "openai-compatible" || provider === "openai-responses") {
-        return (
-            process.env.OPENAI_COMPATIBLE_API_KEY ||
-            process.env.MAIN_MODEL_API_KEY ||
-            ""
-        );
-    }
-    return process.env.CUSTOM_API_KEY || process.env.MAIN_MODEL_API_KEY || "";
+    void provider;
+    return typeof settings.runtime_api_key === "string"
+        ? settings.runtime_api_key
+        : "";
 }
 
 function openAiModelsEndpoint(apiUrl) {
@@ -101,6 +92,7 @@ function fallbackCatalog(settings, reason = "provider_unavailable") {
         provider: String(settings.provider || "custom").trim(),
         models: current ? [current] : [],
         current_model: current,
+        context_window: resolveContextWindow(current),
         source: "fallback",
         cached: false,
         reason
@@ -212,6 +204,7 @@ async function listModels(settings, options = {}) {
             provider: String(settings.provider || "custom").trim(),
             models: complete,
             current_model: current,
+            context_window: resolveContextWindow(current),
             source: "provider",
             cached: false,
             reason: null
@@ -233,12 +226,39 @@ async function resolveTurnModel(settings, requestedModel, options = {}) {
 
     const catalog = await listModels(settings, options);
     if (!catalog.models.includes(requested)) {
-        const error = new Error("请求的模型不在当前接口返回的可用模型列表中。");
+        const error = new Error(
+            "请求的模型不在当前接口返回的可用模型列表中 / The requested model is not available in the model list returned by the current API."
+        );
         error.status = 400;
         error.code = "MODEL_NOT_AVAILABLE";
         throw error;
     }
     return requested;
+}
+
+async function resolveConversationModel(settings, persistedModel, options = {}) {
+    const persisted = cleanModelId(persistedModel);
+    const current = cleanModelId(settings.model);
+    try {
+        const model = await resolveTurnModel(settings, persisted, options);
+        return {
+            model,
+            rebound: Boolean(String(persistedModel || "").trim()) &&
+                persisted !== model,
+            previous_model: persisted
+        };
+    } catch (error) {
+        // A conversation can outlive the provider profile that originally
+        // supplied its model. Explicit per-request model selection remains
+        // strict; only a model already persisted on the conversation may
+        // follow the active provider's configured default.
+        if (error?.code !== "MODEL_NOT_AVAILABLE" || !current) throw error;
+        return {
+            model: current,
+            rebound: persisted !== current,
+            previous_model: persisted
+        };
+    }
 }
 
 function clearModelCache() {
@@ -254,5 +274,7 @@ module.exports = {
     geminiModelsEndpoint,
     listModels,
     openAiModelsEndpoint,
+    resolveContextWindow,
+    resolveConversationModel,
     resolveTurnModel
 };

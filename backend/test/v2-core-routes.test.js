@@ -25,10 +25,14 @@ const authMountIndex = serverSource.indexOf(
     serverSource.indexOf("app.use(")
 );
 const v2MountIndex = serverSource.indexOf(
-    "createV2CoreRouter({ storage: supabase.storage })"
+    "createV2CoreRouter({"
 );
 assert.equal(authMountIndex >= 0, true);
 assert.equal(v2MountIndex > authMountIndex, true);
+assert.match(
+    serverSource.slice(v2MountIndex, v2MountIndex + 300),
+    /storage: supabase\.storage[\s\S]*?getSettings:[\s\S]*?resolveTurnModel/
+);
 assert.match(
     serverSource,
     /exposedHeaders:\s*\[[\s\S]*?"X-DengTa-Companion-Id"[\s\S]*?\]/
@@ -240,7 +244,7 @@ function createErrorHandler() {
     };
 }
 
-function createScopedApp(scopesByToken, storage) {
+function createScopedApp(scopesByToken, storage, coreServices = {}) {
     const app = express();
     app.use(express.json());
     app.use((req, res, next) => {
@@ -257,7 +261,10 @@ function createScopedApp(scopesByToken, storage) {
         }
         next();
     });
-    app.use("/api/v2", createV2CoreRouter({ storage }));
+    app.use(
+        "/api/v2",
+        createV2CoreRouter({ storage, ...coreServices })
+    );
     app.use(createErrorHandler());
     return app;
 }
@@ -399,6 +406,7 @@ async function testTenantScopedCoreRoutes() {
                 content: "A 的消息",
                 created_at: "2026-07-26T01:01:00.000Z",
                 visible: true,
+                context_visible: false,
                 tool_calls: {
                     attachments: [
                         {
@@ -698,10 +706,108 @@ async function testTenantScopedCoreRoutes() {
     });
 }
 
+async function testTenantSessionModelResolution() {
+    const account = accountFixture(
+        userAId,
+        companionAId,
+        "owner@example.test",
+        "owner"
+    );
+    const adminSupabase = createMemorySupabase({
+        conversations: [
+            {
+                id: sessionAId,
+                user_id: userAId,
+                companion_id: companionAId,
+                title: "Existing",
+                model_id: "model-current",
+                created_at: "2026-07-26T01:00:00.000Z",
+                updated_at: "2026-07-26T01:00:00.000Z"
+            }
+        ],
+        messages: []
+    });
+    const scope = createRequestScope({ adminSupabase, ...account });
+    const calls = [];
+    const app = createScopedApp(
+        { "token-a": scope },
+        undefined,
+        {
+            async getSettings(database) {
+                calls.push(["settings", database]);
+                return { model: "model-default" };
+            },
+            async resolveTurnModel(settings, requestedModel) {
+                calls.push(["resolve", settings.model, requestedModel]);
+                if (requestedModel === "model-rejected") {
+                    throw requestErrorForTest(
+                        400,
+                        "MODEL_NOT_AVAILABLE",
+                        "model unavailable"
+                    );
+                }
+                return requestedModel;
+            }
+        }
+    );
+
+    await withServer(app, async (baseUrl) => {
+        const defaultResponse = await fetch(`${baseUrl}/api/v2/sessions`, {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer token-a",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ title: "Default model" })
+        });
+        assert.equal(defaultResponse.status, 201);
+        assert.equal(
+            (await defaultResponse.json()).session.model_id,
+            "model-default"
+        );
+
+        const rejectedResponse = await fetch(
+            `${baseUrl}/api/v2/sessions/${sessionAId}`,
+            {
+                method: "PATCH",
+                headers: {
+                    Authorization: "Bearer token-a",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ model_id: "model-rejected" })
+            }
+        );
+        assert.equal(rejectedResponse.status, 400);
+        assert.equal(
+            (await rejectedResponse.json()).code,
+            "MODEL_NOT_AVAILABLE"
+        );
+        assert.equal(
+            adminSupabase.tables.conversations.find(
+                (item) => item.id === sessionAId
+            ).model_id,
+            "model-current"
+        );
+    });
+
+    assert.equal(calls.filter(([kind]) => kind === "resolve").length, 2);
+    assert.equal(calls[0][1], scope.db);
+    assert.deepEqual(calls[1], [
+        "resolve",
+        "model-default",
+        "model-default"
+    ]);
+}
+
+function requestErrorForTest(status, code, message) {
+    return Object.assign(new Error(message), { status, code });
+}
+
 async function main() {
     await testStrictAuthenticationWhenGlobalAuthIsOptional();
     await testAuthMiddlewareBuildsOwnedScope();
     await testTenantScopedCoreRoutes();
+    await testTenantSessionModelResolution();
     console.log("strict v2 account, session and message route tests passed");
 }
 

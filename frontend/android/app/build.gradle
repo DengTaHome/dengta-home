@@ -1,17 +1,22 @@
 apply plugin: 'com.android.application'
 
-def backendApiUrl = System.getenv("DENGTA_BACKEND_API_URL") ?: "https://backend.example.invalid"
-
 android {
     namespace = "home.dengta.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    signingConfigs {
+        debug {
+            storeFile file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
     defaultConfig {
         applicationId "home.dengta.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 34
-        versionName "2.8.12"
-        resValue "string", "backend_api_url", backendApiUrl
+        versionCode 117
+        versionName "2.10.69"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,6 +25,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -39,6 +47,11 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.work:work-runtime:2.11.2"
+    implementation "androidx.webkit:webkit:1.11.0"
+    implementation "androidx.media3:media3-exoplayer:1.5.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.5.1"
+    implementation "androidx.media3:media3-ui:1.5.1"
+    implementation "androidx.media3:media3-common:1.5.1"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

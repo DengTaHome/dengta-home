@@ -1,11 +1,18 @@
+const {
+    isProviderBoundaryResidue
+} = require("./persistent-memory-filter");
+
 const DEFAULT_MAX_PROBE_LENGTH = 4096;
 const HTML_DOCUMENT_SIGNATURES = ["<!doctype html", "<html", "<head", "<body"];
+const HTML_ERROR_EVIDENCE =
+    /(?:\b(?:4\d\d|5\d\d)\b|\berror\b|forbidden|denied|unauthori[sz]ed|bad gateway|gateway timeout|service unavailable|internal server error|upstream|rate limit|cloudflare|nginx|stack(?:trace)?)/i;
 const ERROR_ENVELOPE_KEYS = new Set([
     "code",
     "detail",
     "details",
     "error",
     "errors",
+    "id",
     "message",
     "param",
     "request_id",
@@ -54,7 +61,9 @@ function isProviderErrorEnvelope(value) {
     }
 
     if (Object.hasOwn(value, "error")) {
-        if (typeof value.error === "string") return value.error.trim().length > 0;
+        if (typeof value.error === "string") {
+            return value.error.trim().length > 0;
+        }
         if (
             isPlainObject(value.error) &&
             keysBelongTo(value.error, ERROR_DETAIL_KEYS) &&
@@ -73,41 +82,60 @@ function isProviderErrorEnvelope(value) {
         return true;
     }
 
-    return Boolean(value.message) && ERROR_CODE_PATTERN.test(String(value.code || ""));
+    return Boolean(value.message || value.detail) &&
+        ERROR_CODE_PATTERN.test(String(value.code || ""));
 }
 
-function htmlDocumentVerdict(text, final) {
+function htmlDocumentVerdict(text, { final, maxProbeLength }) {
     const lower = text.toLowerCase();
+    let documentPrefix = false;
     for (const signature of HTML_DOCUMENT_SIGNATURES) {
         if (lower.length < signature.length && signature.startsWith(lower)) {
             return final ? "safe" : "pending";
         }
         if (!lower.startsWith(signature)) continue;
-
         const boundary = lower[signature.length];
-        if (signature === "<!doctype html") {
-            return boundary === undefined && !final ? "pending" : "blocked";
+        if (boundary === undefined && !final) return "pending";
+        if (
+            signature !== "<!doctype html" &&
+            boundary !== undefined &&
+            !/[\s>]/.test(boundary)
+        ) {
+            return "safe";
         }
-        if (boundary === undefined) return final ? "blocked" : "pending";
-        return /[\s>]/.test(boundary) ? "blocked" : "safe";
+        documentPrefix = true;
+        break;
     }
-    return "safe";
+    if (!documentPrefix) return "safe";
+
+    const probe = text.slice(0, maxProbeLength);
+    if (HTML_ERROR_EVIDENCE.test(probe)) return "blocked";
+    return final || text.length >= maxProbeLength ? "safe" : "pending";
 }
 
-function providerOutputVerdict(
+function structuralDocumentVerdict(
     value,
     { final = false, maxProbeLength = DEFAULT_MAX_PROBE_LENGTH } = {}
 ) {
     const source = String(value || "").replace(/^\uFEFF/, "");
-    const text = source.trimStart();
-    if (!text) {
-        return final || source.length >= 64 ? "safe" : "pending";
+    let text = source.trimStart();
+    if (!text) return final ? "safe" : "pending";
+
+    const ssePrefix = "data:";
+    if (
+        text.length < ssePrefix.length &&
+        ssePrefix.startsWith(text.toLowerCase())
+    ) {
+        return final ? "safe" : "pending";
+    }
+    if (text.toLowerCase().startsWith(ssePrefix)) {
+        text = text.slice(ssePrefix.length).trimStart();
+        if (!text) return final ? "safe" : "pending";
     }
 
     if (text.startsWith("<")) {
-        return htmlDocumentVerdict(text, final);
+        return htmlDocumentVerdict(text, { final, maxProbeLength });
     }
-
     if (!text.startsWith("{")) return "safe";
     if (text.length > maxProbeLength) return "safe";
 
@@ -118,58 +146,141 @@ function providerOutputVerdict(
     }
 }
 
+function providerOutputVerdict(value, options = {}) {
+    const final = options.final !== false;
+    const structural = structuralDocumentVerdict(value, { ...options, final });
+    if (structural !== "safe") return structural;
+    return final && isProviderBoundaryResidue(value) ? "blocked" : "safe";
+}
+
 function isProviderErrorDocument(value) {
-    return providerOutputVerdict(value, { final: true }) === "blocked";
+    return structuralDocumentVerdict(value, { final: true }) === "blocked";
+}
+
+function providerOutputBlockCode(value) {
+    if (isProviderErrorDocument(value)) return "provider_error_document";
+    if (isProviderBoundaryResidue(value)) return "provider_boundary_residue";
+    return null;
 }
 
 function createProviderOutputGuard(options = {}) {
+    // disabled（排查/产品需求期默认开启）：不过滤、不拦截、逐句立即透传，
+    // 让模型输出原样实时显示到聊天页（含可能的拒答残留文本）。
+    const disabled = options.disabled === true;
+    if (disabled) {
+        return {
+            push(value) {
+                const content = String(value || "");
+                return { content, blocked: false, pending: false, code: null };
+            },
+            finish() {
+                return { content: "", blocked: false, pending: false, code: null };
+            },
+            get blocked() { return false; },
+            get code() { return null; }
+        };
+    }
+    const bufferUntilFinish = options.bufferUntilFinish === true;
     let state = "pending";
-    let buffer = "";
+    let structuralBuffer = "";
+    let observed = "";
+    let blockCode = null;
 
     function result(content = "") {
-        return { content, blocked: state === "blocked", pending: state === "pending" };
-    }
-
-    function settle(final) {
-        const verdict = providerOutputVerdict(buffer, { ...options, final });
-        if (verdict === "pending") return result();
-        state = verdict;
-        if (state === "blocked") {
-            buffer = "";
-            return result();
-        }
-        const content = buffer;
-        buffer = "";
-        return result(content);
+        return {
+            content,
+            blocked: blockCode !== null,
+            pending: state === "pending" && blockCode === null,
+            code: blockCode
+        };
     }
 
     return {
         push(value) {
             const content = String(value || "");
-            if (!content || state === "blocked") return result();
-            if (state === "safe") return result(content);
-            buffer += content;
-            return settle(false);
+            if (!content || blockCode) return result();
+            observed += content;
+            if (state === "safe") {
+                return result(bufferUntilFinish ? "" : content);
+            }
+
+            structuralBuffer += content;
+            const verdict = structuralDocumentVerdict(structuralBuffer, {
+                ...options,
+                final: false
+            });
+            if (verdict === "blocked") {
+                blockCode = "provider_error_document";
+                structuralBuffer = "";
+                return result();
+            }
+            if (verdict === "pending") return result();
+
+            state = "safe";
+            const released = structuralBuffer;
+            structuralBuffer = "";
+            return result(bufferUntilFinish ? "" : released);
         },
         finish() {
-            if (state !== "pending") return result();
-            return settle(true);
+            if (blockCode) return result();
+            let released = "";
+            if (state === "pending") {
+                const verdict = structuralDocumentVerdict(structuralBuffer, {
+                    ...options,
+                    final: true
+                });
+                if (verdict === "blocked") {
+                    blockCode = "provider_error_document";
+                    structuralBuffer = "";
+                    return result();
+                }
+                state = "safe";
+                released = structuralBuffer;
+                structuralBuffer = "";
+            }
+
+            if (isProviderBoundaryResidue(observed)) {
+                blockCode = "provider_boundary_residue";
+                return result();
+            }
+            return result(bufferUntilFinish ? observed : released);
         },
         get blocked() {
-            return state === "blocked";
+            return blockCode !== null;
+        },
+        get code() {
+            return blockCode;
         }
     };
 }
 
 function providerErrorDocumentError() {
-    const error = new Error("模型服务返回了异常错误文档，请稍后重试。");
+    const error = new Error("模型接口返回了异常错误文档，本轮回复未保存。");
     error.code = "provider_error_document";
     error.status = 502;
+    error.errorSource = "upstream_provider_or_gateway";
+    error.providerPhase = "output_document";
     return error;
 }
 
+function providerBoundaryResidueError() {
+    const error = new Error("模型供应商未返回可保存的对话内容。");
+    error.code = "provider_boundary_residue";
+    error.status = 502;
+    error.errorSource = "dengta_output_guard";
+    error.providerPhase = "completed_output";
+    return error;
+}
+
+function providerOutputError(code) {
+    return code === "provider_error_document"
+        ? providerErrorDocumentError()
+        : providerBoundaryResidueError();
+}
+
 function assertProviderOutputSafe(value) {
-    if (isProviderErrorDocument(value)) throw providerErrorDocumentError();
+    const code = providerOutputBlockCode(value);
+    if (code) throw providerOutputError(code);
     return value;
 }
 
@@ -178,6 +289,9 @@ module.exports = {
     createProviderOutputGuard,
     isProviderErrorDocument,
     isProviderErrorEnvelope,
+    providerBoundaryResidueError,
     providerErrorDocumentError,
+    providerOutputBlockCode,
+    providerOutputError,
     providerOutputVerdict
 };

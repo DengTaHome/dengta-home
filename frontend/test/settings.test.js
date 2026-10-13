@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import {
-  PROMPT_FIELD_LIMITS,
   createSettingsPayload,
   formatPromptReceiptProvider,
   mergeLegacyPromptFields,
@@ -33,12 +32,12 @@ assert.equal(legacy.additional_prompt, "");
 assert.equal(legacy.personality, "旧版人设");
 assert.equal(legacy.user_details, "");
 assert.equal(legacy.model, "test-model");
-assert.equal(legacy.prompt_mode, "unified");
+assert.equal(legacy.prompt_mode, "legacy");
 assert.equal(legacy.reasoning_effort, "");
-assert.equal(settingsNeedsUnifiedPromptMigration(legacy), false);
+assert.equal(settingsNeedsUnifiedPromptMigration(legacy), true);
 assert.equal(
   legacy.unified_system_prompt,
-  "【原最高优先级系统提示词】\n旧版系统规则\n\n【原独立人设词】\n旧版人设",
+  "",
 );
 assert.equal(
   mergeLegacyPromptFields({
@@ -76,6 +75,10 @@ assert.equal(
   "你的详情在前端加载时不得 trim 或解析",
 );
 const personalizedPayload = createSettingsPayload(personalized);
+const deferredGender = createSettingsPayload({ ...personalized, companion_gender_available: false, ai_gender: "male", ai_pronouns: "他", ai_gender_label: "测试" });
+for (const field of ["companion_gender_available", "ai_gender", "ai_pronouns", "ai_gender_label"]) assert.equal(field in deferredGender, false);
+assert.equal(deferredGender.unified_system_prompt, exactCustomInstructions);
+assert.equal(deferredGender.user_details, exactUserDetails);
 assert.equal(personalizedPayload.user_display_name, "桃桃");
 assert.equal(
   personalizedPayload.unified_system_prompt,
@@ -101,30 +104,25 @@ assert.equal("account_status" in accountSafePayload, false);
 assert.equal("storage_used_bytes" in accountSafePayload, false);
 assert.equal("storage_quota_bytes" in accountSafePayload, false);
 
+const unlimitedPrompts = {
+  system_prompt: "系".repeat(12050),
+  additional_prompt: "补".repeat(8050),
+  personality: "人".repeat(1050),
+  unified_system_prompt: "主".repeat(30050),
+  user_details: "详".repeat(30050),
+};
 const payload = createSettingsPayload({
   ...legacy,
-  system_prompt: "系".repeat(PROMPT_FIELD_LIMITS.system_prompt + 10),
-  additional_prompt: "补".repeat(PROMPT_FIELD_LIMITS.additional_prompt + 10),
-  personality: "人".repeat(PROMPT_FIELD_LIMITS.personality + 10),
-  unified_system_prompt: "主".repeat(
-    PROMPT_FIELD_LIMITS.unified_system_prompt + 10,
-  ),
-  user_details: "详".repeat(PROMPT_FIELD_LIMITS.user_details + 10),
+  ...unlimitedPrompts,
   intimate_expression_enabled: true,
 });
 
-assert.equal(payload.system_prompt.length, PROMPT_FIELD_LIMITS.system_prompt);
-assert.equal(
-  payload.additional_prompt.length,
-  PROMPT_FIELD_LIMITS.additional_prompt,
-);
-assert.equal(payload.personality.length, PROMPT_FIELD_LIMITS.personality);
-assert.equal(
-  payload.unified_system_prompt.length,
-  PROMPT_FIELD_LIMITS.unified_system_prompt,
-);
-assert.equal(payload.user_details.length, PROMPT_FIELD_LIMITS.user_details);
-assert.equal(payload.prompt_mode, "unified");
+assert.equal(payload.system_prompt, unlimitedPrompts.system_prompt);
+assert.equal(payload.additional_prompt, unlimitedPrompts.additional_prompt);
+assert.equal(payload.personality, unlimitedPrompts.personality);
+assert.equal(payload.unified_system_prompt, unlimitedPrompts.unified_system_prompt);
+assert.equal(payload.user_details, unlimitedPrompts.user_details);
+assert.equal(payload.prompt_mode, "legacy");
 assert.equal(payload.intimate_expression_enabled, true);
 
 const receipt = normalizePromptReceipt({

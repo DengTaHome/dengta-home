@@ -21,17 +21,32 @@ const TABLE_SCOPES = immutableCopy({
     conversations: { kind: "user", companion: true },
     memories: { kind: "user", companion: true },
     messages: { kind: "user", companion: true },
+    memory_calendar: { kind: "user", companion: true },
+    content_imports: { kind: "user", companion: true },
+    content_import_candidates: { kind: "user", companion: true },
+    world_book_entries: { kind: "user", companion: true },
     moments: { kind: "user", companion: true },
     moment_comments: { kind: "user", companion: true },
     companion_diary_entries: { kind: "user", companion: true },
     companion_profile_versions: { kind: "user", companion: true },
     stable_memory_candidates: { kind: "user", companion: true },
     media_assets: { kind: "user", companion: true },
+    account_media_assets: { kind: "user", companion: false },
+    private_media_preferences: { kind: "user", companion: false },
     push_installations: { kind: "user", companion: false },
     background_jobs: { kind: "user", companion: true },
     delivery_events: { kind: "user", companion: true },
     mcp_connections: { kind: "user", companion: true },
+    netease_cookie_sessions: { kind: "user", companion: true },
+    netease_qr_connections: { kind: "user", companion: true },
     ai_provider_profiles: { kind: "user", companion: true },
+    device_latest: { kind: "user", companion: true },
+    device_injects: { kind: "user", companion: true },
+    whereabouts_points: { kind: "user", companion: true },
+    whereabouts_state: { kind: "user", companion: true },
+    timeline_taxonomy: { kind: "user", companion: true },
+    timeline_days: { kind: "user", companion: true },
+    voice_provider_profiles: { kind: "user", companion: true },
     companion_creative_settings: { kind: "user", companion: true },
     image_provider_profiles: { kind: "user", companion: true },
     companion_creative_inspirations: { kind: "user", companion: true },
@@ -40,6 +55,16 @@ const TABLE_SCOPES = immutableCopy({
     companion_chat_preferences: { kind: "user", companion: true },
     conversation_composer_hints: { kind: "user", companion: true },
     companion_runtime_states: { kind: "user", companion: true },
+    co_watch_sessions: { kind: "user", companion: true },
+    co_watch_receiver_grants: { kind: "user", companion: true },
+    bilibili_qr_connections: { kind: "user", companion: true },
+    bilibili_qr_sessions: { kind: "user", companion: true },
+    music_playlists: { kind: "user", companion: true },
+    music_playlist_items: { kind: "user", companion: true },
+    music_favorites: { kind: "user", companion: true },
+    music_playback_queues: { kind: "user", companion: true },
+    music_playback_queue_items: { kind: "user", companion: true },
+    music_understandings: { kind: "user", companion: true },
     nursery_children: { kind: "user", companion: true },
     nursery_child_state: { kind: "user", companion: true },
     nursery_actions: { kind: "user", companion: true },
@@ -47,7 +72,15 @@ const TABLE_SCOPES = immutableCopy({
     nursery_utterances: { kind: "user", companion: true },
     nursery_events: { kind: "user", companion: true },
     nursery_milestones: { kind: "user", companion: true },
-    nursery_caregiver_bonds: { kind: "user", companion: true }
+    nursery_caregiver_bonds: { kind: "user", companion: true },
+    special_dates: { kind: "user", companion: true },
+    takeout_commands: { kind: "user", companion: true },
+    daily_shots: { kind: "user", companion: true },
+    achievements: { kind: "user", companion: true },
+    user_achievements: { kind: "user", companion: true },
+    compatibility_records: { kind: "user", companion: true },
+    ai_music_play_requests: { kind: "user", companion: true },
+    chat_error_logs: { kind: "user", companion: true }
 });
 
 function ownershipFor(table, scope) {
@@ -78,8 +111,8 @@ function addOwnershipValues(values, ownership) {
     return Array.isArray(values) ? values.map(apply) : apply(values);
 }
 
-function scopedTable(source, ownership) {
-    return Object.freeze({
+function scopedTable(source, ownership, { allowUpsert = false, upsertOnConflict } = {}) {
+    const table = {
         select(...args) {
             return addOwnershipFilters(source.select(...args), ownership);
         },
@@ -101,14 +134,50 @@ function scopedTable(source, ownership) {
         delete(options) {
             return addOwnershipFilters(source.delete(options), ownership);
         }
-    });
+    };
+    if (allowUpsert) {
+        table.upsert = (values, options) =>
+            source.upsert(
+                addOwnershipValues(values, ownership),
+                upsertOnConflict ? { ...(options || {}), onConflict: upsertOnConflict } : options
+            );
+    }
+    return Object.freeze(table);
 }
 
 function createScopedDatabase(adminSupabase, scope) {
     return Object.freeze({
         from(table) {
             const ownership = ownershipFor(table, scope);
-            return scopedTable(adminSupabase.from(table), ownership);
+            return scopedTable(adminSupabase.from(table), ownership, {
+                // External memory import needs one atomic, idempotent write.
+                // whereabouts_state 也按租户 upsert 聚合状态，需要原子写。
+                allowUpsert:
+                    table === "memories" ||
+                    table === "whereabouts_state" ||
+                    table === "music_understandings",
+                upsertOnConflict: table === "music_understandings"
+                    ? "user_id,companion_id,provider_track_id"
+                    : undefined
+            });
+        },
+        rpc(name, parameters = {}) {
+            if (!new Set([
+                "apply_music_queue_operation",
+                "apply_ai_music_delivery",
+                "commit_content_import_atomic",
+                "refresh_netease_music_playlist_items"
+            ]).has(name)) {
+                throw new Error(`RequestScope does not allow unscoped RPC: ${name}`);
+            }
+            if (typeof adminSupabase.rpc !== "function") {
+                throw new Error("RequestScope database does not support RPC.");
+            }
+            return adminSupabase.rpc(name, {
+                ...(parameters || {}),
+                p_user_id: scope.userId,
+                p_companion_id: scope.companionId
+            });
         }
     });
 }

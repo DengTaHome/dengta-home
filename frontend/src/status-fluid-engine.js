@@ -240,66 +240,82 @@ void main () {
 
 function compileShader(gl, type, source) {
   const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const reason = gl.getShaderInfoLog(shader);
+  if (!shader) throw new Error("Unable to allocate status fluid shader");
+  try {
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(shader) || "Unable to compile status fluid shader");
+    }
+    return shader;
+  } catch (error) {
     gl.deleteShader(shader);
-    throw new Error(reason || "Unable to compile status fluid shader");
+    throw error;
   }
-  return shader;
 }
 
 function createProgram(gl, fragmentSource) {
-  const vertex = compileShader(gl, gl.VERTEX_SHADER, BASE_VERTEX_SHADER);
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
-  const handle = gl.createProgram();
-  gl.attachShader(handle, vertex);
-  gl.attachShader(handle, fragment);
-  gl.linkProgram(handle);
-  gl.deleteShader(vertex);
-  gl.deleteShader(fragment);
-  if (!gl.getProgramParameter(handle, gl.LINK_STATUS)) {
-    const reason = gl.getProgramInfoLog(handle);
-    gl.deleteProgram(handle);
-    throw new Error(reason || "Unable to link status fluid program");
+  let vertex, fragment, handle;
+  try {
+    vertex = compileShader(gl, gl.VERTEX_SHADER, BASE_VERTEX_SHADER);
+    fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+    handle = gl.createProgram();
+    if (!handle) throw new Error("Unable to allocate status fluid program");
+    gl.attachShader(handle, vertex);
+    gl.attachShader(handle, fragment);
+    gl.linkProgram(handle);
+    if (!gl.getProgramParameter(handle, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(handle) || "Unable to link status fluid program");
+    }
+    const uniforms = {};
+    const count = gl.getProgramParameter(handle, gl.ACTIVE_UNIFORMS);
+    for (let index = 0; index < count; index += 1) {
+      const name = gl.getActiveUniform(handle, index)?.name;
+      if (name) uniforms[name] = gl.getUniformLocation(handle, name);
+    }
+    return {
+      handle,
+      uniforms,
+      bind() {
+        gl.useProgram(handle);
+      },
+    };
+  } catch (error) {
+    if (handle) gl.deleteProgram(handle);
+    throw error;
+  } finally {
+    if (vertex) gl.deleteShader(vertex);
+    if (fragment) gl.deleteShader(fragment);
   }
-  const uniforms = {};
-  const count = gl.getProgramParameter(handle, gl.ACTIVE_UNIFORMS);
-  for (let index = 0; index < count; index += 1) {
-    const name = gl.getActiveUniform(handle, index)?.name;
-    if (name) uniforms[name] = gl.getUniformLocation(handle, name);
-  }
-  return {
-    handle,
-    uniforms,
-    bind() {
-      gl.useProgram(handle);
-    },
-  };
 }
 
 function supportRenderTextureFormat(gl, internalFormat, format, type) {
-  const texture = gl.createTexture();
-  const framebuffer = gl.createFramebuffer();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, 4, 4, 0, format, type, null);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-  gl.framebufferTexture2D(
-    gl.FRAMEBUFFER,
-    gl.COLOR_ATTACHMENT0,
-    gl.TEXTURE_2D,
-    texture,
-    0,
-  );
-  const supported = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-  gl.deleteFramebuffer(framebuffer);
-  gl.deleteTexture(texture);
-  return supported;
+  let texture, framebuffer;
+  try {
+    texture = gl.createTexture();
+    framebuffer = gl.createFramebuffer();
+    if (!texture || !framebuffer) return false;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, 4, 4, 0, format, type, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      texture,
+      0,
+    );
+    return gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  } catch {
+    return false;
+  } finally {
+    if (framebuffer) gl.deleteFramebuffer(framebuffer);
+    if (texture) gl.deleteTexture(texture);
+  }
 }
 
 function getSupportedFormat(gl, internalFormat, format, type) {
@@ -368,19 +384,21 @@ export function createStatusFluidEngine(canvas) {
   const context = createContext(canvas);
   if (!context) return null;
   const { gl, halfFloatType, rgba, rg, r, linearFiltering } = context;
-  const programs = {
-    clear: createProgram(gl, CLEAR_SHADER),
-    display: createProgram(gl, DISPLAY_SHADER),
-    splat: createProgram(gl, SPLAT_SHADER),
-    advection: createProgram(gl, ADVECTION_SHADER),
-    divergence: createProgram(gl, DIVERGENCE_SHADER),
-    curl: createProgram(gl, CURL_SHADER),
-    vorticity: createProgram(gl, VORTICITY_SHADER),
-    pressure: createProgram(gl, PRESSURE_SHADER),
-    gradient: createProgram(gl, GRADIENT_SUBTRACT_SHADER),
+  const programSources = {
+    clear: CLEAR_SHADER,
+    display: DISPLAY_SHADER,
+    splat: SPLAT_SHADER,
+    advection: ADVECTION_SHADER,
+    divergence: DIVERGENCE_SHADER,
+    curl: CURL_SHADER,
+    vorticity: VORTICITY_SHADER,
+    pressure: PRESSURE_SHADER,
+    gradient: GRADIENT_SUBTRACT_SHADER,
   };
-  const quad = gl.createBuffer();
-  const indices = gl.createBuffer();
+  const programs = {};
+  let quad = null;
+  let indices = null;
+  let disposed = false;
   const framebuffers = new Set();
   const textures = new Set();
   let dye = null;
@@ -388,22 +406,6 @@ export function createStatusFluidEngine(canvas) {
   let divergence = null;
   let curl = null;
   let pressure = null;
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
-  gl.bufferData(
-    gl.ARRAY_BUFFER,
-    new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]),
-    gl.STATIC_DRAW,
-  );
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
-  gl.bufferData(
-    gl.ELEMENT_ARRAY_BUFFER,
-    new Uint16Array([0, 1, 2, 0, 2, 3]),
-    gl.STATIC_DRAW,
-  );
-  gl.disable(gl.BLEND);
-  gl.disable(gl.DEPTH_TEST);
-  gl.clearColor(0, 0, 0, 1);
 
   const blit = (target) => {
     if (target) {
@@ -424,8 +426,10 @@ export function createStatusFluidEngine(canvas) {
 
   const createFBO = (width, height, format, type, filtering) => {
     const texture = gl.createTexture();
-    const fbo = gl.createFramebuffer();
+    if (!texture) throw new Error("Unable to allocate status fluid texture");
     textures.add(texture);
+    const fbo = gl.createFramebuffer();
+    if (!fbo) throw new Error("Unable to allocate status fluid framebuffer");
     framebuffers.add(fbo);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -452,6 +456,9 @@ export function createStatusFluidEngine(canvas) {
       texture,
       0,
     );
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      throw new Error("Incomplete status fluid framebuffer");
+    }
     gl.viewport(0, 0, width, height);
     gl.clear(gl.COLOR_BUFFER_BIT);
     return {
@@ -496,9 +503,11 @@ export function createStatusFluidEngine(canvas) {
     textures.forEach((texture) => gl.deleteTexture(texture));
     framebuffers.clear();
     textures.clear();
+    dye = velocity = divergence = curl = pressure = null;
   };
 
   const clearAll = () => {
+    if (disposed) return;
     const targets = [
       dye?.read,
       dye?.write,
@@ -521,6 +530,7 @@ export function createStatusFluidEngine(canvas) {
   };
 
   const resize = () => {
+    if (disposed) return false;
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.min(2.25, Math.max(1, window.devicePixelRatio || 1));
     const width = Math.max(2, Math.round(rect.width * dpr));
@@ -535,37 +545,42 @@ export function createStatusFluidEngine(canvas) {
       : DESKTOP_DYE_RESOLUTION;
     const dyeSize = resolutionFor(canvas, dyeBase);
     const linear = linearFiltering ? gl.LINEAR : gl.NEAREST;
-    dye = createDoubleFBO(
-      dyeSize.width,
-      dyeSize.height,
-      rgba,
-      halfFloatType,
-      linear,
-    );
-    velocity = createDoubleFBO(
-      sim.width,
-      sim.height,
-      rg,
-      halfFloatType,
-      linear,
-    );
-    divergence = createFBO(
-      sim.width,
-      sim.height,
-      r,
-      halfFloatType,
-      gl.NEAREST,
-    );
-    curl = createFBO(sim.width, sim.height, r, halfFloatType, gl.NEAREST);
-    pressure = createDoubleFBO(
-      sim.width,
-      sim.height,
-      r,
-      halfFloatType,
-      gl.NEAREST,
-    );
-    clearAll();
-    return true;
+    try {
+      dye = createDoubleFBO(
+        dyeSize.width,
+        dyeSize.height,
+        rgba,
+        halfFloatType,
+        linear,
+      );
+      velocity = createDoubleFBO(
+        sim.width,
+        sim.height,
+        rg,
+        halfFloatType,
+        linear,
+      );
+      divergence = createFBO(
+        sim.width,
+        sim.height,
+        r,
+        halfFloatType,
+        gl.NEAREST,
+      );
+      curl = createFBO(sim.width, sim.height, r, halfFloatType, gl.NEAREST);
+      pressure = createDoubleFBO(
+        sim.width,
+        sim.height,
+        r,
+        halfFloatType,
+        gl.NEAREST,
+      );
+      clearAll();
+      return true;
+    } catch (error) {
+      releaseFramebuffers();
+      throw error;
+    }
   };
 
   const setTexelSize = (program, target) => {
@@ -579,6 +594,7 @@ export function createStatusFluidEngine(canvas) {
   };
 
   const step = (dt) => {
+    if (disposed || !dye) return;
     gl.disable(gl.BLEND);
 
     programs.curl.bind();
@@ -658,6 +674,7 @@ export function createStatusFluidEngine(canvas) {
   };
 
   const render = () => {
+    if (disposed || !dye) return;
     gl.disable(gl.BLEND);
     programs.display.bind();
     setTexelSize(programs.display, dye);
@@ -666,6 +683,7 @@ export function createStatusFluidEngine(canvas) {
   };
 
   const splat = (x, y, dx, dy, color, radius = 0.00062) => {
+    if (disposed || !dye) return;
     programs.splat.bind();
     setTexelSize(programs.splat, velocity);
     gl.uniform1i(programs.splat.uniforms.uTarget, velocity.read.attach(0));
@@ -687,13 +705,41 @@ export function createStatusFluidEngine(canvas) {
   };
 
   const dispose = () => {
+    if (disposed) return;
+    disposed = true;
     releaseFramebuffers();
     Object.values(programs).forEach((program) => gl.deleteProgram(program.handle));
-    gl.deleteBuffer(quad);
-    gl.deleteBuffer(indices);
+    if (quad) gl.deleteBuffer(quad);
+    if (indices) gl.deleteBuffer(indices);
   };
 
-  resize();
-  render();
+  try {
+    for (const [name, source] of Object.entries(programSources)) {
+      programs[name] = createProgram(gl, source);
+    }
+    quad = gl.createBuffer();
+    indices = gl.createBuffer();
+    if (!quad || !indices) throw new Error("Unable to allocate status fluid buffer");
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]),
+      gl.STATIC_DRAW,
+    );
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
+    gl.bufferData(
+      gl.ELEMENT_ARRAY_BUFFER,
+      new Uint16Array([0, 1, 2, 0, 2, 3]),
+      gl.STATIC_DRAW,
+    );
+    gl.disable(gl.BLEND);
+    gl.disable(gl.DEPTH_TEST);
+    gl.clearColor(0, 0, 0, 1);
+    resize();
+    render();
+  } catch (error) {
+    dispose();
+    throw error;
+  }
   return { clear: clearAll, dispose, render, resize, splat, step };
 }

@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { AUTH_STATUS, authSession } from "./auth-session.js";
 import { startBackgroundNotificationIdentitySync } from "./background-notification-identity.js";
+import { resolveEmailRedirectUrl } from "./auth-redirect.js";
+import WebInstallButton from "./WebInstallButton.jsx";
+import { flushSettingsBeforeAccountExit, releaseSettingsAccountExit, settingsSaveScope } from "./settings-save-scope.js";
 
 function browserEmailRedirectUrl() {
-  if (Capacitor.isNativePlatform()) return undefined;
-  const origin = globalThis.location?.origin || "";
-  return /^https?:\/\//i.test(origin) ? origin : undefined;
+  return resolveEmailRedirectUrl({
+    nativePlatform: Capacitor.isNativePlatform(),
+    location: globalThis.location,
+  });
 }
 
 function ConfigurationScreen() {
@@ -70,13 +74,16 @@ export function AuthScreen({
   const [busy, setBusy] = useState("");
   const [feedback, setFeedback] = useState(initialMessage);
   const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationLink, setVerificationLink] = useState("");
 
-  function changeMode(nextMode) {
+  function changeMode(nextMode, preserveEmail) {
     setMode(nextMode);
     setPassword("");
     setPasswordConfirmation("");
     setFeedback("");
     setVerificationEmail("");
+    setVerificationLink("");
+    if (preserveEmail) setEmail(preserveEmail);
   }
 
   async function submit(event) {
@@ -139,6 +146,20 @@ export function AuthScreen({
     }
   }
 
+  async function verifyLink(event) {
+    event.preventDefault();
+    setBusy("verify-link");
+    setFeedback("");
+    try {
+      await sessionManager.verifyRegistrationLink(verificationLink);
+    } catch (error) {
+      setFeedback(error?.message || "邮箱验证失败，请重新发送验证邮件并使用最新链接。");
+    } finally {
+      setVerificationLink("");
+      setBusy("");
+    }
+  }
+
   return (
     <main className="auth-page">
       <div className="auth-scene" aria-hidden="true">
@@ -179,7 +200,7 @@ export function AuthScreen({
               role="tab"
               aria-selected={mode === "login"}
               className={mode === "login" ? "active" : ""}
-              onClick={() => changeMode("login")}
+              onClick={() => changeMode("login", email)}
             >
               登录
             </button>
@@ -202,8 +223,8 @@ export function AuthScreen({
             </span>
             <h2>去邮箱确认一下</h2>
             <p>
-              验证链接已经发送到 <strong>{verificationEmail}</strong>。
-              验证完成后返回本页登录即可。
+              验证邮箱：<strong>{verificationEmail}</strong>。
+              打开最新的验证邮件；验证完成后可用注册时的密码登录。
             </p>
             {feedback && <p className="auth-feedback">{feedback}</p>}
             <button
@@ -217,10 +238,25 @@ export function AuthScreen({
             <button
               type="button"
               className="auth-text-button"
-              onClick={() => changeMode("login")}
+              onClick={() => changeMode("login", email)}
             >
               返回登录
             </button>
+            <details>
+              <summary>邮件链接打不开？在这里验证</summary>
+              <p>在最新验证邮件里长按“Confirm email address”，复制链接并粘贴到下面。链接只发送给灯塔当前认证服务验证，不需要在邮件浏览器中跳转。不要把链接发给其他人。</p>
+              <form className="auth-form" onSubmit={verifyLink}>
+                <label>
+                  <span>注册验证链接</span>
+                  <input required type="password" autoComplete="off" spellCheck={false}
+                    value={verificationLink} onChange={(event) => setVerificationLink(event.target.value)}
+                    placeholder="粘贴邮件中确认按钮的原始链接" />
+                </label>
+                <button className="auth-primary-button" disabled={Boolean(busy)}>
+                  {busy === "verify-link" ? "正在验证..." : "验证邮箱并进入灯塔"}
+                </button>
+              </form>
+            </details>
           </div>
         ) : (
           <form className="auth-form" onSubmit={submit}>
@@ -319,6 +355,20 @@ export function AuthScreen({
               <button
                 type="button"
                 className="auth-text-button"
+                disabled={Boolean(busy)}
+                onClick={(event) => {
+                  if (!event.currentTarget.form?.querySelector('input[type="email"]')?.reportValidity()) return;
+                  setVerificationEmail(email.trim().toLowerCase());
+                  setFeedback("邮箱尚未验证时，在此重新发送验证邮件；已经验证的账号可直接返回登录。");
+                }}
+              >
+                没收到验证邮件／验证链接失效？
+              </button>
+            )}
+            {mode === "login" && (
+              <button
+                type="button"
+                className="auth-text-button"
                 onClick={() => changeMode("forgot")}
               >
                 忘记密码
@@ -328,7 +378,7 @@ export function AuthScreen({
               <button
                 type="button"
                 className="auth-text-button"
-                onClick={() => changeMode("login")}
+                onClick={() => changeMode("login", email)}
               >
                 返回登录
               </button>
@@ -339,6 +389,7 @@ export function AuthScreen({
         <p className="auth-footnote">
           登录状态只保存在当前设备；退出账号后，其他用户无法通过本设备读取你的私人空间。
         </p>
+        {!Capacitor.isNativePlatform() && <WebInstallButton />}
       </section>
     </main>
   );
@@ -349,8 +400,15 @@ export function AccountMenu({ sessionManager, snapshot }) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
   const rootRef = useRef(null);
+  const alive = useRef(false);
+  const exiting = useRef(false);
   const email = snapshot.user?.email || "已登录";
   const initial = email.slice(0, 1).toUpperCase();
+
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -362,13 +420,24 @@ export function AccountMenu({ sessionManager, snapshot }) {
   }, [open]);
 
   async function signOut() {
+    if (exiting.current) return;
+    exiting.current = true;
+    const scope = settingsSaveScope(snapshot);
     setBusy(true);
     setFeedback("");
     try {
+      if (!await flushSettingsBeforeAccountExit(scope)) throw new Error("设置尚未保存，已保留当前页面。请重试保存，或复制未保存的原文后再退出。");
+      if (!alive.current) return;
+      if (settingsSaveScope(sessionManager.getSnapshot()) !== scope) throw new Error("账号或伴侣已切换，本次退出已取消。请在当前空间重新操作。");
       await sessionManager.signOut();
     } catch (error) {
-      setFeedback(error?.message || "退出登录失败，请稍后再试。");
-      setBusy(false);
+      if (alive.current) {
+        setFeedback(error?.message || "退出登录失败，请稍后再试。");
+        setBusy(false);
+      }
+    } finally {
+      releaseSettingsAccountExit(scope);
+      exiting.current = false;
     }
   }
 

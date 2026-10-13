@@ -2,17 +2,21 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+    createCompanionCreativeCenter,
     decryptScopedSecret,
     encryptScopedSecret,
     fetchGeneratedImage,
+    inspectImageProviderCredential,
     normalizeCreativeSettings,
     normalizeIdea,
     publicCreativeError,
+    publicImageProvider,
     sanitizeUploadedImage
 } = require("../services/companion-creative");
 const {
     buildCreativeDecisionPrompt,
-    parseCreativeDecision
+    parseCreativeDecision,
+    publishArtworkMessage
 } = require("../services/tenant-companion-creative");
 const { publicMessage } = require("../services/chat-attachments");
 
@@ -153,8 +157,7 @@ const prompt = buildCreativeDecisionPrompt({
     latestProfile: { introduction: "喜欢温暖的灯光" },
     allowSurprise: false
 });
-assert.match(prompt, /沿用个性化指令决定的叙事世界和人物关系/);
-assert.doesNotMatch(prompt, /不得虚构共同经历/);
+assert.match(prompt, /不得虚构共同经历/);
 assert.match(prompt, /surprise 必须为 false/);
 assert.match(prompt, /今天下雨了/);
 
@@ -320,6 +323,351 @@ const directBinary = await fetchGeneratedImage({
 assert.equal(directBinary.mimeType, "image/png");
 assert.deepEqual(directBinary.bytes, onePixelPng);
 
+const migratedEnv = {
+    MCP_ENCRYPTION_KEY:
+        "replacement-creative-encryption-key-long-enough-2026"
+};
+const legacyProvider = {
+    id: "55555555-5555-4555-8555-555555555555",
+    name: "Legacy image provider",
+    base_url: "https://images.example.test/v1",
+    auth_type: "bearer",
+    secret_ciphertext: encrypted,
+    model: "test-image",
+    enabled: true
+};
+const legacyProviderInspection = inspectImageProviderCredential(
+    legacyProvider,
+    identity,
+    migratedEnv
+);
+assert.equal(legacyProviderInspection.state, "needs_reentry");
+assert.equal(legacyProviderInspection.usable, false);
+assert.equal(legacyProviderInspection.credential, "");
+const legacyPublicProvider = publicImageProvider(
+    legacyProvider,
+    legacyProviderInspection
+);
+assert.equal(legacyPublicProvider.auth_configured, false);
+assert.equal(legacyPublicProvider.routable, false);
+assert.equal(legacyPublicProvider.credential_state, "needs_reentry");
+assert.equal(legacyPublicProvider.credential_reentry_required, true);
+assert.equal("secret_ciphertext" in legacyPublicProvider, false);
+
+const legacyArtworkId = "66666666-6666-4666-8666-666666666666";
+const legacyArtwork = {
+    id: legacyArtworkId,
+    kind: "gift",
+    visibility: "ordinary",
+    state: "ready",
+    title: "旧作品仍可查看",
+    description_ciphertext: encryptScopedSecret(
+        "legacy description",
+        identity,
+        `artwork-description:${legacyArtworkId}`,
+        env
+    ),
+    prompt_ciphertext: encryptScopedSecret(
+        "legacy prompt",
+        identity,
+        `artwork-prompt:${legacyArtworkId}`,
+        env
+    ),
+    generation_reason_ciphertext: encryptScopedSecret(
+        "legacy reason",
+        identity,
+        `artwork-reason:${legacyArtworkId}`,
+        env
+    ),
+    alt_text: "旧作品",
+    storage_path: `${userId}/${companionId}/${legacyArtworkId}.png`,
+    created_at: "2026-08-01T00:00:00.000Z",
+    updated_at: "2026-08-01T00:00:00.000Z"
+};
+const listOnlyDatabase = {
+    from(table) {
+        assert.equal(table, "companion_artworks");
+        const builder = {
+            select() {
+                return builder;
+            },
+            is() {
+                return builder;
+            },
+            order() {
+                return builder;
+            },
+            limit() {
+                return builder;
+            },
+            then(resolve, reject) {
+                return Promise.resolve({ data: [legacyArtwork], error: null }).then(
+                    resolve,
+                    reject
+                );
+            }
+        };
+        return builder;
+    }
+};
+const inertStorage = {
+    from() {
+        throw new Error("storage should not be read while listing metadata");
+    }
+};
+const migratedCenter = createCompanionCreativeCenter({
+    database: listOnlyDatabase,
+    storage: inertStorage,
+    identity,
+    env: migratedEnv
+});
+const resilientArtworkList = await migratedCenter.listArtworks();
+assert.equal(resilientArtworkList.length, 1);
+assert.equal(resilientArtworkList[0].description, "");
+assert.equal(resilientArtworkList[0].reason, "");
+assert.equal(resilientArtworkList[0].metadata_state, "needs_reentry");
+assert.equal(resilientArtworkList[0].metadata_reentry_required, true);
+assert.match(resilientArtworkList[0].metadata_message, /已有图片仍可查看/);
+assert.match(resilientArtworkList[0].image_url, new RegExp(legacyArtworkId));
+assert.equal("description_ciphertext" in resilientArtworkList[0], false);
+assert.equal("prompt_ciphertext" in resilientArtworkList[0], false);
+const partialMetadataArtwork = migratedCenter.publicArtwork({
+    ...legacyArtwork,
+    generation_reason_ciphertext: encryptScopedSecret(
+        "current reason remains readable",
+        identity,
+        `artwork-reason:${legacyArtworkId}`,
+        migratedEnv
+    )
+});
+assert.equal(partialMetadataArtwork.description, "");
+assert.equal(partialMetadataArtwork.reason, "current reason remains readable");
+assert.equal(partialMetadataArtwork.metadata_state, "needs_reentry");
+
+const insertedCreativeRows = [];
+const creativeInsertDatabase = {
+    from(table) {
+        const query = { inserted: null };
+        const builder = {
+            select() {
+                return builder;
+            },
+            limit() {
+                return builder;
+            },
+            insert(values) {
+                query.inserted = values;
+                return builder;
+            },
+            async maybeSingle() {
+                if (table === "companion_creative_settings") {
+                    return {
+                        data: {
+                            id: "77777777-7777-4777-8777-777777777777",
+                            generation_mode: "confirm",
+                            daily_call_limit: null,
+                            monthly_call_limit: null,
+                            surprise_enabled: false,
+                            max_surprise_days: 30
+                        },
+                        error: null
+                    };
+                }
+                throw new Error(`unexpected maybeSingle table: ${table}`);
+            },
+            async single() {
+                if (table !== "companion_artworks" || !query.inserted) {
+                    throw new Error(`unexpected insert table: ${table}`);
+                }
+                insertedCreativeRows.push(query.inserted);
+                return { data: query.inserted, error: null };
+            }
+        };
+        return builder;
+    }
+};
+const uploadedStoragePaths = [];
+const writableStorage = {
+    from(bucket) {
+        assert.equal(bucket, "companion-artworks");
+        return {
+            async upload(storagePath) {
+                uploadedStoragePaths.push(storagePath);
+                return { data: { path: storagePath }, error: null };
+            },
+            async remove() {
+                return { data: [], error: null };
+            }
+        };
+    }
+};
+const writableCenter = createCompanionCreativeCenter({
+    database: creativeInsertDatabase,
+    storage: writableStorage,
+    identity,
+    env: migratedEnv,
+    now: () => new Date("2026-08-13T06:30:00.000Z")
+});
+const uploadedArtwork = await writableCenter.uploadArtwork({
+    bytes: onePixelPng,
+    mimeType: "image/png",
+    title: "迁移后手动上传"
+});
+assert.equal(uploadedArtwork.state, "ready");
+assert.equal(uploadedStoragePaths.length, 1);
+const migratedIdea = await writableCenter.createIdea({
+    kind: "doodle",
+    description: "迁移后仍可构思",
+    prompt: "a small lighthouse",
+    reason: "保留这一刻"
+});
+assert.equal(migratedIdea.row.state, "awaiting_confirmation");
+assert.equal(insertedCreativeRows.length, 2);
+
+const generationDatabase = {
+    from(table) {
+        const query = { id: null };
+        const builder = {
+            select() {
+                return builder;
+            },
+            limit() {
+                return builder;
+            },
+            eq(field, value) {
+                if (field === "id") query.id = value;
+                return builder;
+            },
+            async maybeSingle() {
+                if (table === "companion_creative_settings") {
+                    return {
+                        data: {
+                            generation_mode: "confirm",
+                            daily_call_limit: null,
+                            monthly_call_limit: null,
+                            surprise_enabled: false,
+                            max_surprise_days: 30
+                        },
+                        error: null
+                    };
+                }
+                if (table === "image_provider_profiles") {
+                    return { data: legacyProvider, error: null };
+                }
+                if (
+                    table === "companion_artworks" &&
+                    query.id === legacyArtworkId
+                ) {
+                    return {
+                        data: { ...legacyArtwork, state: "awaiting_confirmation" },
+                        error: null
+                    };
+                }
+                return { data: null, error: null };
+            }
+        };
+        return builder;
+    }
+};
+const generationCenter = createCompanionCreativeCenter({
+    database: generationDatabase,
+    storage: inertStorage,
+    identity,
+    env: migratedEnv
+});
+await assert.rejects(generationCenter.generateArtwork(legacyArtworkId), (error) => {
+    const safe = publicCreativeError(error);
+    assert.equal(safe.status, 409);
+    assert.equal(
+        safe.code,
+        "creative_provider_credential_reentry_required"
+    );
+    assert.equal(safe.credential_state, "needs_reentry");
+    assert.equal(safe.credential_reentry_required, true);
+    assert.equal(safe.credential_scope, "image_provider");
+    assert.match(safe.message, /重新填写图片 API Key/);
+    assert.match(safe.message, /Re-enter the image API key/);
+    assert.doesNotMatch(JSON.stringify(safe), /secret_ciphertext|ctx1\./);
+    return true;
+});
+const currentProvider = {
+    ...legacyProvider,
+    secret_ciphertext: encryptScopedSecret(
+        "replacement provider key",
+        identity,
+        "image-provider",
+        migratedEnv
+    )
+};
+const metadataGenerationDatabase = {
+    from(table) {
+        const query = { id: null };
+        const builder = {
+            select() {
+                return builder;
+            },
+            limit() {
+                return builder;
+            },
+            eq(field, value) {
+                if (field === "id") query.id = value;
+                return builder;
+            },
+            async maybeSingle() {
+                if (table === "companion_creative_settings") {
+                    return {
+                        data: {
+                            generation_mode: "confirm",
+                            daily_call_limit: null,
+                            monthly_call_limit: null,
+                            surprise_enabled: false,
+                            max_surprise_days: 30
+                        },
+                        error: null
+                    };
+                }
+                if (table === "image_provider_profiles") {
+                    return { data: currentProvider, error: null };
+                }
+                if (
+                    table === "companion_artworks" &&
+                    query.id === legacyArtworkId
+                ) {
+                    return {
+                        data: { ...legacyArtwork, state: "awaiting_confirmation" },
+                        error: null
+                    };
+                }
+                return { data: null, error: null };
+            }
+        };
+        return builder;
+    }
+};
+const metadataGenerationCenter = createCompanionCreativeCenter({
+    database: metadataGenerationDatabase,
+    storage: inertStorage,
+    identity,
+    env: migratedEnv
+});
+await assert.rejects(
+    metadataGenerationCenter.generateArtwork(legacyArtworkId),
+    (error) => {
+        const safe = publicCreativeError(error);
+        assert.equal(safe.status, 409);
+        assert.equal(
+            safe.code,
+            "creative_artwork_metadata_reentry_required"
+        );
+        assert.equal(safe.metadata_state, "needs_reentry");
+        assert.equal(safe.metadata_reentry_required, true);
+        assert.equal("credential_scope" in safe, false);
+        assert.match(safe.message, /重新构思/);
+        assert.match(safe.message, /Create a new idea/);
+        return true;
+    }
+);
+
 const rejected = publicCreativeError(
     Object.assign(new Error("private upstream detail"), {
         upstream_status: 401
@@ -348,6 +696,115 @@ assert.deepEqual(visibleMessage.tool_calls, {
     is_surprise_reveal: true
 });
 
+const publishedRows = [];
+const touchedConversations = [];
+const publicationDatabase = {
+    from(table) {
+        const state = { operation: "", values: null };
+        const builder = {
+            select() {
+                if (!state.operation) state.operation = "select";
+                return builder;
+            },
+            insert(values) {
+                state.operation = "insert";
+                state.values = values;
+                return builder;
+            },
+            update(values) {
+                state.operation = "update";
+                state.values = values;
+                return builder;
+            },
+            eq() {
+                return builder;
+            },
+            contains() {
+                return builder;
+            },
+            order() {
+                return builder;
+            },
+            limit() {
+                return builder;
+            },
+            async maybeSingle() {
+                if (table === "messages") {
+                    return {
+                        data: publishedRows[0]
+                            ? { id: publishedRows[0].id }
+                            : null,
+                        error: null
+                    };
+                }
+                return {
+                    data: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+                    error: null
+                };
+            },
+            async single() {
+                const row = { id: 91, ...state.values };
+                publishedRows.push(row);
+                return { data: { id: row.id }, error: null };
+            },
+            then(resolve, reject) {
+                if (table === "conversations" && state.operation === "update") {
+                    touchedConversations.push(state.values);
+                }
+                return Promise.resolve({ data: null, error: null }).then(
+                    resolve,
+                    reject
+                );
+            }
+        };
+        return builder;
+    }
+};
+const readyArtwork = {
+    id: artworkId,
+    visibility: "ordinary",
+    state: "ready",
+    storage_path: `${userId}/${companionId}/${artworkId}.png`
+};
+const publicationCenter = {
+    publicArtwork() {
+        return { reason: "A small gift", alt_text: "A warm lamp" };
+    }
+};
+const published = await publishArtworkMessage({
+    database: publicationDatabase,
+    center: publicationCenter,
+    artwork: readyArtwork,
+    now: () => new Date("2026-07-28T11:00:00.000Z")
+});
+assert.equal(published.id, 91);
+assert.deepEqual(publishedRows[0].tool_calls, {
+    artwork_id: artworkId,
+    artwork_alt: "A warm lamp",
+    is_push: true,
+    is_companion_creative: true
+});
+assert.equal(touchedConversations.length, 1);
+const duplicatePublication = await publishArtworkMessage({
+    database: publicationDatabase,
+    center: publicationCenter,
+    artwork: readyArtwork
+});
+assert.equal(duplicatePublication.id, 91);
+assert.equal(publishedRows.length, 1);
+assert.equal(
+    await publishArtworkMessage({
+        database: publicationDatabase,
+        center: publicationCenter,
+        artwork: {
+            ...readyArtwork,
+            visibility: "surprise",
+            state: "ready_hidden"
+        }
+    }),
+    null
+);
+
 const migration = fs.readFileSync(
     path.join(
         __dirname,
@@ -369,6 +826,19 @@ for (const marker of [
     assert.match(migration, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 }
 assert.match(migration, /revoke all[\s\S]*authenticated/i);
+const artworkMessageMigration = fs.readFileSync(
+    path.join(
+        __dirname,
+        "..",
+        "supabase",
+        "029_creative_artwork_message_idempotency.sql"
+    ),
+    "utf8"
+);
+assert.match(
+    artworkMessageMigration,
+    /unique index[\s\S]*messages_tenant_creative_artwork_uidx[\s\S]*artwork_id/i
+);
 
 const runtimeSource = fs.readFileSync(
     path.join(
@@ -379,7 +849,13 @@ const runtimeSource = fs.readFileSync(
     ),
     "utf8"
 );
+const creativeRouteSource = fs.readFileSync(
+    path.join(__dirname, "..", "routes", "companion-creative.js"),
+    "utf8"
+);
 assert.match(runtimeSource, /async function publishArtworkMessage/);
+assert.match(creativeRouteSource, /publishArtworkMessage/);
+assert.match(creativeRouteSource, /message_id/);
 assert.match(
     runtimeSource,
     /artwork\.visibility === "ordinary"[\s\S]*?publishArtworkMessage/

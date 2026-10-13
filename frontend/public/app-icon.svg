@@ -1,81 +1,125 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <radialGradient id="paper" cx="34%" cy="24%" r="92%">
-      <stop stop-color="#ffffff"/>
-      <stop offset=".62" stop-color="#fffdfa"/>
-      <stop offset="1" stop-color="#f7f0e8"/>
-    </radialGradient>
-    <linearGradient id="cream" x1="128" y1="78" x2="392" y2="430" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#e9d6c3"/>
-      <stop offset=".4" stop-color="#c9a98c"/>
-      <stop offset=".7" stop-color="#f3e2cf"/>
-      <stop offset="1" stop-color="#b98f72"/>
+    <linearGradient id="night-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#070d1d"/>
+      <stop offset=".55" stop-color="#0d1e3f"/>
+      <stop offset="1" stop-color="#1a3a66"/>
     </linearGradient>
-    <radialGradient id="pearl-a" cx="28%" cy="18%" r="86%">
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#12355f"/>
+      <stop offset="1" stop-color="#0a1e3a"/>
+    </linearGradient>
+    <linearGradient id="tower" x1="0" y1="0" x2="1" y2="0">
       <stop stop-color="#ffffff"/>
-      <stop offset=".2" stop-color="#d9f5ff"/>
-      <stop offset=".43" stop-color="#e6d6ff"/>
-      <stop offset=".68" stop-color="#ffd9d4"/>
-      <stop offset=".86" stop-color="#fff1b9"/>
-      <stop offset="1" stop-color="#b8ede2"/>
-    </radialGradient>
-    <radialGradient id="pearl-b" cx="22%" cy="20%" r="90%">
+      <stop offset=".5" stop-color="#fdf6ec"/>
+      <stop offset="1" stop-color="#e4d8c4"/>
+    </linearGradient>
+    <linearGradient id="light-beam" x1="0" y1="1" x2="1" y2="0">
+      <stop stop-color="#ffd98a" stop-opacity="0"/>
+      <stop offset=".35" stop-color="#ffd98a" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#ffe9b8" stop-opacity=".72"/>
+    </linearGradient>
+    <radialGradient id="lamp-glow" cx=".5" cy=".5" r=".5">
       <stop stop-color="#ffffff"/>
-      <stop offset=".22" stop-color="#f6d8ff"/>
-      <stop offset=".46" stop-color="#bfe9ff"/>
-      <stop offset=".7" stop-color="#ffe1a8"/>
-      <stop offset="1" stop-color="#d7f1e9"/>
+      <stop offset=".32" stop-color="#fff3cc"/>
+      <stop offset=".58" stop-color="#ffd76a"/>
+      <stop offset="1" stop-color="#ffb83d" stop-opacity="0"/>
     </radialGradient>
-    <filter id="soft-shadow" x="-30%" y="-30%" width="160%" height="170%">
-      <feDropShadow dx="0" dy="13" stdDeviation="15" flood-color="#8f684f" flood-opacity=".3"/>
+    <radialGradient id="reflection" cx=".5" cy=".5" r=".5">
+      <stop stop-color="#ffd76a" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#ffd76a" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow-blur" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="14"/>
     </filter>
-    <filter id="pearl-shadow" x="-70%" y="-70%" width="240%" height="250%">
-      <feDropShadow dx="0" dy="7" stdDeviation="7" flood-color="#9e7fc1" flood-opacity=".26"/>
+    <filter id="tower-shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity=".45"/>
     </filter>
   </defs>
 
-  <rect width="512" height="512" rx="116" fill="url(#paper)"/>
-  <circle cx="252" cy="256" r="188" fill="#fff" fill-opacity=".36"/>
-  <path
-    d="M164 112v288M166 112h77c96 0 153 58 153 144s-57 144-153 144h-77"
-    fill="none"
-    stroke="url(#cream)"
-    stroke-width="58"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    filter="url(#soft-shadow)"
-  />
-  <path
-    d="M164 112v288M166 112h77c96 0 153 58 153 144s-57 144-153 144h-77"
-    fill="none"
-    stroke="#fffefb"
-    stroke-opacity=".72"
-    stroke-width="8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
+  <rect width="512" height="512" rx="116" fill="url(#night-sky)"/>
 
-  <g filter="url(#pearl-shadow)" stroke="#fff" stroke-width="3" stroke-linejoin="round">
-    <path
-      d="M0-55Q2-43 8-25Q11-16 21-18L42-23Q51-25 55-17Q58-10 49-3L31 11Q24 17 29 25L41 45Q46 53 39 59Q32 64 24 57L7 44Q0 38-7 44L-24 57Q-32 64-39 59Q-46 53-41 45L-29 25Q-24 17-31 11L-49-3Q-58-10-55-17Q-51-25-42-23L-21-18Q-11-16-8-25L0-55Z"
-      fill="url(#pearl-a)"
-      transform="translate(116 104) scale(.48)"
-    />
-    <path
-      d="M0-55Q2-43 8-25Q11-16 21-18L42-23Q51-25 55-17Q58-10 49-3L31 11Q24 17 29 25L41 45Q46 53 39 59Q32 64 24 57L7 44Q0 38-7 44L-24 57Q-32 64-39 59Q-46 53-41 45L-29 25Q-24 17-31 11L-49-3Q-58-10-55-17Q-51-25-42-23L-21-18Q-11-16-8-25L0-55Z"
-      fill="url(#pearl-b)"
-      transform="translate(421 276) scale(.44)"
-    />
-    <path
-      d="M0-55Q2-43 8-25Q11-16 21-18L42-23Q51-25 55-17Q58-10 49-3L31 11Q24 17 29 25L41 45Q46 53 39 59Q32 64 24 57L7 44Q0 38-7 44L-24 57Q-32 64-39 59Q-46 53-41 45L-29 25Q-24 17-31 11L-49-3Q-58-10-55-17Q-51-25-42-23L-21-18Q-11-16-8-25L0-55Z"
-      fill="url(#pearl-a)"
-      transform="translate(124 410) scale(.36)"
-    />
+  <!-- 星空 -->
+  <g fill="#ffffff" opacity=".55">
+    <circle cx="92" cy="88" r="3"/>
+    <circle cx="430" cy="70" r="2.4"/>
+    <circle cx="392" cy="150" r="3.4"/>
+    <circle cx="120" cy="196" r="2.2"/>
+    <circle cx="462" cy="240" r="2.6"/>
+    <circle cx="58" cy="290" r="2"/>
+    <circle cx="330" cy="52" r="2.8"/>
+    <circle cx="214" cy="110" r="2"/>
+    <circle cx="468" cy="330" r="2.2"/>
+    <circle cx="76" cy="380" r="2.6"/>
+  </g>
+  <g fill="#cfe4ff" opacity=".4">
+    <circle cx="64" cy="150" r="1.6"/>
+    <circle cx="446" cy="118" r="1.8"/>
+    <circle cx="160" cy="60" r="1.6"/>
+    <circle cx="260" cy="40" r="1.4"/>
+    <circle cx="388" cy="300" r="1.5"/>
   </g>
 
-  <g fill="none" stroke="#fff" stroke-linecap="round" opacity=".76">
-    <path d="M103 104c10-5 20-4 27 3" stroke-width="4"/>
-    <path d="M408 274c10-5 19-4 27 3" stroke-width="3.5"/>
-    <path d="M114 409c7-3 14-2 20 2" stroke-width="3"/>
+  <!-- 海面 -->
+  <path d="M0 352h512v160H0z" fill="url(#sea)"/>
+  <path d="M0 352h512v26H0z" fill="#0b2545" opacity=".7"/>
+
+  <!-- 灯光：上方的光柱（左侧主光） -->
+  <g filter="url(#glow-blur)">
+    <path d="M218 172 46 324l170-26Z" fill="url(#light-beam)" opacity=".5"/>
   </g>
+  <path d="M218 172 46 324l170-26Z" fill="url(#light-beam)" opacity=".5"/>
+  <!-- 右侧次光 -->
+  <g filter="url(#glow-blur)">
+    <path d="M262 172 436 296l-166-32Z" fill="url(#light-beam)" opacity=".34" transform="scale(-1 1) translate(-512 0)"/>
+  </g>
+  <path d="M262 172 436 296l-166-32Z" fill="url(#light-beam)" opacity=".34"/>
+
+  <!-- 灯塔塔身（远景剪影风格，简洁） -->
+  <g filter="url(#tower-shadow)">
+    <!-- 塔基 -->
+    <path d="M206 372h152l-18-40h-116Z" fill="#2c405e"/>
+    <path d="M210 386h148l-10 22h-128Z" fill="#22354f"/>
+    <!-- 塔身 -->
+    <path d="M228 332h106l-14 88h-78Z" fill="url(#tower)"/>
+    <!-- 红条纹 -->
+    <path d="M221 356h120l-5 26h-110Z" fill="#e05a45"/>
+    <path d="M218 394h126l-6 34h-114Z" fill="#d94b38"/>
+    <!-- 塔檐（支撑平台） -->
+    <path d="M216 216h130l-12 26h-106Z" fill="#fff7ea"/>
+    <path d="M221 242h120l-9 20h-102Z" fill="#e05a45"/>
+    <!-- 塔顶走廊 -->
+    <path d="M238 182h86v16h-86z" fill="#fdf6ec"/>
+    <!-- 灯室玻璃 -->
+    <rect x="244" y="196" width="74" height="22" rx="6" fill="#ffd76a"/>
+    <rect x="244" y="196" width="74" height="22" rx="6" fill="#fff8e0" opacity=".5"/>
+    <!-- 灯室帽 -->
+    <path d="M236 190h92l-8 16h-76Z" fill="#e05a45"/>
+    <path d="M263 152h38l-14 42h-10Z" fill="#cfd8e6"/>
+    <circle cx="282" cy="150" r="11" fill="#cfd8e6"/>
+    <!-- 避雷针 -->
+    <rect x="279.5" y="116" width="5" height="36" rx="2.5" fill="#9fb2cc"/>
+  </g>
+
+  <!-- 灯室主光晕 -->
+  <ellipse cx="281" cy="207" rx="120" ry="120" fill="url(#lamp-glow)" opacity=".9" filter="url(#glow-blur)"/>
+
+  <!-- 海面光反射 -->
+  <g opacity=".7">
+    <ellipse cx="281" cy="400" rx="150" ry="34" fill="url(#reflection)"/>
+    <path d="M240 402h82v4H240z" fill="#ffd76a" opacity=".5"/>
+    <path d="M188 420h40M296 420h40" stroke="#ffd76a" stroke-width="3" stroke-linecap="round" opacity=".38"/>
+    <path d="M150 440h52M310 440h52" stroke="#ffd76a" stroke-width="2.5" stroke-linecap="round" opacity=".26"/>
+  </g>
+
+  <!-- 飞鸟剪影（归途意象） -->
+  <g fill="#0a1424" opacity=".75">
+    <path d="M330 120c6-7 16-8 24-3-2 5-8 8-14 8s-8-2-10-5Z"/>
+    <path d="M358 104c5-5 13-6 19-2-2 4-6 6-11 6s-6-2-8-4Z"/>
+  </g>
+  <path d="M312 132c5-6 13-7 19-3" stroke="#0a1424" stroke-width="2.6" stroke-linecap="round" fill="none" opacity=".7"/>
+
+  <!-- 月亮 -->
+  <circle cx="412" cy="96" r="30" fill="#f4f7ff" opacity=".9"/>
+  <circle cx="424" cy="88" r="30" fill="url(#night-sky)" opacity=".85"/>
 </svg>

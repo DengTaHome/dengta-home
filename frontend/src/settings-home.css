@@ -1,0 +1,506 @@
+.settings-home {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+  padding-bottom: 20px;
+  color: var(--theme-ink);
+}
+
+.settings-home *,
+.settings-home *::before,
+.settings-home *::after {
+  box-sizing: border-box;
+}
+
+.settings-home button,
+.settings-home input {
+  font: inherit;
+}
+
+.settings-home button {
+  cursor: pointer;
+  color: inherit;
+  touch-action: manipulation;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.settings-home button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.app-shell .settings-home button:not(.settings-home-entry):not(.settings-home-guide-toggle) {
+  min-height: 44px;
+}
+
+.settings-home button:focus-visible,
+.settings-home input:focus-visible {
+  outline: 2px solid rgb(var(--theme-accent-rgb));
+  outline-offset: 3px;
+}
+
+.settings-home-search {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.settings-home-search > label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-home-search-field {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px 0 13px;
+  border: 1px solid rgb(var(--theme-ink-rgb) / .14);
+  border-radius: 12px;
+  background: rgb(var(--theme-card-rgb) / .88);
+}
+
+.settings-home-search-field:focus-within {
+  border-color: rgb(var(--theme-accent-rgb) / .65);
+}
+
+.settings-home-search-field > svg {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+  color: rgb(var(--theme-ink-rgb) / .58);
+}
+
+.settings-home-search-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 0;
+  border: 0;
+  color: var(--theme-ink);
+  background: transparent;
+  font-size: 14px;
+  appearance: none;
+}
+
+.settings-home-search-field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.settings-home-search-field input::placeholder {
+  color: rgb(var(--theme-ink-rgb) / .56);
+}
+
+.settings-home-search-field button {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+}
+
+.settings-home-search-field button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-home-quick-links {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-home-shortcuts {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.settings-home-shortcuts-heading,
+.settings-home-quick-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-home-shortcuts-heading > span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-home-quick-edit,
+.settings-home-quick-actions button {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  color: rgb(var(--theme-accent-rgb));
+  background: transparent;
+  font-size: 12px;
+}
+
+.settings-home-quick-edit:hover,
+.settings-home-quick-actions button:hover {
+  background: rgb(var(--theme-accent-rgb) / .08);
+}
+
+.settings-home .settings-home-quick-done {
+  padding-inline: 15px;
+  border: 1px solid rgb(var(--theme-accent-rgb) / .3);
+  background: rgb(var(--theme-accent-rgb) / .12);
+  font-weight: 600;
+}
+
+.settings-home-quick-editor {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgb(var(--theme-ink-rgb) / .1);
+  border-radius: 12px;
+  background: rgb(var(--theme-card-rgb) / .65);
+}
+
+.settings-home-quick-editor > p,
+.settings-home-quick-feedback,
+.settings-home-shortcuts-empty {
+  margin: 0;
+  color: rgb(var(--theme-ink-rgb) / .65);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.settings-home-quick-editor > .settings-home-quick-count {
+  color: var(--theme-ink);
+  font-weight: 600;
+}
+
+.settings-home-quick-options {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.settings-home-quick-options button {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgb(var(--theme-ink-rgb) / .1);
+  border-radius: 9px;
+  text-align: left;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.settings-home-quick-options button[aria-pressed="true"] {
+  border-color: rgb(var(--theme-accent-rgb) / .32);
+  background: rgb(var(--theme-accent-rgb) / .08);
+}
+
+.settings-home-quick-options button:disabled {
+  cursor: default;
+  opacity: .5;
+}
+
+.settings-home-quick-check {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(var(--theme-ink-rgb) / .23);
+  border-radius: 5px;
+}
+
+.settings-home-quick-check svg {
+  width: 13px;
+  height: 13px;
+  color: rgb(var(--theme-accent-rgb));
+}
+
+.settings-home-quick-links button,
+.settings-home-reset {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid rgb(var(--theme-accent-rgb) / .2);
+  border-radius: 10px;
+  background: rgb(var(--theme-accent-rgb) / .08);
+  font-size: 13px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.settings-home-quick-links button:hover,
+.settings-home-reset:hover,
+.settings-home-quick-options button:not(:disabled):hover,
+.settings-home-guide-close:hover {
+  border-color: rgb(var(--theme-accent-rgb) / .4);
+  background: rgb(var(--theme-accent-rgb) / .12);
+}
+
+.settings-home-quick-links button svg,
+.settings-home-guide-content button svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.settings-home-results {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.settings-home-groups {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.settings-home-group {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid rgb(var(--theme-ink-rgb) / .1);
+  border-radius: 14px;
+  background: rgb(var(--theme-card-rgb) / .78);
+}
+
+.settings-home-group-heading {
+  margin-bottom: 9px;
+}
+
+.settings-home-group-heading h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.settings-home-group-heading p {
+  margin: 4px 0 0;
+  color: rgb(var(--theme-ink-rgb) / .65);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-home-entries {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.settings-home-entry {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 70px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 5px;
+  border: 0;
+  border-radius: 10px;
+  text-align: left;
+  background: transparent;
+}
+
+.settings-home-entry:hover,
+.settings-home-entry:focus-visible,
+.settings-home-search-field button:hover,
+.settings-home-guide-toggle:hover {
+  background: rgb(var(--theme-accent-rgb) / .08);
+}
+
+.settings-home-entry-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  color: rgb(var(--theme-accent-rgb));
+  background: rgb(var(--theme-accent-rgb) / .1);
+}
+
+.settings-home-entry-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-home-entry-text {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 4px;
+}
+
+.settings-home-entry-text strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.settings-home-entry-text small {
+  color: rgb(var(--theme-ink-rgb) / .65);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-home-entry-arrow {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: rgb(var(--theme-ink-rgb) / .5);
+}
+
+.settings-home-group-heading,
+.settings-home-entry-text,
+.settings-home-guide {
+  overflow-wrap: anywhere;
+}
+
+.settings-home-guide {
+  min-width: 0;
+  border: 1px solid rgb(var(--theme-ink-rgb) / .1);
+  border-radius: 12px;
+  background: rgb(var(--theme-card-rgb) / .6);
+}
+
+.settings-home-guide-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 15px;
+  border: 0;
+  border-radius: 12px;
+  text-align: left;
+  background: transparent;
+}
+
+.settings-home-guide-toggle > span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.settings-home-guide-toggle strong {
+  font-size: 13px;
+}
+
+.settings-home-guide-toggle small {
+  color: rgb(var(--theme-ink-rgb) / .65);
+  font-size: 12px;
+}
+
+.settings-home-guide-toggle > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
+.settings-home-guide-toggle[aria-expanded="true"] > svg {
+  transform: rotate(180deg);
+}
+
+.settings-home-guide-content {
+  padding: 0 15px 15px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.settings-home-guide-content > p {
+  margin: 0 0 12px;
+}
+
+.settings-home-guide-content ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.settings-home-guide-content li + li {
+  margin-top: 8px;
+}
+
+.settings-home-guide-content li > button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  font-weight: 600;
+}
+
+.settings-home-guide-content li p {
+  margin: 0 0 4px;
+  color: rgb(var(--theme-ink-rgb) / .65);
+}
+
+.settings-home-guide-close {
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgb(var(--theme-ink-rgb) / .13);
+  border-radius: 9px;
+  background: transparent;
+}
+
+@media (max-width: 600px) {
+  .settings-home-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-home-group {
+    padding: 13px;
+  }
+
+  .settings-home-quick-links button {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-home button,
+  .settings-home-guide-toggle > svg {
+    transition: none;
+  }
+
+  .settings-home button:not(:disabled):active {
+    transform: none;
+  }
+}
+
+:root[data-dengta-reduced-motion="true"] .settings-home button,
+:root[data-dengta-reduced-motion="true"] .settings-home-guide-toggle > svg {
+  transition: none;
+}
+
+:root[data-dengta-reduced-motion="true"] .settings-home button:not(:disabled):active {
+  transform: none;
+}

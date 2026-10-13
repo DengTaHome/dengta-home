@@ -1,0 +1,86 @@
+.error-logs-card { display: grid; gap: 12px; min-width: 0; }
+.error-logs-card > h3, .error-logs-card > p { margin: 0; }
+.error-logs-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.error-logs-actions button,
+.error-logs-card > button,
+.chat-error-log-toggle,
+.chat-error-log-detail > button {
+  justify-self: start;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--theme-control-border, #d8c5cd);
+  border-radius: 12px;
+  color: var(--theme-ink, currentColor);
+  background: var(--theme-control-background, transparent);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.error-logs-actions button:disabled,
+.error-logs-card > button:disabled { opacity: .5; cursor: default; }
+.error-logs-list { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.error-log-item {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--theme-control-border, #d8c5cd);
+  border-radius: 14px;
+  overflow-wrap: anywhere;
+}
+.error-log-summary {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.error-log-time, .error-log-path, .error-log-meta,
+.error-log-item > small { color: var(--theme-muted, currentColor); font-size: 12px; line-height: 1.6; }
+.error-log-code { color: var(--theme-ink, currentColor); font-size: 13px; font-weight: 650; }
+.error-log-summary > span { min-width: 0; overflow-wrap: anywhere; }
+.error-log-detail, .chat-error-log-detail {
+  min-width: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--theme-control-border, #d8c5cd);
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.error-log-detail p, .chat-error-log-detail p { margin: 8px 0; }
+.chat-error-log-line strong { color: var(--theme-ink, currentColor); }
+.error-log-stack, .chat-error-log-stack {
+  max-width: 100%;
+  max-height: 240px;
+  margin: 12px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 10px;
+  background: rgb(var(--theme-card-rgb, 255 255 255) / .4);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.error-logs-load-error { min-width: 0; overflow-wrap: anywhere; }
+.error-logs-load-error > small { display: block; margin: 8px 0; line-height: 1.6; }
+.error-logs-empty { color: var(--theme-muted, currentColor); font-size: 13px; }
+.error-log-summary:focus-visible,
+.error-logs-actions button:focus-visible,
+.error-logs-card > button:focus-visible,
+.chat-error-log-toggle:focus-visible,
+.chat-error-log-detail > button:focus-visible { outline: 2px solid var(--theme-accent, #865a69); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .error-logs-actions button, .error-logs-card > button,
+  .chat-error-log-toggle, .chat-error-log-detail > button { transition: none; }
+}

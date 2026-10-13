@@ -55,6 +55,34 @@ const accountRuntimeStateSql = fs.readFileSync(
     ),
     "utf8"
 );
+const voiceProviderProfilesSql = fs.readFileSync(
+    path.join(
+        backendRoot,
+        "supabase",
+        "027_voice_provider_profiles.sql"
+    ),
+    "utf8"
+);
+const coWatchSessionsSql = fs.readFileSync(
+    path.join(
+        backendRoot,
+        "supabase",
+        "028_co_watch_sessions.sql"
+    ),
+    "utf8"
+);
+const contextVisibilitySql = fs.readFileSync(
+    path.join(backendRoot, "supabase", "032_message_context_visibility.sql"),
+    "utf8"
+);
+const privateMediaSql = fs.readFileSync(
+    path.join(backendRoot, "supabase", "035_private_media.sql"),
+    "utf8"
+);
+const musicListeningSql = fs.readFileSync(
+    path.join(backendRoot, "supabase", "036_music_listening.sql"),
+    "utf8"
+);
 const rehearsal = fs.readFileSync(
     path.join(backendRoot, "scripts", "rehearse-multitenant-migration.ps1"),
     "utf8"
@@ -245,6 +273,22 @@ assert.match(
     /create table if not exists public\.companion_runtime_states/i
 );
 assert.match(
+    voiceProviderProfilesSql,
+    /create table if not exists public\.voice_provider_profiles/i
+);
+assert.match(
+    voiceProviderProfilesSql,
+    /primary key \(user_id, companion_id\)/i
+);
+assert.match(
+    voiceProviderProfilesSql,
+    /foreign key \(user_id, companion_id\)[\s\S]*references public\.companions\(user_id, id\)/i
+);
+assert.match(
+    voiceProviderProfilesSql,
+    /revoke all on table public\.voice_provider_profiles[\s\S]*anon, authenticated/i
+);
+assert.match(
     accountRuntimeStateSql,
     /primary key \(user_id, companion_id\)/i
 );
@@ -256,5 +300,48 @@ assert.match(
     accountRuntimeStateSql,
     /revoke all on table public\.companion_runtime_states[\s\S]*anon, authenticated/i
 );
+assert.match(
+    coWatchSessionsSql,
+    /create table if not exists public\.co_watch_sessions/i
+);
+assert.match(
+    coWatchSessionsSql,
+    /foreign key \(user_id, companion_id\)[\s\S]*references public\.companions\(user_id, id\)/i
+);
+assert.match(
+    coWatchSessionsSql,
+    /conversation_id uuid[\s\S]*references public\.conversations\(id\)[\s\S]*on delete cascade/i
+);
+assert.match(
+    coWatchSessionsSql,
+    /cadence_seconds integer[\s\S]*between 60 and 10800/i
+);
+assert.match(
+    coWatchSessionsSql,
+    /revoke all on table public\.co_watch_sessions[\s\S]*anon, authenticated/i
+);
+assert.match(
+    coWatchSessionsSql,
+    /co_watch_sessions_one_active_uidx[\s\S]*where status = 'active'/i
+);
+assert.match(contextVisibilitySql, /add column if not exists context_visible boolean not null default true/i);
+assert.match(contextVisibilitySql, /where visible = true and context_visible = true/i);
+assert.match(contextVisibilitySql, /message\.visible = false[\s\S]*message\.id::text = any\(calendar\.source_ids\)/i);
+assert.match(privateMediaSql, /create table if not exists public\.account_media_assets/i);
+assert.match(privateMediaSql, /account_media_assets_tenant_catalog_idx[\s\S]*user_id, companion_id, purpose, status/i);
+assert.match(privateMediaSql, /revoke all on table public\.account_media_assets from anon, authenticated/i);
+assert.match(privateMediaSql, /grant all on table public\.account_media_assets to service_role/i);
+assert.match(privateMediaSql, /function public\.validate_private_media_preference/i);
+assert.match(privateMediaSql, /asset\.companion_id is not distinct from new\.companion_id/i);
+assert.match(musicListeningSql, /create table if not exists public\.music_playlists/i);
+assert.match(musicListeningSql, /create table if not exists public\.music_playlist_items/i);
+assert.match(musicListeningSql, /foreign key \(user_id, companion_id, playlist_id\)[\s\S]*references public\.music_playlists\(user_id, companion_id, id\)/i);
+assert.match(musicListeningSql, /music_playlists_tenant_updated_idx[\s\S]*user_id, companion_id/i);
+assert.match(musicListeningSql, /music_playlist_items_tenant_playlist_idx[\s\S]*user_id, companion_id, playlist_id/i);
+assert.match(musicListeningSql, /session_mode in \('screen', 'direct_media', 'listening'\)/i);
+assert.match(musicListeningSql, /playback_revision bigint/i);
+assert.match(musicListeningSql, /co_watch_sessions_playlist_item_fk[\s\S]*music_playlist_items/i);
+assert.match(musicListeningSql, /revoke all on table public\.music_playlists from anon, authenticated/i);
+assert.match(musicListeningSql, /grant all on table public\.music_playlist_items to service_role/i);
 
 console.log("multi-tenant staged migration contract tests passed");

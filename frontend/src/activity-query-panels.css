@@ -1,0 +1,20 @@
+.activity-query-panel { min-width: 0; display: grid; gap: 12px; padding: 16px; border: 1px solid rgba(126, 93, 77, .16); border-radius: 16px; background: rgba(255, 252, 247, .9); color: #573f33; }
+.activity-query-heading { display: flex; align-items: center; gap: 10px; }
+.activity-query-heading > div { display: grid; gap: 4px; min-width: 0; }
+.activity-watch-query { display: block; }
+.activity-watch-query > summary { list-style: none; cursor: pointer; }
+.activity-watch-query > summary::-webkit-details-marker { display: none; }
+.activity-watch-query > summary::after { content: "⌄"; margin-left: auto; }
+.activity-watch-query[open] > summary::after { content: "⌃"; }
+.activity-watch-query[open] > :not(summary) { margin-top: 12px; }
+.activity-query-panel small, .activity-query-panel p { font-size: 12px; line-height: 1.6; color: #796558; margin: 0; overflow-wrap: anywhere; }
+.activity-query-panel label { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
+.activity-query-panel input, .activity-query-panel textarea { box-sizing: border-box; min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid rgba(126, 93, 77, .22); border-radius: 10px; background: #fffdf8; color: inherit; font: inherit; line-height: 1.6; }
+.activity-query-panel textarea { resize: vertical; min-height: 94px; max-height: 35dvh; }
+.activity-query-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.activity-query-actions a, .activity-query-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 13px; box-sizing: border-box; border: 1px solid rgba(126, 93, 77, .2); border-radius: 11px; background: #fffaf0; color: #573f33; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; touch-action: manipulation; transition: background-color .15s ease; }
+.activity-query-actions a:hover, .activity-query-actions button:hover { background: #f6ebdb; }
+.activity-query-actions button:disabled { opacity: .5; cursor: default; }
+.activity-query-panel :is(input, textarea, button, a):focus-visible { outline: 2px solid #8b5e49; outline-offset: 3px; }
+@media (max-width: 420px) { .activity-query-actions a { flex: 1 1 auto; } .activity-query-actions button { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .activity-query-actions a, .activity-query-actions button { transition: none; } }

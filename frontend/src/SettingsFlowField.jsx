@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
+import useReducedVisualMotion from "./use-reduced-visual-motion.js";
 
 const LOOP_SECONDS = 15.466667;
-const ACTIVE_FRAME_MS = 1000 / 24;
+const ACTIVE_FRAME_MS = 1000 / 15;
 
 const VERTEX_SHADER = `
 attribute vec2 a_position;
@@ -127,189 +128,245 @@ void main() {
 
 function compileShader(gl, type, source) {
   const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const reason = gl.getShaderInfoLog(shader);
+  if (!shader) throw new Error("Unable to allocate Settings flow shader");
+  try {
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(shader) || "Unable to compile Settings flow shader");
+    }
+    return shader;
+  } catch (error) {
     gl.deleteShader(shader);
-    throw new Error(reason || "Unable to compile Settings flow shader");
+    throw error;
   }
-  return shader;
 }
 
 function createProgram(gl) {
-  const vertex = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
-  const program = gl.createProgram();
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  gl.deleteShader(vertex);
-  gl.deleteShader(fragment);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    const reason = gl.getProgramInfoLog(program);
-    gl.deleteProgram(program);
-    throw new Error(reason || "Unable to link Settings flow shader");
+  let vertex, fragment, program;
+  let linked = false;
+  try {
+    vertex = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
+    fragment = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+    program = gl.createProgram();
+    if (!program) throw new Error("Unable to allocate Settings flow program");
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program) || "Unable to link Settings flow shader");
+    }
+    linked = true;
+    return program;
+  } finally {
+    if (vertex) gl.deleteShader(vertex);
+    if (fragment) gl.deleteShader(fragment);
+    if (program && !linked) gl.deleteProgram(program);
   }
-  return program;
 }
 
 export default function SettingsFlowField() {
   const canvasRef = useRef(null);
+  const reduceMotion = useReducedVisualMotion();
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
 
     const showFallback = () => {
+      canvas.parentElement?.classList.remove("settings-flow-field--ready");
       canvas.parentElement?.classList.add("settings-flow-field--fallback");
     };
 
     let disposeRenderer = () => {};
 
     const startRenderer = () => {
-      const gl = canvas.getContext("webgl", {
-        alpha: true,
-        antialias: false,
-        depth: false,
-        stencil: false,
-        premultipliedAlpha: false,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: true,
-      });
-      if (!gl) {
-        showFallback();
-        return;
-      }
-
-      let program;
-      try {
-        program = createProgram(gl);
-      } catch {
-        showFallback();
-        return;
-      }
-
-      const position = gl.getAttribLocation(program, "a_position");
-      const resolution = gl.getUniformLocation(program, "u_resolution");
-      const phase = gl.getUniformLocation(program, "u_phase");
-      const buffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
-        gl.STATIC_DRAW,
-      );
-      gl.useProgram(program);
-      gl.enableVertexAttribArray(position);
-      gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-      gl.disable(gl.DEPTH_TEST);
-      gl.disable(gl.BLEND);
-
-      const settingsSheet = canvas.closest(".settings-sheet");
-      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      let gl, program, buffer;
       let animationFrame = 0;
-      let lastFrame = -Infinity;
-      let startedAt = performance.now();
-      let scrolling = settingsSheet?.classList.contains("is-scrolling") ?? false;
       let disposed = false;
-
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const longestSide = Math.max(rect.width, rect.height);
-        const mobileScale = window.matchMedia("(max-width: 820px)").matches
-          ? 0.64
-          : 0.82;
-        const renderScale = Math.min(
-          mobileScale,
-          760 / Math.max(longestSide, 1),
-        );
-        const width = Math.max(2, Math.round(rect.width * renderScale));
-        const height = Math.max(2, Math.round(rect.height * renderScale));
-        if (canvas.width !== width || canvas.height !== height) {
-          canvas.width = width;
-          canvas.height = height;
-          gl.viewport(0, 0, width, height);
-        }
-      };
-
-      const draw = (now) => {
-        animationFrame = 0;
-        if (disposed || scrolling) return;
-        if (now - lastFrame >= ACTIVE_FRAME_MS || lastFrame < 0) {
-          resize();
-          const elapsed = (now - startedAt) / 1000;
-          gl.useProgram(program);
-          gl.uniform2f(resolution, canvas.width, canvas.height);
-          gl.uniform1f(
-            phase,
-            reducedMotion.matches ? 0.64 : (elapsed % LOOP_SECONDS) / LOOP_SECONDS,
-          );
-          gl.drawArrays(gl.TRIANGLES, 0, 6);
-          canvas.parentElement?.classList.add("settings-flow-field--ready");
-          lastFrame = now;
-        }
-        if (!reducedMotion.matches && !scrolling) {
-          animationFrame = requestAnimationFrame(draw);
-        }
-      };
-
-      const restart = () => {
-        cancelAnimationFrame(animationFrame);
-        lastFrame = -Infinity;
-        if (reducedMotion.matches) {
-          draw(performance.now());
-        } else {
-          startedAt = performance.now();
-          animationFrame = requestAnimationFrame(draw);
-        }
-      };
-
-      const scrollObserver = settingsSheet
-        ? new MutationObserver(() => {
-            const nextScrolling = settingsSheet.classList.contains("is-scrolling");
-            if (scrolling === nextScrolling) return;
-            scrolling = nextScrolling;
-            if (scrolling) {
-              cancelAnimationFrame(animationFrame);
-              animationFrame = 0;
-              canvas.parentElement?.classList.add("settings-flow-field--paused");
-              return;
-            }
-            canvas.parentElement?.classList.remove("settings-flow-field--paused");
-            lastFrame = -Infinity;
-            if (!reducedMotion.matches) animationFrame = requestAnimationFrame(draw);
-          })
-        : null;
-      scrollObserver?.observe(settingsSheet, {
-        attributes: true,
-        attributeFilter: ["class"],
-      });
-
-      const resizeObserver = new ResizeObserver(() => {
-        lastFrame = -Infinity;
-      });
-      resizeObserver.observe(canvas);
-      reducedMotion.addEventListener?.("change", restart);
-
-      const handleContextLost = (event) => {
-        event.preventDefault();
-        cancelAnimationFrame(animationFrame);
-        showFallback();
-      };
-      canvas.addEventListener("webglcontextlost", handleContextLost);
-      restart();
-
-      disposeRenderer = () => {
+      let contextLost = false;
+      const releases = [];
+      const releaseRenderer = () => {
+        if (disposed) return;
         disposed = true;
         cancelAnimationFrame(animationFrame);
-        scrollObserver?.disconnect();
-        resizeObserver.disconnect();
-        reducedMotion.removeEventListener?.("change", restart);
-        canvas.removeEventListener("webglcontextlost", handleContextLost);
-        gl.deleteBuffer(buffer);
-        gl.deleteProgram(program);
+        releases.forEach((release) => release());
+        // Context loss already invalidates these handles; the restored context
+        // must only release resources allocated by its own renderer.
+        if (!contextLost) {
+          if (buffer) gl.deleteBuffer(buffer);
+          if (program) gl.deleteProgram(program);
+        }
+        canvas.parentElement?.classList.remove("settings-flow-field--ready", "settings-flow-field--paused");
       };
+      disposeRenderer = releaseRenderer;
+
+      try {
+        gl = canvas.getContext("webgl", {
+          alpha: true,
+          antialias: false,
+          depth: false,
+          stencil: false,
+          premultipliedAlpha: false,
+          powerPreference: "high-performance",
+          preserveDrawingBuffer: true,
+        });
+        if (!gl) {
+          showFallback();
+          return;
+        }
+
+        program = createProgram(gl);
+
+        const position = gl.getAttribLocation(program, "a_position");
+        const resolution = gl.getUniformLocation(program, "u_resolution");
+        const phase = gl.getUniformLocation(program, "u_phase");
+        buffer = gl.createBuffer();
+        if (!buffer) throw new Error("Unable to allocate Settings flow buffer");
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+          gl.STATIC_DRAW,
+        );
+        gl.useProgram(program);
+        gl.enableVertexAttribArray(position);
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.BLEND);
+
+        const settingsSheet = canvas.closest(".settings-sheet");
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        let lastFrame = -Infinity;
+        let startedAt = performance.now();
+        let scrolling = settingsSheet?.classList.contains("is-scrolling") ?? false;
+        let resizeDirty = true;
+        let pausedAt = null;
+        const documentObject = globalThis.document;
+        const isHidden = () => documentObject?.hidden === true;
+        canvas.parentElement?.classList.remove("settings-flow-field--fallback");
+
+        const resize = () => {
+          const rect = canvas.getBoundingClientRect();
+          const longestSide = Math.max(rect.width, rect.height);
+          const mobileScale = window.matchMedia("(max-width: 820px)").matches
+            ? 0.5
+            : 0.78;
+          const renderScale = Math.min(
+            mobileScale,
+            760 / Math.max(longestSide, 1),
+          );
+          const width = Math.max(2, Math.round(rect.width * renderScale));
+          const height = Math.max(2, Math.round(rect.height * renderScale));
+          if (canvas.width !== width || canvas.height !== height) {
+            canvas.width = width;
+            canvas.height = height;
+            gl.viewport(0, 0, width, height);
+          }
+        };
+
+        const draw = (now) => {
+          animationFrame = 0;
+          if (disposed || scrolling) return;
+          if (contextLost || isHidden()) return;
+          try {
+            if (now - lastFrame >= ACTIVE_FRAME_MS || lastFrame < 0) {
+              if (resizeDirty) {
+                resize();
+                resizeDirty = false;
+              }
+              const elapsed = (now - startedAt) / 1000;
+              gl.useProgram(program);
+              gl.uniform2f(resolution, canvas.width, canvas.height);
+              gl.uniform1f(
+                phase,
+                reduceMotion || reducedMotion.matches ? 0.64 : (elapsed % LOOP_SECONDS) / LOOP_SECONDS,
+              );
+              gl.drawArrays(gl.TRIANGLES, 0, 6);
+              canvas.parentElement?.classList.add("settings-flow-field--ready");
+              lastFrame = now;
+            }
+            if (!reduceMotion && !reducedMotion.matches && !scrolling) {
+              animationFrame = requestAnimationFrame(draw);
+            }
+          } catch {
+            releaseRenderer();
+            showFallback();
+          }
+        };
+
+        const restart = () => {
+          cancelAnimationFrame(animationFrame);
+          animationFrame = 0;
+          lastFrame = -Infinity;
+          if (disposed || contextLost) return;
+          const now = performance.now();
+          if (scrolling || isHidden()) {
+            pausedAt ??= now;
+            canvas.parentElement?.classList.add("settings-flow-field--paused");
+            return;
+          }
+          if (pausedAt !== null) {
+            startedAt += now - pausedAt;
+            pausedAt = null;
+          }
+          canvas.parentElement?.classList.remove("settings-flow-field--paused");
+          if (reduceMotion || reducedMotion.matches) {
+            draw(now);
+          } else {
+            animationFrame = requestAnimationFrame(draw);
+          }
+        };
+
+        const scrollObserver = settingsSheet
+          ? new MutationObserver(() => {
+              const nextScrolling = settingsSheet.classList.contains("is-scrolling");
+              if (scrolling === nextScrolling) return;
+              scrolling = nextScrolling;
+              restart();
+            })
+          : null;
+        releases.push(() => scrollObserver?.disconnect());
+        scrollObserver?.observe(settingsSheet, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+
+        const resizeObserver = new ResizeObserver(() => {
+          resizeDirty = true;
+          lastFrame = -Infinity;
+          if ((reduceMotion || reducedMotion.matches) && !scrolling && !isHidden()) draw(performance.now());
+        });
+        releases.push(() => resizeObserver.disconnect());
+        resizeObserver.observe(canvas);
+        releases.push(() => reducedMotion.removeEventListener?.("change", restart));
+        reducedMotion.addEventListener?.("change", restart);
+
+        const handleContextLost = (event) => {
+          event.preventDefault();
+          contextLost = true;
+          cancelAnimationFrame(animationFrame);
+          animationFrame = 0;
+          showFallback();
+        };
+        const handleContextRestored = () => {
+          if (disposed) return;
+          releaseRenderer();
+          startRenderer();
+        };
+        releases.push(() => {
+          canvas.removeEventListener("webglcontextlost", handleContextLost);
+          canvas.removeEventListener("webglcontextrestored", handleContextRestored);
+          documentObject?.removeEventListener?.("visibilitychange", restart);
+        });
+        canvas.addEventListener("webglcontextlost", handleContextLost);
+        canvas.addEventListener("webglcontextrestored", handleContextRestored);
+        documentObject?.addEventListener?.("visibilitychange", restart);
+        restart();
+      } catch {
+        releaseRenderer();
+        showFallback();
+      }
     };
 
     // Wait until the jelly sheet has fully settled so WebGL does not resize
@@ -318,8 +375,9 @@ export default function SettingsFlowField() {
     return () => {
       window.clearTimeout(warmupTimer);
       disposeRenderer();
+      canvas.parentElement?.classList.remove("settings-flow-field--fallback");
     };
-  }, []);
+  }, [reduceMotion]);
 
   return (
     <div className="settings-flow-field" aria-hidden="true">

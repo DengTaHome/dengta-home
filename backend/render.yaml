@@ -14,6 +14,12 @@ services:
         value: production
       - key: AUTH_REQUIRED
         value: "true"
+      - key: EXA_API_KEY
+        sync: false
+      - key: XHS_SERVICE_URL
+        sync: false
+      - key: XHS_SERVICE_TOKEN
+        sync: false
       - key: INITIAL_OWNER_EMAIL
         sync: false
       - key: SUPABASE_URL
@@ -21,8 +27,6 @@ services:
       - key: SUPABASE_SECRET_KEY
         sync: false
       - key: MCP_ENCRYPTION_KEY
-        sync: false
-      - key: OPENAI_COMPATIBLE_API_KEY
         sync: false
       - key: PUSH_SECRET
         sync: false
@@ -44,8 +48,12 @@ services:
         value: "3600"
       - key: BACKGROUND_JOB_TICK_BUDGET_MS
         value: "45000"
-      - key: FRONTEND_URL
+      - key: CAST_PAIRING_SECRET
         sync: false
+      - key: CAST_MEDIA_ENCRYPTION_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: "https://your-project-1.vercel.app,https://dengtahome.com,https://www.dengtahome.com"
       - key: HERVOICE_URL
         sync: false
       - key: HERVOICE_SECRET

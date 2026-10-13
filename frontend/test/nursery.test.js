@@ -15,7 +15,7 @@ assert.match(app, /lazy\(\(\) => import\("\.\/Nursery"\)\)/);
 assert.match(app, /<Suspense/);
 assert.match(app, /id: "nursery"/);
 assert.match(app, /<Nursery/);
-assert.match(nursery, /apiRequest\("\/api\/v2\/nursery"\)/);
+assert.match(nursery, /apiRequest\("\/api\/v2\/nursery", \{/);
 assert.match(nursery, /companion-actions/);
 assert.match(nursery, /client_action_id/);
 assert.match(nursery, /60 \* 1000/);

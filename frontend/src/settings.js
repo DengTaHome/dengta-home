@@ -9,15 +9,15 @@ export const emptySettings = {
   prompt_mode: "unified",
   unified_system_prompt: "",
   user_details: "",
-  intimate_expression_enabled: false,
+  intimate_expression_enabled: true,
   provider: "custom",
   api_url: "",
   model: "",
   reasoning_effort: "",
   temperature: 0.7,
-  context_turns: 20,
-  max_tokens: 2048,
-  compression_threshold: 12000,
+  context_turns: 0,
+  max_tokens: 0,
+  compression_threshold: 8000,
   compression_keep: 20,
   timezone: "Asia/Shanghai",
   push_enabled: false,
@@ -32,12 +32,12 @@ export const emptySettings = {
 export const PROMPT_FIELD_LIMITS = {
   ai_name: 50,
   user_display_name: 80,
-  system_prompt: 12000,
-  additional_prompt: 8000,
-  personality: 1000,
-  unified_system_prompt: 30000,
-  user_details: 30000,
-  turn_context: 4000,
+     system_prompt: Number.POSITIVE_INFINITY,
+     additional_prompt: Number.POSITIVE_INFINITY,
+     personality: Number.POSITIVE_INFINITY,
+     unified_system_prompt: Number.POSITIVE_INFINITY,
+     user_details: Number.POSITIVE_INFINITY,
+     turn_context: Number.POSITIVE_INFINITY,
 };
 
 function objectOrEmpty(value) {
@@ -74,9 +74,8 @@ export function mergeLegacyPromptFields(value) {
 
 export function normalizeSettingsDraft(value) {
   const source = objectOrEmpty(value);
-  const migratedPrompt = settingsNeedsUnifiedPromptMigration(source)
-    ? mergeLegacyPromptFields(source)
-    : textOrFallback(source.unified_system_prompt);
+  const promptMode = ["legacy", "unified"].includes(source.prompt_mode)
+    ? source.prompt_mode : settingsNeedsUnifiedPromptMigration(source) ? "legacy" : "unified";
 
   return {
     ...emptySettings,
@@ -91,8 +90,8 @@ export function normalizeSettingsDraft(value) {
       textOrFallback(source.provider, emptySettings.provider),
       source.reasoning_effort,
     ),
-    prompt_mode: "unified",
-    unified_system_prompt: migratedPrompt,
+    prompt_mode: promptMode,
+    unified_system_prompt: textOrFallback(source.unified_system_prompt),
     user_details: textOrFallback(source.user_details),
     intimate_expression_enabled:
       source.intimate_expression_enabled === true,
@@ -103,12 +102,16 @@ export function normalizeSettingsDraft(value) {
 export function createSettingsPayload(value) {
   const normalized = normalizeSettingsDraft(value);
   const readOnlyFields = new Set([
+    "companion_gender_available",
     "context_reset_at",
     "account_role",
     "account_status",
     "storage_used_bytes",
     "storage_quota_bytes",
   ]);
+  if (normalized.companion_gender_available === false) {
+    for (const field of ["ai_gender", "ai_pronouns", "ai_gender_label"]) readOnlyFields.add(field);
+  }
   const editableSettings = Object.fromEntries(
     Object.entries(normalized).filter(([key]) => !readOnlyFields.has(key)),
   );
@@ -119,27 +122,12 @@ export function createSettingsPayload(value) {
       0,
       PROMPT_FIELD_LIMITS.user_display_name,
     ),
-    system_prompt: normalized.system_prompt.slice(
-      0,
-      PROMPT_FIELD_LIMITS.system_prompt,
-    ),
-    additional_prompt: normalized.additional_prompt.slice(
-      0,
-      PROMPT_FIELD_LIMITS.additional_prompt,
-    ),
-    personality: normalized.personality.slice(
-      0,
-      PROMPT_FIELD_LIMITS.personality,
-    ),
-    prompt_mode: "unified",
-    unified_system_prompt: normalized.unified_system_prompt.slice(
-      0,
-      PROMPT_FIELD_LIMITS.unified_system_prompt,
-    ),
-    user_details: normalized.user_details.slice(
-      0,
-      PROMPT_FIELD_LIMITS.user_details,
-    ),
+    system_prompt: normalized.system_prompt,
+    additional_prompt: normalized.additional_prompt,
+    personality: normalized.personality,
+    prompt_mode: normalized.prompt_mode,
+    unified_system_prompt: normalized.unified_system_prompt,
+    user_details: normalized.user_details,
     intimate_expression_enabled:
       normalized.intimate_expression_enabled === true,
   };

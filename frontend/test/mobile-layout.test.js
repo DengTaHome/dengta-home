@@ -111,6 +111,12 @@ assert.deepEqual(
     "sun-glass-ui.css",
     "jelly-motion.css",
     "sun-glass-chat.css",
+    "typography.css",
+    "apple-high.css",
+    "room-invite.css",
+    "settings-media-polish.css",
+    "interaction-polish.css",
+    "interface-polish.css",
   ],
   "layout tests must use the same stylesheet order as the application entrypoint",
 );
@@ -130,6 +136,12 @@ assert.deepEqual(
     "sun-glass-ui.css",
     "jelly-motion.css",
     "sun-glass-chat.css",
+    "typography.css",
+    "apple-high.css",
+    "room-invite.css",
+    "settings-media-polish.css",
+    "interaction-polish.css",
+    "interface-polish.css",
   ],
   "the 280px regression must use the complete application stylesheet cascade",
 );
@@ -605,8 +617,13 @@ const composerSendButton = app.match(
 )?.[0];
 assert.match(
   composerSendButton || "",
-  /onPointerDown=\{[\s\S]*?shouldHandleComposerPointerDown[\s\S]*?preventDefault\(\)[\s\S]*?handleSendButton\(\)/,
-  "a touch on send must dispatch before Android keyboard resize can swallow click",
+  /onPointerDown=\{[\s\S]*?handleSendActivation\("pointerdown", event\)[\s\S]*?onClick=\{[\s\S]*?handleSendActivation\("click", event\)/,
+  "a touch on send must dispatch before Android keyboard resize without dispatching its synthetic click twice",
+);
+assert.match(
+  app,
+  /function handleSendActivation\(action, event\)[\s\S]*?resolveComposerSendActivation[\s\S]*?sendPointerDownHandledRef\.current[\s\S]*?handleSendButton\(\)/,
+  "send activation must share one pointer/click deduplication gate",
 );
 assert.match(
   app,
@@ -644,8 +661,13 @@ const createSessionSource = sourceBetween(
 );
 assert.match(
   createSessionSource,
-  /model_id:\s*settings\.model \|\| undefined[\s\S]*?initializeSessionChatModel\(data\.session\.id,\s*data\.session\.model_id\)/,
-  "an explicitly created first session must initialize its own model immediately",
+  /body:\s*JSON\.stringify\(\{\s*title:\s*"新对话",\s*\}\)[\s\S]*?initializeSessionChatModel\(data\.session\.id,\s*data\.session\.model_id\)/,
+  "an explicitly created first session must use the server-bound model",
+);
+assert.doesNotMatch(
+  createSessionSource,
+  /model_id\s*:/,
+  "new sessions must not submit a client-side model",
 );
 assert.match(
   app,
@@ -802,10 +824,20 @@ assert.match(
   "the reference snapshot must travel separately from turn_context",
 );
 assert.ok(
-  sendMessageSource.indexOf("await flushLatestSettingsDraft()") >= 0 &&
-    sendMessageSource.indexOf("await flushLatestSettingsDraft()") <
+  sendMessageSource.indexOf("await awaitChatPreparation(flushLatestSettingsDraft,") >= 0 &&
+    sendMessageSource.indexOf("await awaitChatPreparation(flushLatestSettingsDraft,") <
       sendMessageSource.indexOf('setMessage("")'),
   "text chat must save the latest role settings before consuming the draft",
+);
+assert.match(
+  sendMessageSource,
+  /if \(startingSessionId\) \{\s*setSendPreparationStage\("model"\);\s*await awaitChatPreparation\(\(\) => sessionModelSaveQueueRef\.current, request\.controller\.signal\);\s*\}/,
+  "an existing session must finish saving its selected model before sending",
+);
+assert.doesNotMatch(
+  sendMessageSource,
+  /model:\s*(?:requestModel|selectedChatModel|activeChatModel|settings\.model)/,
+  "chat streams must use the persisted session model instead of a stale client model",
 );
 const submitVoiceSource = sourceBetween(
   "async function submitVoiceBlob",
@@ -856,7 +888,17 @@ assert.doesNotMatch(
 assert.doesNotMatch(
   app,
   /event\.source === "provider_summary"/,
-  "the message UI must use the separate on-demand inner-monologue flow",
+  "provider reasoning summaries must not be treated as public monologue",
+);
+assert.match(
+  sendMessageSource,
+  /event\.type === "monologue"[\s\S]*reduceVisibleMonologueEvent/,
+  "the explicit public monologue event must update the current assistant draft",
+);
+assert.match(
+  app,
+  /VISIBLE_MONOLOGUE_SOURCE/,
+  "public monologue handling must use its explicit model-authored source",
 );
 assert.doesNotMatch(
   app,
@@ -865,12 +907,12 @@ assert.doesNotMatch(
 );
 assert.match(
   app,
-  /data-setting-field="unified_system_prompt"/,
+  /<PersonalizationEditor\s+field="unified_system_prompt"/,
   "settings must expose the persistent custom-instructions editor",
 );
 assert.match(
   app,
-  /data-setting-field="user_details"/,
+  /<PersonalizationEditor\s+field="user_details"/,
   "settings must expose a separate persistent user-details editor",
 );
 assert.match(

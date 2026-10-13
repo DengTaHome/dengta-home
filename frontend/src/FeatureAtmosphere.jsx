@@ -1,4 +1,5 @@
 const FEATURE_COPY = Object.freeze({
+  art: { eyebrow: "ART", title: "灵感", script: "a little something for you", label: "涂鸦画室" },
   moments: {
     eyebrow: "MOMENTS",
     title: "此刻",

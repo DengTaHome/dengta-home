@@ -1,0 +1,27 @@
+.together-page .music-moments {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--theme-control-border);
+  border-radius: 16px;
+  background: rgb(var(--theme-card-rgb) / .65);
+  color: var(--together-ink);
+}
+.music-moments header, .music-moments form { display: grid; gap: 10px; }
+.music-moments strong { display: block; font-size: 14px; }
+.music-moments small { display: block; color: var(--together-muted); font-size: 12px; line-height: 1.6; }
+.music-moments :is(p, strong, small) { overflow-wrap: anywhere; }
+.music-moments p { margin: 6px 0; white-space: pre-wrap; font-size: 13px; line-height: 1.6; }
+.music-moments form { margin-top: 14px; }
+.together-page .together-music-setup .music-moments label { color: var(--together-muted); }
+.together-page .music-moments label :is(input, textarea) { color: var(--together-ink); }
+.together-page .music-moments textarea { width: 100%; box-sizing: border-box; padding: 10px; font: inherit; border: 1px solid var(--theme-control-border); border-radius: 12px; background: rgb(var(--theme-card-rgb) / .7); resize: vertical; }
+.together-page .music-moments button { min-width: 44px; min-height: 44px; padding: 8px 12px; border-radius: 12px; }
+.music-moment-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.music-moments details { margin-top: 12px; }
+.music-moments summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.music-moments details[open] summary svg { transform: rotate(180deg); }
+.music-moments ul { margin: 0; padding: 0; list-style: none; }
+.music-moments li { display: grid; gap: 8px; padding-block: 12px; border-top: 1px solid var(--theme-control-border); }
+.music-moments :is(button, textarea, input, summary):focus-visible { outline: 2px solid var(--theme-accent); outline-offset: 3px; }
+.music-moment-feedback.is-error { color: var(--theme-error-ink, #b23e48); }
+:root[data-dengta-appearance="night"] .music-moment-feedback.is-error { color: #ffb4b4; }

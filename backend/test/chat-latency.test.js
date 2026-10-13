@@ -10,7 +10,7 @@ const turn = server.slice(start, end);
 
 assert.match(
   turn,
-  /const \[previousUserMessage, settings\] = await Promise\.all\(\[/,
+  /const \[previousUserMessage, fetchedSettings\] = await Promise\.all\(\[/,
   "idempotency lookup and settings load must start together",
 );
 assert.match(

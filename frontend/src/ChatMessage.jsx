@@ -1,5 +1,6 @@
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DeviceActionReceipts from "./DeviceActionReceipts";
+import CompanionActivityCards from "./CompanionActivityCards.jsx";
 import { MessageAttachments, ThinkingPanel } from "./ChatMessageExtras";
 import { AuthenticatedImage } from "./PrivateMedia";
 import {
@@ -10,18 +11,26 @@ import {
 import { getStickerById } from "./sticker-catalog";
 import { formatVoiceConfidence } from "./voice";
 import ChatSkinOrnament from "./ChatSkinOrnament";
+import { privateMediaAsset, privateMediaContentPath } from "./private-media";
+import ChatErrorLog from "./ChatErrorLog";
+import { readChatDisplayContent } from "./chat-display-content.js";
+
+const messageTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 function formatMessageTime(value) {
   if (!value) return "刚刚";
-  return new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "时间未知";
+  return messageTimeFormatter.format(date);
 }
 
 function ChatMessage({
   item,
   aiName = "伴侣",
+  aiPronoun = "TA",
   userName = "你",
   companionMood = "",
   skin = "classic-glass",
@@ -30,10 +39,14 @@ function ChatMessage({
   onPreview,
   onReference,
   onDismissError,
+  onOpenActivity,
   innerMonologue,
   innerMonologuePending = false,
   innerMonologueError = "",
   onRequestInnerMonologue,
+  userAvatar = "",
+  companionAvatar = "",
+  privateMediaCatalog = null,
 }) {
   const isUser = item.role === "user";
   const displayName = isUser ? userName : aiName;
@@ -46,11 +59,72 @@ function ChatMessage({
   const sticker = !isUser
     ? getStickerById(item.tool_calls?.sticker_id)
     : null;
+  const customSticker = !isUser
+    ? privateMediaAsset(
+        privateMediaCatalog,
+        String(item.tool_calls?.custom_sticker_id || ""),
+        "custom_sticker",
+      )
+    : null;
+  const avatar = isUser ? userAvatar : companionAvatar;
+
+  const refusalLogId = item.tool_calls?.refusal_detected?.error_log_id || item.error_log_id;
+
+  function formatErrorTime(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString("zh-CN", { hour12: false });
+  }
+  const avatarLetter = isUser
+    ? Array.from(userName || "我")[0] || "我"
+    : Array.from(aiName || "伴")[0] || "伴";
   const artworkId = !isUser
     ? String(item.tool_calls?.artwork_id || "")
     : "";
   const artworkAlt =
     item.tool_calls?.artwork_alt || `${aiName}创作的图片`;
+  const isGenerating = item.isStreaming === true || item.generationInProgress === true;
+  const displayContent = useMemo(() => readChatDisplayContent(item), [item]);
+  const [thinkingDetailOpen, setThinkingDetailOpen] = useState(false);
+  const formattedTime = useMemo(() =>
+    typeof item.formattedTime === "string" && item.formattedTime
+      ? item.formattedTime : formatMessageTime(item.created_at),
+  [item.formattedTime, item.created_at]);
+
+  // 流式进度条：将 thinkingStatuses 映射到 0~100% + 已接收字数
+  const streamProgress = useMemo(() => {
+    if (!isGenerating) return null;
+    const statuses = Array.isArray(item.thinkingStatuses) ? item.thinkingStatuses : [];
+    const last = statuses.length > 0 ? statuses[statuses.length - 1] : "";
+    const chars = Math.max(0, String(item.content || "").length);
+    // 阶段 → 百分比映射（与 STATUS_LABELS 对齐）
+    const PHASE_WEIGHT = {
+      "正在准备并发送这条消息": 3,
+      "服务器已接收本轮消息": 8,
+      "服务器已识别并复用先前保存的消息": 8,
+      "消息已保存，AI 仍在处理中": 10,
+      "正在读取附件": 12,
+      "正在安全读取附件": 14,
+      "附件已经读取完成": 16,
+      "正在整理对话上下文": 22,
+      "正在生成回复": 28,
+      "正在请求所选模型": 30,
+      "模型推理中": 36,
+      "模型深度推理中": 40,
+      "模型深入推理中": 44,
+      "模型扩展推理中": 46,
+      "正在保存本轮对话": 94,
+      "本轮处理完成": 98,
+    };
+    const base = PHASE_WEIGHT[last] || 0;
+    // 收到首字后按字数增长（45% ~ 92%）
+    const textProgress = chars > 0
+      ? Math.min(45 + Math.min(chars, 2000) / 2000 * 47, 92)
+      : base;
+    const pct = Math.max(base, textProgress);
+    return { pct: Math.min(pct, 98), chars, phase: last };
+  }, [isGenerating, item.thinkingStatuses, item.content]);
 
   const cancelLongPress = useCallback(() => {
     if (longPressRef.current?.timerId) {
@@ -130,15 +204,35 @@ function ChatMessage({
       onPointerCancel={cancelLongPress}
       onContextMenu={preventTriggeredContextMenu}
     >
-      <span
+      {avatar ? (
+        <AuthenticatedImage
+          src={avatar}
+          loading="eager"
+          alt={`${displayName}的头像`}
+          className={`message-avatar message-avatar-image ${
+            isUser ? "is-user" : "is-assistant"
+          }`}
+          fallback={
+            <span
+              className={`message-avatar message-avatar-letter ${
+                isUser ? "is-user" : "is-assistant"
+              }`}
+              role="img"
+              aria-label={`${displayName}的标记`}
+            >
+              {avatarLetter}
+            </span>
+          }
+        />
+      ) : <span
         className={`message-avatar message-avatar-letter ${
           isUser ? "is-user" : "is-assistant"
         }`}
         role="img"
         aria-label={`${displayName}的标记`}
       >
-        {isUser ? "桃" : "D"}
-      </span>
+        {avatarLetter}
+      </span>}
       <div className="message-column">
         <div className="message-role">{displayName}</div>
         <div className="message-bubble">
@@ -147,6 +241,16 @@ function ChatMessage({
               role={item.role}
               mood={companionMood}
             />
+          )}
+          {!isUser && item.tool_calls?.refusal_detected && (
+            <div className="chat-refusal-banner" role="alert">
+              <span className="chat-refusal-badge">⚠ 拒绝回答</span>
+              <span className="chat-refusal-source">
+                来源: {item.tool_calls.refusal_detected.source === "upstream" ? "上游模型（DengTa 提示词已允许成人内容，为模型自身/中转站审核拦截）" : "DengTa 自身过滤"}
+              </span>
+              <span className="chat-refusal-code">错误码: {item.tool_calls.refusal_detected.code || "provider_boundary_residue"}</span>
+              <ChatErrorLog key={refusalLogId || "local"} logId={refusalLogId} diagnostic={item} />
+            </div>
           )}
           {quotedMessage && (
             <div className="message-reference-block">
@@ -158,8 +262,22 @@ function ChatMessage({
               </span>
             </div>
           )}
+          {item.chatError && item.partialContent && (
+            <div className="message-content" role="note">
+              <small>回复中断 · 以下片段仅临时显示，尚未确认保存</small>
+              <p>{item.partialContent}</p>
+            </div>
+          )}
           {item.content && (
-            <div className="message-content">{item.content}</div>
+            <div className="message-content">{displayContent.content}</div>
+          )}
+          {displayContent.nextActions.length > 0 && <aside className="message-next-actions" aria-label="伴侣的小提议"><strong>接下来可以…</strong><ul>{displayContent.nextActions.map((action, index) => <li key={index}>{action}</li>)}</ul></aside>}
+          {!isUser && streamProgress && (
+            <div className="stream-progress-bar" aria-label="回复进度">
+              <i className="stream-progress-track"><b style={{ width: `${streamProgress.pct}%` }} /></i>
+              <span className="stream-progress-phase">{streamProgress.phase}</span>
+              <span className="stream-progress-chars">{streamProgress.chars}字</span>
+            </div>
           )}
           {sticker && (
             <button
@@ -170,6 +288,15 @@ function ChatMessage({
             >
               <img src={sticker.assetPath} alt={sticker.alt} loading="lazy" />
             </button>
+          )}
+          {customSticker && (
+            <AuthenticatedImage
+              src={privateMediaContentPath(customSticker.id)}
+              alt={customSticker.alt_text || customSticker.display_name || "自定义表情"}
+              className="message-sticker-image"
+              buttonClassName="message-sticker"
+              onPreview={onPreview}
+            />
           )}
           {artworkId && (
             <div className="message-artwork">
@@ -202,17 +329,57 @@ function ChatMessage({
             )}
           {!isUser && (
             <>
-              <ThinkingPanel
-                message={item}
-                aiName={aiName}
-                companionMood={companionMood}
-                innerMonologue={innerMonologue}
-                innerMonologuePending={innerMonologuePending}
-                innerMonologueError={innerMonologueError}
-                onRequestInnerMonologue={onRequestInnerMonologue}
-              />
+              {isGenerating && !thinkingDetailOpen ? (
+                <div className="thinking-panel-minimal">
+                  <span className="typing-indicator-inline" aria-label="正在回复中">
+                    <span className="dot" />
+                    <span className="dot" />
+                    <span className="dot" />
+                  </span>
+                  <button
+                    type="button"
+                    className="thinking-panel-minimal-toggle"
+                    onClick={() => setThinkingDetailOpen(true)}
+                    title="查看当前进度"
+                  >
+                    <span className="chevron">▸</span>
+                    详情
+                  </button>
+                </div>
+              ) : (
+                <ThinkingPanel
+                  message={item}
+                  aiName={aiName}
+                  aiPronoun={aiPronoun}
+                  companionMood={companionMood}
+                  innerMonologue={innerMonologue}
+                  innerMonologuePending={innerMonologuePending}
+                  innerMonologueError={innerMonologueError}
+                  onRequestInnerMonologue={onRequestInnerMonologue}
+                />
+              )}
               <DeviceActionReceipts actions={item.tool_calls?.mcp_actions} />
+              <CompanionActivityCards actions={item.tool_calls?.activity_actions} onOpen={onOpenActivity} />
             </>
+          )}
+          {item.chatError === true && (
+            <div className="chat-error-panel">
+              <div className="chat-error-meta-row">
+                <span className="chat-error-code-badge">
+                  ⚠ {item.error_code || 'ERROR'}{' '}
+                  {item.error_source ? `· ${item.error_source}` : ''}
+                </span>
+                {item.error_location && (
+                  <span className="chat-error-location" title={item.error_location}>
+                    位置: {item.error_location}
+                  </span>
+                )}
+                <time className="chat-error-time">
+                  {formatErrorTime(item.error_time || item.created_at)}
+                </time>
+              </div>
+              <ChatErrorLog key={refusalLogId || "local"} logId={refusalLogId} diagnostic={item} />
+            </div>
           )}
           {item.voiceAnalysis && (
             <div className="voice-message-meta">
@@ -223,7 +390,7 @@ function ChatMessage({
               </strong>
             </div>
           )}
-          {item.isStreaming && (
+          {item.isStreaming && !isGenerating === false && thinkingDetailOpen && (
             <span className="stream-caret" aria-label="正在回复">
               ♥
             </span>
@@ -252,7 +419,7 @@ function ChatMessage({
               </button>
             )}
             <time>
-              {item.formattedTime || formatMessageTime(item.created_at)}
+              {formattedTime}
             </time>
           </div>
         </div>

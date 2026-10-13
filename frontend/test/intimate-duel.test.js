@@ -98,6 +98,7 @@ assert.match(appSource, /\{ id: "duel", icon: "⚔", label: "Duel" \}/);
 assert.match(componentSource, /\/api\/v2\/intimate-duel\/narrate/);
 assert.match(componentSource, /conversation_id: conversationId \|\| undefined/);
 assert.match(statusSource, /className="sun-glass-liquid-capsule-toggle"/);
+assert.match(statusSource, /<NowPlayingCard/);
 assert.match(statusSource, /onOpenNavigation/);
 assert.match(statusSource, /onOpenSettings/);
 assert.match(cssSource, /\.duel-skill-grid\s*\{[\s\S]*?grid-template-columns: repeat\(3/);

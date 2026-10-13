@@ -1,0 +1,46 @@
+.workspace-view { color: var(--theme-ink, #40363a); }
+.workspace-view .fun-view-header h2 { color: var(--theme-ink, #40363a); }
+.workspace-view .fun-view-header p,
+.workspace-view .workspace-capacity-note,
+.workspace-view .workspace-toolbar-path,
+.workspace-view .workspace-editor-heading small,
+.workspace-view .workspace-editor-status { color: var(--theme-muted, #786570); }
+.workspace-view .workspace-file-name,
+.workspace-view .workspace-breadcrumbs button,
+.workspace-view .workspace-breadcrumbs button:disabled { color: var(--theme-ink, #40363a); }
+.workspace-view .workspace-file-name small { color: var(--theme-muted, #786570); }
+.workspace-view .workspace-editor,
+.workspace-view .workspace-file-row { background: var(--theme-control-background, #fff8f3); border-color: var(--theme-control-border, #e2d3db); }
+.workspace-view .workspace-editor-heading,
+.workspace-view .workspace-editor-status { background: transparent; border-color: var(--theme-control-border, #e2d3db); }
+.workspace-view .workspace-editor textarea,
+.workspace-view .workspace-editor textarea:focus { color: var(--theme-ink, #40363a); background: transparent; }
+.workspace-view .workspace-editor textarea:focus-visible { outline: 2px solid var(--theme-accent, #985b70); outline-offset: -2px; }
+.workspace-view .workspace-storage-warning { padding: 12px; border: 1px solid var(--theme-control-border, #e2d3db); border-radius: 14px; background: var(--theme-control-background, #fff8f3); }
+.workspace-view .workspace-storage-warning p { margin: 0 0 8px; }
+.workspace-view.fun-view :is(.workspace-storage-warning, .workspace-editor-actions, .workspace-file-actions, .workspace-toolbar) button,
+.workspace-view.fun-view .workspace-agents-md-toggle { color: var(--theme-ink, #40363a); background: var(--theme-control-background, #fff8f3); border: 1px solid var(--theme-control-border, #e2d3db); border-radius: 10px; }
+.workspace-view .workspace-file-row:hover,
+.workspace-view.fun-view :is(.workspace-editor-actions, .workspace-file-actions, .workspace-toolbar) button:hover,
+.workspace-view.fun-view .workspace-agents-md-toggle:hover { background: var(--theme-control-background, #fff8f3); }
+.workspace-view .workspace-file-actions button.danger { color: #a43248; border-color: rgb(164 50 72 / .35); }
+:root[data-dengta-appearance="night"] .workspace-view .workspace-file-actions button.danger { color: #ffb4b4; border-color: rgb(255 180 180 / .35); }
+:root[data-dengta-appearance="night"] .workspace-view .media-settings-error { color: #ffb4b4; background: rgb(255 110 110 / .1); }
+.workspace-view .workspace-editor-heading { flex-wrap: wrap; }
+.workspace-view .workspace-editor-heading > div:first-child { min-width: 0; flex: 1 1 150px; }
+.workspace-view .workspace-editor-heading strong,
+.workspace-view .workspace-editor-heading small { display: block; overflow-wrap: anywhere; }
+.workspace-view .workspace-editor-actions { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+.workspace-view .workspace-file-name { min-width: 0; }
+.workspace-view .workspace-file-name strong { overflow-wrap: anywhere; }
+.workspace-view .workspace-file-name small { flex-shrink: 0; }
+.workspace-view .workspace-toolbar-path { white-space: normal; overflow-wrap: anywhere; }
+.workspace-view .workspace-capacity-note,
+.workspace-view .workspace-storage-warning { margin: 10px 0; font-size: .85rem; line-height: 1.6; overflow-wrap: anywhere; }
+.workspace-view .workspace-storage-warning button { min-width: 44px; min-height: 44px; max-width: 100%; margin: 4px 6px 4px 0; white-space: normal; overflow-wrap: anywhere; }
+.workspace-view button:focus-visible { outline: 2px solid var(--accent-color, #985b70); outline-offset: 3px; }
+@media (max-width: 680px) {
+  .workspace-view .workspace-editor-actions { flex-basis: 100%; }
+  .workspace-view .workspace-editor-actions button,
+  .workspace-view .workspace-file-actions button { min-width: 44px; min-height: 44px; }
+}

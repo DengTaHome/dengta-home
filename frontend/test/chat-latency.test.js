@@ -21,7 +21,7 @@ assert.ok(startupStart >= 0 && startupEnd > startupStart);
 const startupHandler = app.slice(startupStart, startupEnd);
 assert.match(
   startupHandler,
-  /apiRequest\(\s*"\/api\/v2\/bootstrap",\s*STARTUP_REQUEST_OPTIONS,?\s*\)/,
+  /apiRequest\(\s*"\/api\/v2\/bootstrap",\s*startupRequestOptions,?\s*\)/,
   "startup must use one authenticated bootstrap request",
 );
 assert.doesNotMatch(
@@ -42,7 +42,7 @@ assert.match(
 );
 assert.ok(
   sendHandler.indexOf("setMessages((current) =>") <
-    sendHandler.indexOf("await deviceActivityRefresh"),
+    sendHandler.indexOf("await Promise.race("),
   "the visible assistant draft must render before the native device refresh finishes",
 );
 

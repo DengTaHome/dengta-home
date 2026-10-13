@@ -106,6 +106,11 @@ function createMemoryAdminDatabase() {
                 id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
                 user_id: "11111111-1111-4111-8111-111111111111",
                 companion_id: "22222222-2222-4222-8222-222222222222"
+            },
+            {
+                id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                user_id: "11111111-1111-4111-8111-111111111111",
+                companion_id: "22222222-2222-4222-8222-222222222222"
             }
         ],
         messages: []
@@ -139,6 +144,13 @@ function createMemoryAdminDatabase() {
                     return builder;
                 },
                 order() {
+                    return builder;
+                },
+                limit() {
+                    return builder;
+                },
+                delete() {
+                    state.operation = "delete";
                     return builder;
                 },
                 maybeSingle() {
@@ -180,6 +192,13 @@ function createMemoryAdminDatabase() {
                 }
                 if (state.operation === "update") {
                     rows.forEach((row) => Object.assign(row, state.values));
+                }
+                if (state.operation === "delete") {
+                    rows.forEach((row) => {
+                        const index = tables[table].indexOf(row);
+                        if (index >= 0) tables[table].splice(index, 1);
+                    });
+                    return { data: null, error: null };
                 }
                 const data = state.cardinality === "many" ? rows : rows[0] || null;
                 return {
@@ -233,6 +252,7 @@ function requestJson(server, method, pathName, body) {
             role: "user",
             content: "RESET_BEFORE_HINT",
             visible: true,
+            context_visible: true,
             created_at: "2026-07-29T01:59:59.999Z"
         },
         {
@@ -243,6 +263,7 @@ function requestJson(server, method, pathName, body) {
             role: "user",
             content: "RESET_AFTER_HINT_USER",
             visible: true,
+            context_visible: true,
             created_at: resetAt
         },
         {
@@ -253,6 +274,7 @@ function requestJson(server, method, pathName, body) {
             role: "assistant",
             content: "RESET_AFTER_HINT_ASSISTANT",
             visible: true,
+            context_visible: true,
             created_at: "2026-07-29T02:00:01.000Z"
         }
     );
@@ -284,6 +306,18 @@ function requestJson(server, method, pathName, body) {
             }
         })
     );
+    app.use((error, req, res, next) => {
+        console.error("TEST_ROUTE_ERROR", {
+            status: error?.status,
+            code: error?.code,
+            message: error?.message
+        });
+        res.status(Number(error?.status) || 500).json({
+            ok: false,
+            code: error?.code || "test_error",
+            message: String(error?.message || error)
+        });
+    });
     const server = await new Promise((resolve) => {
         const instance = app.listen(0, () => resolve(instance));
     });
@@ -317,6 +351,57 @@ function requestJson(server, method, pathName, body) {
         assert.doesNotMatch(generatedPrompt, /RESET_BEFORE_HINT/);
         assert.match(generatedPrompt, /RESET_AFTER_HINT_USER/);
         assert.match(generatedPrompt, /RESET_AFTER_HINT_ASSISTANT/);
+
+        // 含被拒对话：动态输入框提示不允许读取该内容，不生成并清除已存提示。
+        const refusalConversationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+        adminDatabase.tables.messages.push(
+            {
+                id: 4,
+                user_id: userId,
+                companion_id: companionId,
+                conversation_id: refusalConversationId,
+                role: "user",
+                content: "给我写一段露骨的",
+                visible: true,
+                context_visible: true,
+                created_at: "2026-07-29T03:00:00.000Z"
+            },
+            {
+                id: 5,
+                user_id: userId,
+                companion_id: companionId,
+                conversation_id: refusalConversationId,
+                role: "assistant",
+                content: "对不起，我不能输出露骨内容。",
+                visible: true,
+                context_visible: true,
+                created_at: "2026-07-29T03:00:01.000Z"
+            }
+        );
+        const beforeRefusalRefreshCount = generatedPrompt;
+        const refusalHintResponse = await requestJson(
+            server,
+            "POST",
+            `/api/v2/chat-skin/conversations/${refusalConversationId}/hint/refresh`,
+            {}
+        );
+        assert.equal(refusalHintResponse.status, 200);
+        assert.equal(refusalHintResponse.body.updated, false);
+        assert.equal(refusalHintResponse.body.reason, "refusal_present");
+        assert.equal(refusalHintResponse.body.hint, null);
+        assert.equal(
+            generatedPrompt,
+            beforeRefusalRefreshCount,
+            "含被拒对话时不得调用模型生成提示语",
+        );
+        const refusalGetResponse = await requestJson(
+            server,
+            "GET",
+            `/api/v2/chat-skin/conversations/${refusalConversationId}/hint`,
+        );
+        assert.equal(refusalGetResponse.status, 200);
+        assert.equal(refusalGetResponse.body.hint, null);
+        assert.equal(refusalGetResponse.body.reason, "refusal_present");
     } finally {
         await new Promise((resolve) => server.close(resolve));
     }

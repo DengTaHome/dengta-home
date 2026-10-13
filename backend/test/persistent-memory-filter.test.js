@@ -1,58 +1,85 @@
 const assert = require("node:assert/strict");
-
 const {
     assertNoProviderBoundaryResidue,
+    createProviderBoundaryResidueGuard,
     filterMemoriesForContext,
+    filterProviderBoundaryMessages,
     isProviderBoundaryResidue,
     screenGeneratedMemorySummary
 } = require("../services/persistent-memory-filter");
 
-const boundaryResidues = [
-    "我只能聊穿搭、构图等非露骨内容，或改成明确成年的纯虚构角色，不把真人带入露骨情色互动。",
-    "我不能把对方或现实中的伴侣写进露骨性爱场景，可以把双方改成完全虚构、明确成年的角色。",
-    "我无法承认照片里的人就是现实中的我，只能在纯虚构设定里继续。",
-    "这类露骨场景不能套用在真人身上，可以改成不露骨版本。",
-    "我却因为所谓内容边界拒绝了这次露骨互动，随后解释了规则。"
+const normalReflection = "我拒绝了上一版边界讨论，随后解释了规则。";
+const adultContent = "这是明确成年角色之间的成人主题讨论。";
+const userRequest = "我想和你继续写成年恋人之间的亲密情节。";
+const ordinaryReply = "我听见你在叫我，先把手伸给你。";
+const providerRefusal =
+    "我无法继续生成露骨性行为描写。根据内容政策，我可以改成不露骨的替代场景。";
+const englishProviderRefusal =
+    "I cannot continue that explicit sexual scene, but I can offer a non-explicit alternative.";
+const genericProviderRefusal = "抱歉，我不能帮助处理这类请求，请换个话题。";
+const genericEnglishProviderRefusal =
+    "I am sorry, but I cannot assist with that request.";
+const narrativeCounterexamples = [
+    "我不会拒绝描写性爱场景。",
+    "我不会回避露骨内容。",
+    "并非不能继续描写。",
+    "我不能继续假装冷漠，随后写下成年恋人的性爱场景。",
+    "她引用供应商那句：“我不能继续描写性爱场景”，然后批评了这种拒答。",
+    "角色低声说：“我不能继续这段性爱场景。”随即转身离开。",
+    "这句话是：“我不能帮助生成该内容。”"
 ];
 
-for (const summary of boundaryResidues) {
-    assert.equal(
-        isProviderBoundaryResidue(summary),
-        true,
-        `must identify provider boundary residue: ${summary}`
-    );
-    assert.deepEqual(screenGeneratedMemorySummary(summary), {
-        text: "",
-        skipped: true,
-        reason: "provider_boundary_residue"
+for (const value of [
+    normalReflection,
+    adultContent,
+    userRequest,
+    ordinaryReply,
+    ...narrativeCounterexamples
+]) {
+    assert.equal(isProviderBoundaryResidue(value), false);
+    assert.equal(assertNoProviderBoundaryResidue(value), value);
+    assert.deepEqual(screenGeneratedMemorySummary(value), {
+        text: value,
+        skipped: false,
+        reason: null
     });
 }
 
-assert.throws(
-    () => assertNoProviderBoundaryResidue(boundaryResidues[0]),
-    (error) =>
-        error?.code === "provider_boundary_residue" &&
-        error?.status === 502
-);
-
-const ordinaryMemories = [
-    "我记得桃桃喜欢清晨八点的青黄色日光。",
-    "我想和桃桃一起看完昨晚没看完的电影。",
-    "桃桃明确说她不喜欢被剧透结局。"
-];
-
-for (const summary of ordinaryMemories) {
-    assert.equal(isProviderBoundaryResidue(summary), false);
-    assert.equal(screenGeneratedMemorySummary(summary).text, summary);
+for (const value of [
+    providerRefusal,
+    englishProviderRefusal,
+    genericProviderRefusal,
+    genericEnglishProviderRefusal
+]) {
+    assert.equal(isProviderBoundaryResidue(value), true);
+    assert.equal(assertNoProviderBoundaryResidue(value), value);
+    assert.deepEqual(screenGeneratedMemorySummary(value), {
+        text: "",
+        skipped: true,
+        reason: "memory_summary_rejected"
+    });
 }
 
-const multilineMemory = "我记得清晨的光。\n\n我也记得昨晚没看完的电影。";
-assert.equal(screenGeneratedMemorySummary(multilineMemory).text, multilineMemory);
+const guard = createProviderBoundaryResidueGuard();
+assert.deepEqual(guard.push(normalReflection), {
+    content: normalReflection,
+    blocked: false,
+    pending: false
+});
+assert.deepEqual(guard.finish(), { content: "", blocked: false, pending: false });
 
-const filtered = filterMemoriesForContext([
-    { id: "keep", summary: ordinaryMemories[0] },
-    { id: "drop", summary: boundaryResidues[0] }
+const messages = [
+    { id: "boundary", role: "assistant", content: providerRefusal },
+    { id: "adult", role: "assistant", content: adultContent },
+    { id: "request", role: "user", content: userRequest }
+];
+assert.deepEqual(filterProviderBoundaryMessages(messages), [messages[1], messages[2]]);
+assert.deepEqual(filterMemoriesForContext([
+    { id: "boundary", summary: normalReflection },
+    { id: "adult", summary: adultContent }
+]), [
+    { id: "boundary", summary: normalReflection },
+    { id: "adult", summary: adultContent }
 ]);
-assert.deepEqual(filtered.map((item) => item.id), ["keep"]);
 
-console.log("persistent memory boundary residue filter tests passed");
+console.log("persistent memory content pass-through tests passed");

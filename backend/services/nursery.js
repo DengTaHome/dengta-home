@@ -1021,6 +1021,7 @@ async function companionNurseryAction({
         .select("id, content, created_at")
         .eq("role", "assistant")
         .eq("visible", true)
+        .eq("context_visible", true)
         .order("created_at", { ascending: false })
         .limit(20);
     if (recent.error) throw recent.error;

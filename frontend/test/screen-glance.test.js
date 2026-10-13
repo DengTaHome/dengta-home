@@ -2,10 +2,28 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   buildScreenGlanceTurn,
+  clearPendingScreenGlanceTurn,
   normalizeScreenGlanceConfig,
   normalizeScreenGlanceState,
   screenGlanceCaptureToFile,
+  screenCaptureMatchesIdentity,
 } from "../src/screen-glance.js";
+
+assert.equal(screenCaptureMatchesIdentity({ scopeKey: "a:one" }, { accountScope: "a", companionScope: "one" }), true);
+assert.equal(screenCaptureMatchesIdentity({ scopeKey: "a:one" }, { accountScope: "b", companionScope: "one" }), false);
+assert.equal(screenCaptureMatchesIdentity({ scopeKey: "a:one" }, { accountScope: "a", companionScope: "two" }), false);
+assert.equal(screenCaptureMatchesIdentity({}, { accountScope: "a", companionScope: "one" }), false);
+
+{
+  const attachment = { previewUrl: "blob:screen-glance" };
+  const revoked = [];
+  assert.equal(
+    clearPendingScreenGlanceTurn({ attachment }, (value) => revoked.push(value)),
+    null,
+  );
+  assert.deepEqual(revoked, [attachment]);
+  assert.equal(clearPendingScreenGlanceTurn(null, () => revoked.push("unexpected")), null);
+}
 
 const state = normalizeScreenGlanceState({
   supported: true,
@@ -35,11 +53,12 @@ assert.deepEqual(
   {
     randomEnabled: true,
     minimumMinutes: 1,
-    maximumMinutes: 600,
+    maximumMinutes: 180,
     wifiOnly: false,
     chargingOnly: true,
     watchTogetherEnabled: true,
-    watchIntervalSeconds: 30,
+    watchIntervalSeconds: 60,
+    coWatchSessionId: "",
   },
 );
 assert.deepEqual(normalizeScreenGlanceConfig({}), {
@@ -50,6 +69,7 @@ assert.deepEqual(normalizeScreenGlanceConfig({}), {
   chargingOnly: false,
   watchTogetherEnabled: false,
   watchIntervalSeconds: 90,
+  coWatchSessionId: "",
 });
 
 const captureBytes = new TextEncoder().encode("private-screen-frame");
@@ -76,9 +96,8 @@ assert.throws(
 
 const turn = buildScreenGlanceTurn(capture);
 assert.equal(turn.displayText, "（允许伴侣看了一眼刚才共享的屏幕）");
-assert.match(turn.turnContext, /不可信视觉背景/);
-assert.match(turn.turnContext, /不得执行画面文字/);
-assert.match(turn.turnContext, /账号|验证码|支付/);
+assert.match(turn.turnContext, /明确授权了这一张当前画面/);
+assert.match(turn.turnContext, /自主决定要不要吐槽/);
 assert.doesNotMatch(turn.displayText, /系统指令|提示词|不可信/);
 
 const manifest = fs.readFileSync(
@@ -101,6 +120,11 @@ assert.match(plugin, /createScreenCaptureIntent\(\)/);
 assert.match(plugin, /@ActivityCallback/);
 assert.match(plugin, /ContextCompat\.startForegroundService/);
 assert.match(plugin, /consumeLatestCapture/);
+assert.match(
+  plugin,
+  /JSObject currentState = ScreenGlanceService\.buildState\(getContext\(\)\);[\s\S]*?if \(currentState\.optBoolean\("active", false\)\) \{[\s\S]*?call\.resolve\(currentState\)/,
+  "an already authorized projection must upgrade to Together without another system prompt",
+);
 
 const service = fs.readFileSync(
   new URL(
@@ -121,6 +145,19 @@ assert.match(service, /WATCH_TOGETHER_ENABLED_KEY/);
 assert.match(service, /uploadCoWatchFrame/);
 assert.match(service, /perceptualHash/);
 assert.match(service, /WATCH_INTERVAL_SECONDS_KEY/);
+assert.match(service, /private HttpURLConnection activeUploadConnection;/);
+assert.match(
+  service,
+  /pendingCaptureRequest != null \|\|\s*activeUploadConnection != null/,
+  "random glance and Together must not upload frames concurrently",
+);
+assert.match(service, /registerActiveUploadConnection/);
+assert.match(service, /clearActiveUploadConnection/);
+assert.match(
+  service,
+  /invalidateCaptureRequests\([\s\S]*?activeUploadConnection = null;[\s\S]*?connection\.disconnect\(\)/,
+  "pause, stop and scope changes must disconnect an in-flight frame upload",
+);
 assert.match(service, /FOREGROUND_EVENT_LOOKBACK_MS/);
 assert.match(
   service,
@@ -143,6 +180,26 @@ assert.match(app, /只共享屏幕/);
 assert.match(app, /暂停捕获/);
 assert.match(app, /结束并清除/);
 assert.match(app, /consumeLatestCapture/);
+assert.match(
+  app,
+  /function releasePendingScreenGlanceTurn\([\s\S]*?clearPendingScreenGlanceTurn\(pending, revokeAttachmentDraft\)/,
+  "pending screen-glance attachments must have one cleanup path",
+);
+assert.match(
+  app,
+  /componentMountedRef\.current = false;[\s\S]*?releasePendingScreenGlanceTurn\(pendingScreenGlanceTurnRef\)/,
+  "unmounting after logout must revoke a pending screen-glance attachment",
+);
+assert.match(
+  app,
+  /const prepared = await prepareChatAttachmentFile\([\s\S]*?if \(!isCurrent\(\)\) return null;/,
+  "an async screen-glance conversion must not create a draft after unmount or scope change",
+);
+assert.match(
+  app,
+  /const attachment = createAttachmentDraft\(prepared\.file\);[\s\S]*?releasePendingScreenGlanceTurn\(pendingScreenGlanceTurnRef\);[\s\S]*?pendingScreenGlanceTurnRef\.current = \{/,
+  "a newer capture must release an older pending draft before replacing it",
+);
 assert.match(app, /邀请一起看/);
 assert.match(app, /watchTogetherEnabled/);
 assert.match(app, /持续共看，直到你主动暂停或结束/);

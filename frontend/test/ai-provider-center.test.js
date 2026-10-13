@@ -14,6 +14,11 @@ import {
   reasoningEffortForProvider,
   reasoningEffortOptions,
 } from "../src/provider-reasoning-effort.js";
+import {
+  providerCredentialNeedsRecovery,
+  settingsServiceErrorDetail,
+  settingsServiceErrorMessage,
+} from "../src/settings-service-errors.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const component = fs.readFileSync(
@@ -117,7 +122,9 @@ assert.match(refreshProfilesSource, /\/api\/ai-providers\/manage/);
 assert.match(refreshProfilesSource, /Array\.isArray\(data\.profiles\)/);
 assert.match(refreshProfilesSource, /setProfiles\(nextProfiles\)/);
 assert.match(initialLoadSource, /aiProviderRequest\("\/api\/ai-providers\/manage"\)/);
-assert.match(initialLoadSource, /setProfiles\(Array\.isArray\(profilesData\.profiles\)/);
+assert.match(initialLoadSource, /Promise\.allSettled/);
+assert.match(initialLoadSource, /profilesResult\.status === "fulfilled"/);
+assert.match(initialLoadSource, /setProfiles\(/);
 assert.doesNotMatch(initialLoadSource, /X-AI-Provider-Admin-Secret|adminSecret/);
 assert.match(failedProbeRefreshSource, /await refreshProfiles\(\)/);
 assert.match(
@@ -138,17 +145,53 @@ assert.doesNotMatch(saveProfileSource, /setProfiles\(/);
 assert.doesNotMatch(makeDefaultSource, /setProfiles\(/);
 assert.match(
   testProfileSource,
-  /catch \(error\) \{[\s\S]*?await refreshProfilesAfterProbeFailure\(\);[\s\S]*?setFeedback\(error\.message\)/,
+  /catch \(error\) \{[\s\S]*?await refreshProfilesAfterProbeFailure\(\);[\s\S]*?settingsServiceErrorDetail\(error/,
 );
 assert.match(bridge, /ccswitch:\/\/v1\/import/);
 assert.match(bridge, /enabled: "false"/);
 assert.match(bridge, /API Key/);
 assert.doesNotMatch(bridge, /localStorage/);
 assert.doesNotMatch(bridge, /cc-switch\.db/);
-assert.match(app, /<AiProviderCenter \/>/);
-assert.match(app, /旧版单接口（兼容保留）/);
-assert.match(app, /<option value="openai-responses">OpenAI Responses<\/option>/);
-assert.match(app, /需要极高推理请切换为 Responses/);
+assert.match(app, /<AiProviderCenter(?:\s+onStatusChange=\{setProviderStatus\})? \/>/);
+assert.match(app, /function openProviderRecovery\(\)/);
+assert.match(app, /setSettingsCategory\("services"\)/);
+assert.match(app, /修复聊天接口 \/ Fix chat API/);
+assert.doesNotMatch(app, /旧版单接口（兼容保留）/);
+assert.doesNotMatch(app, /draftSettings\.api_url/);
+assert.doesNotMatch(app, /draftSettings\.model/);
+assert.doesNotMatch(app, /API Key 永远只放在后端环境变量中/);
+assert.match(component, /API Key 只发送到后端加密保存/);
+assert.match(component, /onStatusChange\?\.\(failed\)/);
+assert.match(component, /迁移后无法聊天？重新保存活动 GPT 密钥/);
+assert.match(component, /providerCredentialNeedsRecovery\(profile\)/);
+assert.match(
+  settingsServiceErrorMessage({ code: "AI_PROVIDER_CREDENTIAL_INVALID" }),
+  /saved provider key cannot be decrypted/i,
+);
+assert.match(
+  settingsServiceErrorMessage({ code: "MCP_CREDENTIAL_INVALID" }),
+  /saved device credential cannot be decrypted/i,
+);
+assert.match(
+  settingsServiceErrorDetail(
+    {
+      code: "AI_PROVIDER_UPSTREAM_AUTH_FAILED",
+      status: 502,
+      upstream_status: 403,
+    },
+    "fallback",
+  ),
+  /AI_PROVIDER_UPSTREAM_AUTH_FAILED · 后端 HTTP 502 · 上游 HTTP 403/,
+);
+assert.match(component, /data\.error \|\| data\.code/);
+assert.match(component, /data\.upstream_status/);
+assert.match(component, /settingsServiceErrorDetail\(error/);
+assert.equal(
+  providerCredentialNeedsRecovery({
+    health: { detail: "接口凭据无法解密，请重新填写 API Key。" },
+  }),
+  true,
+);
 assert.equal(reasoningEffortForProvider("openai-responses", "xhigh"), "xhigh");
 assert.equal(reasoningEffortForProvider("openai-chat", "xhigh"), "");
 assert.equal(reasoningEffortOptions("openai-chat").length, 2);

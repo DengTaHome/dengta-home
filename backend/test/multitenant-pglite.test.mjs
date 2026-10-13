@@ -18,7 +18,7 @@ assert.deepEqual(migrationNames.slice(0, 3), [
 ]);
 assert.equal(
     migrationNames.at(-1),
-    "026_account_runtime_state.sql"
+    "061_music_upload_aac.sql"
 );
 
 const db = new PGlite();
@@ -69,6 +69,11 @@ await db.exec(`
         public boolean not null default false,
         file_size_limit bigint,
         allowed_mime_types text[]
+    );
+    create table storage.objects (
+        id uuid primary key default gen_random_uuid(),
+        bucket_id text references storage.buckets(id),
+        name text
     );
 `);
 
@@ -467,7 +472,128 @@ for (const expected of [
 
 // These files are also used for controlled SQL-editor recovery. Reapplying
 // the complete chain must preserve the finalized schema and existing rows.
-await applyMigrations(migrationNames);
+await applyMigrations(migrationNames.slice(0, -1));
+const personaSnapshotSql = `select id, system_prompt, additional_prompt, personality,
+    unified_system_prompt, user_details from public.settings order by id`;
+const personasBeforeGenderMigration = await rows(personaSnapshotSql);
+await applyMigrations(migrationNames.slice(-1));
+assert.deepEqual(await rows(personaSnapshotSql), personasBeforeGenderMigration,
+    "gender migration must preserve every existing personalization field");
+assert.equal((await rows("select count(*)::integer as count from public.settings where ai_gender <> 'unspecified' or ai_pronouns <> '' or ai_gender_label <> ''"))[0].count, 0);
+await assert.rejects(db.query("update public.settings set ai_gender = 'invalid'"), /settings_ai_gender_check/);
+await db.query("update public.settings set ai_gender = 'non_binary', ai_pronouns = 'they'");
+const genderBeforeReplay = await rows("select id, ai_gender, ai_pronouns from public.settings order by id");
+await applyMigrations(migrationNames.slice(-1));
+assert.deepEqual(await rows("select id, ai_gender, ai_pronouns from public.settings order by id"), genderBeforeReplay);
+assert.deepEqual(await rows(personaSnapshotSql), personasBeforeGenderMigration);
+
+const contentImportSchema = (
+    await rows(`
+        select
+            to_regclass('public.content_imports')::text as imports_table,
+            to_regclass('public.content_import_candidates')::text
+                as candidates_table,
+            to_regclass('public.world_book_entries')::text
+                as entries_table,
+            exists (
+                select 1 from information_schema.columns
+                where table_schema = 'public'
+                  and table_name = 'content_import_candidates'
+                  and column_name = 'title'
+                  and is_nullable = 'NO'
+            ) as candidate_title,
+            (
+                select count(*)::integer
+                from information_schema.columns
+                where table_schema = 'public'
+                  and table_name = 'content_import_candidates'
+                  and column_name in (
+                      'candidate_type', 'title', 'content',
+                      'metadata', 'status', 'target'
+                  )
+            ) as candidate_contract_columns,
+            (select relrowsecurity from pg_class
+             where oid = 'public.content_imports'::regclass) as imports_rls,
+            has_table_privilege(
+                'authenticated', 'public.content_imports', 'select'
+            ) as authenticated_select,
+            has_table_privilege(
+                'service_role', 'public.content_imports', 'select'
+            ) as service_select
+    `)
+)[0];
+assert.deepEqual(contentImportSchema, {
+    imports_table: "content_imports",
+    candidates_table: "content_import_candidates",
+    entries_table: "world_book_entries",
+    candidate_title: true,
+    candidate_contract_columns: 6,
+    imports_rls: true,
+    authenticated_select: false,
+    service_select: true
+});
+
+const contentImportContracts = await rows(`
+    select c.conname, pg_get_constraintdef(c.oid) as definition
+    from pg_constraint c
+    where c.conrelid in (
+        'public.content_imports'::regclass,
+        'public.content_import_candidates'::regclass,
+        'public.world_book_entries'::regclass
+    ) and c.contype in ('c', 'f')
+`);
+const importConstraintText = contentImportContracts
+    .map((item) => `${item.conname}: ${item.definition}`)
+    .join("\n");
+assert.match(importConstraintText, /content_imports_tenant_companion_fk[\s\S]*FOREIGN KEY \(user_id, companion_id\)/i);
+assert.match(importConstraintText, /content_import_candidates_type_target_check/i);
+assert.match(importConstraintText, /candidate_type.*memory.*style.*world_book.*calendar/i);
+assert.match(importConstraintText, /world_book_entries_tenant_companion_fk[\s\S]*FOREIGN KEY \(user_id, companion_id\)/i);
+
+const contentImportIndexes = await rows(`
+    select indexname, indexdef
+    from pg_indexes
+    where schemaname = 'public'
+      and indexname in (
+          'content_imports_tenant_recent_idx',
+          'content_import_candidates_tenant_import_idx',
+          'world_book_entries_tenant_recent_idx'
+      )
+`);
+assert.equal(contentImportIndexes.length, 3);
+for (const item of contentImportIndexes) {
+    assert.match(item.indexdef, /\(user_id, companion_id,/i);
+}
+
+const worldBookRuntimeSchema = (
+    await rows(`
+        select
+            count(*) filter (where column_name in (
+                'priority', 'constant', 'match_mode', 'case_sensitive',
+                'position', 'sort_order'
+            ))::integer as runtime_columns,
+            max(column_default) filter (where column_name = 'priority') as priority_default,
+            max(column_default) filter (where column_name = 'constant') as constant_default,
+            max(column_default) filter (where column_name = 'match_mode') as match_mode_default,
+            max(column_default) filter (where column_name = 'case_sensitive') as case_sensitive_default,
+            max(column_default) filter (where column_name = 'position') as position_default
+        from information_schema.columns
+        where table_schema = 'public' and table_name = 'world_book_entries'
+    `)
+)[0];
+assert.equal(worldBookRuntimeSchema.runtime_columns, 6);
+assert.equal(worldBookRuntimeSchema.priority_default, "100");
+assert.equal(worldBookRuntimeSchema.constant_default, "false");
+assert.match(worldBookRuntimeSchema.match_mode_default, /any/);
+assert.equal(worldBookRuntimeSchema.case_sensitive_default, "false");
+assert.match(worldBookRuntimeSchema.position_default, /dynamic_context/);
+assert.equal(
+    (await rows(`select to_regclass('public.world_book_entries_tenant_runtime_idx')::text as index_name`))[0].index_name,
+    "world_book_entries_tenant_runtime_idx"
+);
+assert.match(importConstraintText, /world_book_entries_priority_check[\s\S]*100000/i);
+assert.match(importConstraintText, /world_book_entries_match_mode_check[\s\S]*any[\s\S]*all/i);
+assert.match(importConstraintText, /world_book_entries_position_check[\s\S]*before_memory[\s\S]*dynamic_context/i);
 
 const creativeSchema = (
     await rows(`
@@ -628,6 +754,86 @@ const memberBCompanionId = memberCompanions.find(
 )?.id;
 assert.ok(memberACompanionId);
 assert.ok(memberBCompanionId);
+
+const replayImportId = "10101010-1010-4010-8010-101010101010";
+await db.query(
+    `insert into public.content_imports (
+         id, user_id, companion_id, source_type, source_name,
+         media_type, content_digest, candidate_count
+     ) values ($1, $2, $3, 'world_book', 'fixture.json',
+         'application/json', repeat('a', 64), 4)`,
+    [replayImportId, memberAId, memberACompanionId]
+);
+await db.query(
+    `insert into public.content_import_candidates (
+         user_id, companion_id, import_id, ordinal,
+         candidate_type, target, title, content
+     ) values
+         ($1, $2, $3, 0, 'world_book', 'world_book_entries',
+          'fixture', 'fixture lore'),
+         ($1, $2, $3, 1, 'memory', 'memories',
+          'memory', 'fixture memory'),
+         ($1, $2, $3, 2, 'style', 'unified_system_prompt',
+          'style', 'fixture style'),
+         ($1, $2, $3, 3, 'calendar', 'memory_calendar',
+          'calendar', 'fixture event')`,
+    [memberAId, memberACompanionId, replayImportId]
+);
+await db.query(
+    `insert into public.world_book_entries (
+         user_id, companion_id, source_import_id, title, content
+     ) values ($1, $2, $3, 'fixture', 'fixture lore')`,
+    [memberAId, memberACompanionId, replayImportId]
+);
+let crossTenantImportRejected = false;
+try {
+    await db.query(
+        `insert into public.content_imports (
+             user_id, companion_id, source_type, source_name,
+             media_type, content_digest
+         ) values ($1, $2, 'chat_history', 'invalid.json',
+             'application/json', repeat('b', 64))`,
+        [memberAId, memberBCompanionId]
+    );
+} catch (error) {
+    crossTenantImportRejected = /foreign key/i.test(String(error.message));
+}
+assert.equal(crossTenantImportRejected, true);
+
+// The external-memory importer uses this exact composite conflict target.
+// It must remain inferable by PostgreSQL (a partial index is not sufficient)
+// and repeated/concurrent-style writes must converge to one tenant row.
+for (const summary of ["first version", "second version"]) {
+    await db.query(
+        `insert into public.memories (
+             user_id,
+             companion_id,
+             conversation_id,
+             summary,
+             external_source_type,
+             external_source_id
+         ) values ($1, $2, null, $3, 'supabase_memory', 'project:item')
+         on conflict (
+             user_id,
+             companion_id,
+             external_source_type,
+             external_source_id
+         ) do update set
+             summary = excluded.summary,
+             updated_at = now()`,
+        [memberAId, memberACompanionId, summary]
+    );
+}
+const externalMemoryRows = await rows(
+    `select summary
+     from public.memories
+     where user_id = $1
+       and companion_id = $2
+       and external_source_type = 'supabase_memory'
+       and external_source_id = 'project:item'`,
+    [memberAId, memberACompanionId]
+);
+assert.deepEqual(externalMemoryRows, [{ summary: "second version" }]);
 
 const sharedDiaryWindow = "2026-07-27T06:00:00.000Z";
 await db.query(
@@ -1299,7 +1505,70 @@ assert.deepEqual(
 
 // A full recovery-chain replay must not recreate migration 006's global
 // indexes now that two tenants legitimately share the same client UUID.
+// Simulate a database that briefly received the earlier MVP vocabulary. The
+// corrective section in 034 must migrate that row before restoring checks.
+await db.exec(`
+    alter table public.content_import_candidates
+        drop constraint content_import_candidates_candidate_type_check;
+    alter table public.content_import_candidates
+        drop constraint content_import_candidates_type_target_check;
+    alter table public.content_import_candidates
+        drop constraint content_import_candidates_edited_target_check;
+    alter table public.content_import_candidates
+        add constraint content_import_candidates_candidate_type_check
+        check (candidate_type in (
+            'memory', 'style', 'world_book', 'calendar',
+            'world_book_entry', 'chat_message', 'user_request',
+            'profile_fact', 'instruction'
+        ));
+    alter table public.content_import_candidates
+        add constraint content_import_candidates_type_target_check
+        check (true);
+    alter table public.content_import_candidates
+        add constraint content_import_candidates_edited_target_check
+        check (true);
+    update public.content_import_candidates
+    set candidate_type = 'world_book_entry'
+    where import_id = '${replayImportId}'::uuid and ordinal = 0;
+`);
 await applyMigrations(migrationNames);
+const deliverySql = await fs.readFile(new URL('../supabase/migrations/20261001064300_ai_music_delivery_claim.sql', import.meta.url), 'utf8');
+const personaBeforeDelivery = await rows(personaSnapshotSql);
+await db.exec(deliverySql); await db.exec(deliverySql);
+const activitySql = await fs.readFile(new URL('../supabase/migrations/20261001072028_private_activity_rls.sql', import.meta.url), 'utf8');
+await db.exec(activitySql); await db.exec(activitySql);
+assert.deepEqual(await rows(personaSnapshotSql), personaBeforeDelivery, 'delivery migration must preserve personalization');
+const atomicImportSql = await fs.readFile(new URL('../supabase/migrations/20261001095415_atomic_content_import.sql', import.meta.url), 'utf8');
+await db.exec(atomicImportSql); await db.exec(atomicImportSql);
+assert.deepEqual(await rows(personaSnapshotSql), personaBeforeDelivery, 'atomic import migration must preserve personalization');
+assert.equal((await rows("select commit_protocol from public.content_imports where id=$1", [replayImportId]))[0].commit_protocol, null);
+
+assert.deepEqual(
+    await rows(
+        `select candidate_type, target, title
+         from public.content_import_candidates
+         where import_id = $1 and ordinal = 0`,
+        [replayImportId]
+    ),
+    [{ candidate_type: "world_book", target: "world_book_entries", title: "fixture" }]
+);
+const replayedContentImportRows = (
+    await rows(
+        `select
+            (select count(*) from public.content_imports where id = $1)::integer
+                as imports,
+            (select count(*) from public.content_import_candidates
+             where import_id = $1)::integer as candidates,
+            (select count(*) from public.world_book_entries
+             where source_import_id = $1)::integer as entries`,
+        [replayImportId]
+    )
+)[0];
+assert.deepEqual(replayedContentImportRows, {
+    imports: 1,
+    candidates: 4,
+    entries: 1
+});
 assert.equal(
     (
         await rows(
@@ -1942,5 +2211,5 @@ assert.equal(
 await db.close();
 
 console.log(
-    "PGlite applied and reapplied 000-026, verified atomic tenant persona and full companion resets, account runtime state, context cutoff, provider reasoning effort, tenant chat skin, creative and nursery storage, diary windows, notification installations, leases, recurring guards, FK types, backfill, and RLS isolation"
+    `PGlite applied and reapplied 000-${migrationNames.at(-1).slice(0, 3)}, verified atomic tenant persona and full companion resets, account runtime state, voice provider profiles, co-watch sessions, context cutoff, provider reasoning effort, tenant chat skin, creative and nursery storage, diary windows, notification installations, leases, recurring guards, FK types, backfill, and RLS isolation`
 );

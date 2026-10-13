@@ -86,6 +86,6 @@ const contextSource = fs.readFileSync(
 );
 assert.match(contextSource, /selectMemoriesForContext/);
 assert.match(contextSource, /memoryBudgetEnabled/);
-assert.match(contextSource, /useMemoryBudget \? 40 : 5/);
+assert.match(contextSource, /useMemoryBudget \? 80 : 12/);
 
 console.log("budgeted memory recall tests passed");

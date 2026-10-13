@@ -126,6 +126,11 @@ assert.match(
   /finally\s*\{[\s\S]*?createSessionPendingRef\.current = false;[\s\S]*?setIsCreatingSession\(false\);/,
   "new-session pending state must clear after success or failure",
 );
+assert.doesNotMatch(
+  createHandler,
+  /model_id\s*:/,
+  "new-session creation must let the server bind the account default model",
+);
 assert.equal(
   (app.match(/aria-busy=\{isCreatingSession\}/g) || []).length,
   2,

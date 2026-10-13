@@ -7,6 +7,7 @@ import {
 import { readAccountStorage, writeAccountStorage } from "./account-storage.js";
 
 export const DENGTA_THEME_STORAGE_KEY = "dengta.ui-theme.v2";
+export const DENGTA_FONT_MODE_STORAGE_KEY = "dengta.font-mode.v1";
 const LEGACY_THEME_STORAGE_KEY = "dengta.ui-theme.v1";
 
 export const THEME_PRESETS = [
@@ -66,10 +67,12 @@ export const DEFAULT_THEME_PREFERENCES = {
   card: "#fffdf8",
   cardOpacity: 0.18,
   appearance: "auto",
+  fontMode: "standard",
 };
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const APPEARANCE_MODES = new Set(["auto", "day", "night"]);
+const FONT_MODES = new Set(["standard", "system"]);
 
 function safeColor(value, fallback) {
   return typeof value === "string" && HEX_COLOR.test(value)
@@ -104,6 +107,9 @@ export function normalizeThemePreferences(value = {}) {
     appearance: APPEARANCE_MODES.has(source.appearance)
       ? source.appearance
       : DEFAULT_THEME_PREFERENCES.appearance,
+    fontMode: FONT_MODES.has(source.fontMode)
+      ? source.fontMode
+      : DEFAULT_THEME_PREFERENCES.fontMode,
   };
 }
 
@@ -152,6 +158,7 @@ export function writeThemePreferences(
       accountScope,
       JSON.stringify(normalized),
     );
+    storage?.setItem(DENGTA_FONT_MODE_STORAGE_KEY, normalized.fontMode);
   } catch {
     // A private WebView can reject storage; the in-memory theme still works.
   }
@@ -407,6 +414,7 @@ export function applyThemePreferences(preferences, snapshot, root) {
   root.dataset.dengtaTheme = normalized.preset;
   root.dataset.dengtaAppearance = snapshot.resolvedAppearance;
   root.dataset.dengtaPhase = snapshot.phase;
+  root.dataset.dengtaFontMode = normalized.fontMode;
   root.style.setProperty("--theme-accent", normalized.accent);
   root.style.setProperty("--theme-accent-rgb", accentRgb);
   root.style.setProperty("--theme-card-source-rgb", cardSourceRgb);

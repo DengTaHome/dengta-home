@@ -99,6 +99,7 @@ export function createStartupReconnectController({
     const execution = Promise.resolve()
       .then(() => attempt({ reason, attemptNumber: state.failureCount + 1 }))
       .then((result) => {
+        if (stopped) return null;
         publish({
           status: "connected",
           failureCount: 0,

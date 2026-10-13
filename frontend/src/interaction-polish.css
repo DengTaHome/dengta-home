@@ -1,0 +1,64 @@
+.main-panel.view-chat .composer {
+  height: auto;
+  min-height: 58px;
+  grid-template-rows: auto;
+  align-items: end;
+}
+
+.main-panel.view-chat .composer textarea {
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  max-height: min(176px, 28dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  line-height: 22px;
+  padding-block: 11px;
+  resize: none;
+}
+
+.main-panel.view-chat .composer :is(.chat-attach-button, .send-button),
+.duel-skills button, .cast-room-actions button, .together-page button {
+  touch-action: manipulation;
+  transition: transform 120ms ease-out, background-color 160ms ease-out, opacity 160ms ease-out;
+}
+
+.main-panel.view-chat .composer :is(.chat-attach-button, .send-button):active,
+.duel-skills button:not(:disabled):active,
+.cast-room-actions button:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.duel-skills button:focus-visible, .cast-room-actions button:focus-visible,
+.together-page button:focus-visible {
+  outline: 2px solid var(--theme-accent, #856395);
+  outline-offset: 3px;
+}
+
+.app-shell[data-chat-streaming="true"] .chat-skin-ornament,
+.app-shell:has(.message-list.is-scrolling) .chat-skin-ornament {
+  animation-play-state: paused;
+}
+
+.app-shell .chat-skin-ornament { contain: layout style; }
+
+.memory-gateway-status {
+  padding: 18px;
+  margin-block: 16px;
+  border: 1px solid rgb(128 128 128 / 0.18);
+  border-radius: 18px;
+  background: rgb(var(--theme-card-rgb, 255 255 255) / 0.65);
+}
+.memory-gateway-status > div:first-child { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.memory-gateway-status p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.memory-gateway-status button { min-height: 44px; padding: 8px 14px; border-radius: 14px; }
+.memory-gateway-status code { overflow-wrap: anywhere; font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .main-panel.view-chat .composer :is(.chat-attach-button, .send-button),
+  .duel-skills button, .cast-room-actions button, .together-page button {
+    transition: none;
+    transform: none;
+  }
+}

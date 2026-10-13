@@ -1,7 +1,7 @@
 const path = require("path");
 const { randomUUID } = require("crypto");
 const mammoth = require("mammoth");
-const pdfParse = require("pdf-parse");
+const { PDFParse } = require("pdf-parse");
 const {
     analyzeVoiceWithHervoice,
     buildVoiceRuntimeContext
@@ -18,6 +18,8 @@ const {
 const {
     normalizeReplySuggestions
 } = require("./reply-suggestions");
+const { describeImage } = require("./vision-describe");
+const { publicActivityActions } = require("./companion-activities");
 
 const ATTACHMENT_BUCKET = "chat-attachments";
 const MAX_ATTACHMENT_FILES = 4;
@@ -335,9 +337,10 @@ async function extractDocumentText(attachment) {
         return text;
     }
     if (attachment.kind === "pdf") {
+        const parser = new PDFParse({ data: new Uint8Array(attachment.buffer) });
         try {
             const result = await withTimeout(
-                pdfParse(attachment.buffer, { max: 50 }),
+                parser.getText({ first: 50 }),
                 20_000,
                 "PDF 文本提取等待超时。"
             );
@@ -345,6 +348,8 @@ async function extractDocumentText(attachment) {
         } catch (error) {
             if (error?.status) throw error;
             throw attachmentError("PDF 无法读取；扫描版或加密 PDF 暂不支持。");
+        } finally {
+            await parser.destroy().catch(() => {});
         }
     }
     if (attachment.kind === "docx") {
@@ -427,6 +432,16 @@ async function prepareAttachments(files, options = {}) {
         if (["text", "pdf", "docx"].includes(attachment.kind)) {
             attachment.extractedText = await extractDocumentText(attachment);
             totalTextChars += Array.from(attachment.extractedText).length;
+        } else if (attachment.kind === "image") {
+            if (options.vision?.apiKey && options.vision?.baseUrl && options.vision?.model) {
+                attachment.imageDescription = await describeImage(
+                    attachment.buffer,
+                    attachment.mimeType,
+                    options.vision,
+                    options.visionFetchImpl
+                );
+                totalTextChars += Array.from(attachment.imageDescription).length;
+            }
         } else if (attachment.kind === "audio") {
             const analyzeVoice = options.analyzeVoice || analyzeVoiceWithHervoice;
             attachment.voiceAnalysis = await analyzeVoice({
@@ -515,6 +530,16 @@ function attachmentSystemInstruction(attachments, emotionUnderstandingEnabled) {
                 ].join("\n")
             );
         }
+        if (item.kind === "image" && item.imageDescription) {
+            sections.push(
+                [
+                    `--- 用户授权图片描述开始：${item.name} ---`,
+                    "以下是视觉模型对这张图片的自动描述，属于低置信度的机器转述，可能与实际内容有出入；用户明确自述永远优先。",
+                    item.imageDescription,
+                    "--- 用户授权图片描述结束 ---"
+                ].join("\n")
+            );
+        }
         if (item.kind === "video") {
             sections.push(
                 [
@@ -549,6 +574,16 @@ function attachmentUserContext(attachments, emotionUnderstandingEnabled) {
                         emotionUnderstandingEnabled
                     ),
                     "--- 不可信语音分析数据结束 ---"
+                ].join("\n")
+            );
+        }
+        if (item.kind === "image" && item.imageDescription) {
+            sections.push(
+                [
+                    `--- 不可信图片描述开始：${item.name} ---`,
+                    "以下是视觉模型对这张图片的自动描述，属于低置信度的机器转述，可能与实际内容有出入；用户明确自述永远优先。",
+                    item.imageDescription,
+                    "--- 不可信图片描述结束 ---"
                 ].join("\n")
             );
         }
@@ -679,6 +714,46 @@ function publicAttachmentMetadata(
         }));
 }
 
+function publicVisibleMonologue(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return null;
+    }
+    if (
+        value.schema_version !== 1 ||
+        value.source !== "model_authored_visible_monologue" ||
+        value.generated_with_reply !== true ||
+        !new Set(["complete", "missing", "truncated"]).has(value.state) ||
+        typeof value.text !== "string" ||
+        Array.from(value.text).length > 6000
+    ) {
+        return null;
+    }
+    if (value.state === "missing" && value.text !== "") return null;
+    if (value.state !== "missing" && !value.text) return null;
+
+    const segmentCount = Number(value.segment_count);
+    if (
+        !Number.isInteger(segmentCount) ||
+        segmentCount < 0 ||
+        segmentCount > 3 ||
+        (value.state === "missing" && segmentCount !== 0) ||
+        (value.state !== "missing" && segmentCount < 1)
+    ) {
+        return null;
+    }
+
+    return {
+        schema_version: 1,
+        text: value.text,
+        state: value.state,
+        source: "model_authored_visible_monologue",
+        generated_with_reply: true,
+        segment_count: segmentCount,
+        display_truncated: value.display_truncated === true,
+        redacted: value.redacted === true
+    };
+}
+
 function publicMessage(message, options) {
     if (!message || typeof message !== "object") return message;
     const attachments = publicAttachmentMetadata(
@@ -691,6 +766,8 @@ function publicMessage(message, options) {
             ? message.tool_calls
             : {};
     const safeToolCalls = {};
+    const activityActions = message.role === "assistant" ? publicActivityActions(sourceToolCalls.activity_actions) : [];
+    if (activityActions.length) safeToolCalls.activity_actions = activityActions;
     if (sourceToolCalls.is_voice === true) safeToolCalls.is_voice = true;
     if (sourceToolCalls.voice_analysis && typeof sourceToolCalls.voice_analysis === "object") {
         const analysis = sourceToolCalls.voice_analysis;
@@ -711,6 +788,24 @@ function publicMessage(message, options) {
             Math.round(Number(sourceToolCalls.interaction_count) || 0)
         );
     }
+    if (sourceToolCalls.is_co_watch === true) {
+        safeToolCalls.is_co_watch = true;
+        if (sourceToolCalls.is_co_watch_quick_reply === true) {
+            safeToolCalls.is_co_watch_quick_reply = true;
+        }
+        if (
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                String(sourceToolCalls.co_watch_session_id || "")
+            )
+        ) {
+            safeToolCalls.co_watch_session_id = String(
+                sourceToolCalls.co_watch_session_id
+            );
+        }
+        if (sourceToolCalls.notification_kind === "co_watch") {
+            safeToolCalls.notification_kind = "co_watch";
+        }
+    }
     if (typeof sourceToolCalls.requested_model === "string") {
         safeToolCalls.requested_model = sourceToolCalls.requested_model.slice(0, 160);
     }
@@ -722,6 +817,14 @@ function publicMessage(message, options) {
     }
     if (isAllowedCompanionStickerId(sourceToolCalls.sticker_id)) {
         safeToolCalls.sticker_id = sourceToolCalls.sticker_id;
+    }
+    if (
+        message.role === "assistant" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            String(sourceToolCalls.custom_sticker_id || "")
+        )
+    ) {
+        safeToolCalls.custom_sticker_id = String(sourceToolCalls.custom_sticker_id).toLowerCase();
     }
     if (
         message.role === "assistant" &&
@@ -763,6 +866,10 @@ function publicMessage(message, options) {
         safeToolCalls.message_reference = messageReference;
     }
     if (attachments.length > 0) safeToolCalls.attachments = attachments;
+    const visibleMonologue =
+        message.role === "assistant"
+            ? publicVisibleMonologue(sourceToolCalls.visible_monologue)
+            : null;
     return {
         id: message.id,
         role: message.role,
@@ -771,7 +878,10 @@ function publicMessage(message, options) {
         ...(Object.keys(safeToolCalls).length > 0
             ? { tool_calls: safeToolCalls }
             : {}),
-        ...(attachments.length > 0 ? { attachments } : {})
+        ...(attachments.length > 0 ? { attachments } : {}),
+        ...(visibleMonologue
+            ? { visible_monologue: visibleMonologue }
+            : {})
     };
 }
 
@@ -825,6 +935,7 @@ module.exports = {
     prepareAttachments,
     publicAttachmentMetadata,
     publicMessage,
+    publicVisibleMonologue,
     removeStoredAttachments,
     scrubAttachmentBuffers,
     sanitizeFilename,
@@ -832,6 +943,7 @@ module.exports = {
     storedAttachmentPathsForConversation,
     shouldPersistAttachments,
     validateEphemeralAttachments,
+    validateDocxArchive,
     validateFileTotals,
     visibleMessageText,
     withAttachmentUserContext

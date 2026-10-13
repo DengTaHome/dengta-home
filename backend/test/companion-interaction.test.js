@@ -495,23 +495,6 @@ assert.equal(
     "回复 note 中提到用户难过时，不应把 AI 自己误判为低落"
 );
 
-const safetyState = deriveCompanionInteractionReactionState(parsed, {
-    latestUserTopic: "我现在呼吸困难，身边没有人。"
-});
-assert.equal(safetyState.topicSensitivity, "urgent");
-assert.equal(safetyState.directionId, "supportive_safety");
-const safetyStatus = buildCompanionInteractionStatusSnapshot(
-    parsed,
-    "先别一个人扛着，先确认你现在是否安全，并尽快联系现实帮助。",
-    safetyState,
-    new Date("2026-07-23T12:00:00.000Z")
-);
-assert.match(
-    safetyStatus.mood,
-    /认真担心|保持警觉|非常在意/,
-    "安全回复中的“先别”不得把状态覆盖成没兴趣或拒绝"
-);
-assert.match(safetyStatus.focus, /安全|现实帮助/);
 
 const explicitBoundaryStatus = buildCompanionInteractionStatusSnapshot(
     unhappyInteraction,
@@ -593,7 +576,6 @@ const reactionDirections = [
     "quiet_refusal",
     "grumpy_boundary",
     "tired",
-    "supportive_safety",
     "rhythm"
 ];
 for (const directionId of reactionDirections) {
@@ -938,6 +920,7 @@ assert.equal(
 
 async function testWorkflow() {
     const calls = [];
+    const customStickerId = "77777777-7777-4777-8777-777777777777";
     let generationInput;
     let generationPlan;
     const unifiedSystemPrompt = [
@@ -992,6 +975,10 @@ async function testWorkflow() {
             },
             async findCompanionInteractionReply() {
                 return null;
+            },
+            async loadCustomStickers() {
+                calls.push(["loadCustomStickers"]);
+                return [{ id: customStickerId, mood_tags: ["warm", "hug"] }];
             },
             async generateReply(input) {
                 calls.push(["generateReply"]);
@@ -1105,6 +1092,12 @@ async function testWorkflow() {
     );
     assert.equal(generationInput.tools.length, 1);
     assert.equal(generationInput.tools[0].name, "select_companion_sticker");
+    assert.deepEqual(
+        generationInput.tools[0].input_schema.properties.custom_sticker_id.enum,
+        [customStickerId],
+        "互动调用链应只暴露当前 scope 的有效自定义表情 UUID"
+    );
+    assert.match(generationInput.tools[0].description, /warm\|hug/);
     assert.equal(typeof generationInput.executeTool, "function");
     assert.match(generationInput.runtimeContext, /Asia\/Shanghai/);
     assert.equal(

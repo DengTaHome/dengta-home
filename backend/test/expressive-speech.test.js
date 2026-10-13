@@ -250,6 +250,189 @@ assert.deepEqual(synthesized.audio, audioBytes);
 assert.equal(synthesized.provider, "minimax");
 assert.equal(synthesized.emotion, "happy");
 
+let chineseFallbackAuthorization = "";
+const chineseFallback = await synthesizeExpressiveSpeech({
+    text: "欢迎回家。",
+    providerConfig: {
+        provider: "deepgram",
+        apiKey: "deepgram-key",
+        model: "aura-2-helena-en",
+        region: "global",
+        speed: 1
+    },
+    env: {
+        EXPRESSIVE_TTS_PROVIDER: "minimax",
+        MINIMAX_API_KEY: "minimax-key",
+        MINIMAX_TTS_VOICE_ID: "test-voice"
+    },
+    async fetchImpl(_url, options) {
+        chineseFallbackAuthorization = options.headers.Authorization;
+        return {
+            ok: true,
+            status: 200,
+            async json() {
+                return {
+                    data: { audio: audioBytes.toString("hex") },
+                    base_resp: { status_code: 0 }
+                };
+            }
+        };
+    }
+});
+assert.equal(chineseFallback.provider, "minimax");
+assert.equal(chineseFallbackAuthorization, "Bearer minimax-key");
+
+let mixedLanguageDeepgramBody = null;
+const mixedLanguageDeepgram = await synthesizeExpressiveSpeech({
+    text:
+        "\u4eca\u5929\u771f\u7684\u5f88\u5f00\u5fc3\u3002Welcome home, I missed you. \u6211\u4eec\u4e00\u8d77\u4f11\u606f\u5427\u3002",
+    providerConfig: {
+        provider: "deepgram",
+        apiKey: "deepgram-key",
+        model: "aura-2-helena-en",
+        region: "global",
+        speed: 1
+    },
+    env: {},
+    async fetchImpl(_url, options) {
+        mixedLanguageDeepgramBody = JSON.parse(options.body);
+        return {
+            ok: true,
+            status: 200,
+            headers: { get: () => "audio/mpeg" },
+            async arrayBuffer() {
+                return Uint8Array.from([1, 2, 3]).buffer;
+            }
+        };
+    }
+});
+assert.equal(mixedLanguageDeepgram.provider, "deepgram");
+assert.equal(mixedLanguageDeepgramBody.text, "Welcome home, I missed you.");
+
+let mixedJapaneseDeepgramBody = null;
+const mixedJapaneseDeepgram = await synthesizeExpressiveSpeech({
+    text:
+        "\u6b22\u8fce\u56de\u5bb6\u3002\u304a\u304b\u3048\u308a\u306a\u3055\u3044\u3002",
+    providerConfig: {
+        provider: "deepgram",
+        apiKey: "deepgram-key",
+        model: "aura-2-izanami-ja",
+        region: "global",
+        speed: 1
+    },
+    env: {},
+    async fetchImpl(_url, options) {
+        mixedJapaneseDeepgramBody = JSON.parse(options.body);
+        return {
+            ok: true,
+            status: 200,
+            headers: { get: () => "audio/mpeg" },
+            async arrayBuffer() {
+                return Uint8Array.from([1, 2, 3]).buffer;
+            }
+        };
+    }
+});
+assert.equal(mixedJapaneseDeepgram.provider, "deepgram");
+assert.equal(
+    mixedJapaneseDeepgramBody.text,
+    "\u304a\u304b\u3048\u308a\u306a\u3055\u3044\u3002"
+);
+
+const mixedLanguageText =
+    "\u4eca\u5929\u771f\u7684\u5f88\u5f00\u5fc3\u3002Welcome home, I missed you. \u6211\u4eec\u4e00\u8d77\u4f11\u606f\u5427\u3002";
+let mixedLanguageMiniMaxRequest = null;
+const mixedLanguageMiniMax = await synthesizeExpressiveSpeech({
+    text: mixedLanguageText,
+    providerConfig: {
+        provider: "deepgram",
+        apiKey: "deepgram-key",
+        model: "aura-2-helena-en",
+        region: "global",
+        speed: 1
+    },
+    env: {
+        EXPRESSIVE_TTS_PROVIDER: "minimax",
+        MINIMAX_API_KEY: "minimax-key",
+        MINIMAX_TTS_VOICE_ID: "test-voice"
+    },
+    async fetchImpl(url, options) {
+        mixedLanguageMiniMaxRequest = { url, body: JSON.parse(options.body) };
+        return {
+            ok: true,
+            status: 200,
+            async json() {
+                return {
+                    data: { audio: audioBytes.toString("hex") },
+                    base_resp: { status_code: 0 }
+                };
+            }
+        };
+    }
+});
+assert.equal(mixedLanguageMiniMax.provider, "minimax");
+assert.equal(
+    mixedLanguageMiniMaxRequest.url,
+    "https://api.minimax.io/v1/t2a_v2"
+);
+assert.equal(mixedLanguageMiniMaxRequest.body.text, mixedLanguageText);
+
+let unsupportedLanguageUpstreamCalls = 0;
+await assert.rejects(
+    () =>
+        synthesizeExpressiveSpeech({
+            text: "\u6b22\u8fce\u56de\u5bb6\u3002",
+            providerConfig: {
+                provider: "deepgram",
+                apiKey: "deepgram-key",
+                model: "aura-2-helena-en",
+                region: "global",
+                speed: 1
+            },
+            env: {},
+            async fetchImpl() {
+                unsupportedLanguageUpstreamCalls += 1;
+                throw new Error("unsupported language must not call upstream");
+            }
+        }),
+    (error) =>
+        error.code === "VOICE_LANGUAGE_UNSUPPORTED" &&
+        error.status === 422
+);
+assert.equal(unsupportedLanguageUpstreamCalls, 0);
+
+let japaneseModelChineseAuthorization = "";
+const japaneseModelChineseFallback = await synthesizeExpressiveSpeech({
+    text: "欢迎回家。",
+    providerConfig: {
+        provider: "deepgram",
+        apiKey: "deepgram-key",
+        model: "aura-2-izanami-ja",
+        region: "global",
+        speed: 1
+    },
+    env: {
+        EXPRESSIVE_TTS_PROVIDER: "minimax",
+        MINIMAX_API_KEY: "minimax-key",
+        MINIMAX_TTS_VOICE_ID: "test-voice"
+    },
+    async fetchImpl(_url, options) {
+        japaneseModelChineseAuthorization = options.headers.Authorization;
+        return {
+            ok: true,
+            status: 200,
+            async json() {
+                return {
+                    data: { audio: audioBytes.toString("hex") },
+                    base_resp: { status_code: 0 }
+                };
+            }
+        };
+    }
+});
+assert.equal(japaneseModelChineseFallback.provider, "minimax");
+assert.equal(japaneseModelChineseAuthorization, "Bearer minimax-key");
+
 await assert.rejects(
     () => synthesizeExpressiveSpeech({ text: "你好", env: {} }),
     (error) => {

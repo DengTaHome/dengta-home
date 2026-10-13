@@ -3,15 +3,15 @@ const {
     MODEL_CACHE_TTL_MS,
     clearModelCache,
     listModels,
+    resolveConversationModel,
     resolveTurnModel
 } = require("../services/model-catalog");
-
-process.env.CUSTOM_API_KEY = "test-only-key";
 
 const settings = {
     provider: "custom",
     api_url: "https://models.example.test/v1",
-    model: "model-current"
+    model: "model-current",
+    runtime_api_key: "test-only-key"
 };
 
 async function main() {
@@ -68,6 +68,30 @@ async function main() {
     assert.equal(
         await resolveTurnModel(settings, "model-current", { fetchImpl: failedFetch }),
         "model-current"
+    );
+
+    clearModelCache();
+    const switchedProvider = await resolveConversationModel(
+        settings,
+        "qwen-old-provider-model",
+        { fetchImpl }
+    );
+    assert.deepEqual(switchedProvider, {
+        model: "model-current",
+        rebound: true,
+        previous_model: "qwen-old-provider-model"
+    });
+    await assert.rejects(
+        resolveTurnModel(settings, "qwen-old-provider-model", { fetchImpl }),
+        (error) => error?.code === "MODEL_NOT_AVAILABLE"
+    );
+    assert.deepEqual(
+        await resolveConversationModel(settings, "model-next", { fetchImpl }),
+        {
+            model: "model-next",
+            rebound: false,
+            previous_model: "model-next"
+        }
     );
     console.log("model catalog cache and allowlist tests passed");
 }

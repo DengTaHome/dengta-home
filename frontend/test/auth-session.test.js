@@ -178,7 +178,7 @@ function createFakeSupabase(initialSession = null) {
   assert.equal(manager.getSnapshot().activeCompanionId, COMPANION_B);
 
   await manager.signOut();
-  assert.deepEqual(fake.calls.signOut, [{ scope: "local" }]);
+  assert.deepEqual(fake.calls.signOut, [undefined]);
   assert.equal(manager.getSnapshot().status, AUTH_STATUS.anonymous);
   assert.deepEqual(await manager.getRequestContext(), {});
   manager.destroy();

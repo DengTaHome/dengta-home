@@ -64,6 +64,8 @@ async function testDailyCountUsesTenantScopedLocalDayWindow() {
     assert.deepEqual(calls, [
         ["select", "id"],
         ["eq", "role", "assistant"],
+        ["eq", "visible", true],
+        ["eq", "context_visible", true],
         ["contains", "tool_calls", { is_proactive: true }],
         ["gte", "created_at", "2026-07-25T16:00:00.000Z"],
         ["lt", "created_at", "2026-07-26T16:00:00.000Z"],

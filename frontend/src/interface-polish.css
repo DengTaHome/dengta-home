@@ -1,0 +1,80 @@
+:root { --interface-radius: 20px; --interface-control-radius: 12px; }
+.app-shell :where(.settings-card, .memory-card, .moment-card, .diary-card, .notification-feature-panel, .dialog-card) {
+  border-radius: var(--interface-radius);
+  box-shadow: 0 5px 20px color-mix(in srgb, var(--theme-accent, #865a69) 5%, transparent);
+}
+.app-shell :where(.settings-page, .feature-page, .fun-view) :where(button, input, select) { border-radius: var(--interface-control-radius); }
+.app-shell :where(button, input, select, textarea):focus-visible { outline: 2px solid var(--theme-accent, #865a69); outline-offset: 3px; }
+.app-shell :where(.settings-page, .feature-page, .fun-view) button:not(.chat-error-log-toggle) { min-height: 44px; }
+.app-shell .fun-achievement-form input { min-width: 0; min-height: 44px; font-size: 14px; color: var(--theme-ink); background: var(--theme-control-background); border-color: var(--theme-control-border); }
+.app-shell .fun-achievement-form button { font-size: 13px; color: var(--theme-ink); background: var(--theme-control-background); border-color: var(--theme-control-border); }
+.app-shell .fun-achievement-form > :is(p, small) { flex-basis: 100%; margin: 0; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; color: var(--theme-muted); }
+.app-shell .fun-achievement-form > p { color: var(--theme-ink); }
+.settings-intro { margin-bottom: 20px; align-items: center; }
+.settings-intro h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -.025em; }
+.settings-intro p { max-width: 48ch; font-size: 14px; line-height: 1.7; }
+.settings-category-heading { gap: 12px; margin-bottom: 20px; }
+.settings-category-heading h3 { font-size: clamp(22px, 3vw, 28px); }
+.settings-category-back { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; }
+.app-shell .settings-sheet-header button { min-width: 44px; min-height: 44px; }
+.operation-error-help { display: grid; gap: 10px; margin: 12px 0; padding: 14px; border: 1px solid color-mix(in srgb, currentColor 12%, transparent); border-radius: 14px; }
+.operation-error-help p { display: grid; gap: 4px; margin: 0; line-height: 1.7; font-size: 14px; overflow-wrap: anywhere; }
+.operation-error-help strong { font-size: 12px; opacity: .76; }
+.operation-error-help button { justify-self: start; padding: 6px 12px; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+.error-log-technical > summary { padding: 10px 0; cursor: pointer; font-size: 13px; }
+.error-log-technical .error-log-stack { max-height: 260px; overflow: auto; }
+.companion-inspiration { min-width: 0; margin: 12px 0 20px; padding: 18px; border: 1px solid color-mix(in srgb, currentColor 14%, transparent); border-radius: var(--interface-radius); color: inherit; background: color-mix(in srgb, var(--theme-accent, #865a69) 5%, transparent); }
+.companion-inspiration-heading, .companion-inspiration-result { display: flex; gap: 14px; align-items: center; justify-content: space-between; }
+.companion-inspiration h3 { margin: 0; font-size: 18px; }
+.companion-inspiration p { margin: 5px 0 0; font-size: 14px; line-height: 1.6; }
+.companion-inspiration button { min-height: 44px; flex: 0 0 auto; padding: 8px 14px; border: 1px solid color-mix(in srgb, currentColor 18%, transparent); background: transparent; color: inherit; border-radius: var(--interface-control-radius); cursor: pointer; }
+.companion-inspiration-result { margin-top: 16px; justify-content: start; padding-top: 15px; border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.companion-inspiration-result > span { font-size: 30px; min-width: 28px; }
+.companion-inspiration-result > div { flex: 1; min-width: 0; }
+.companion-inspiration > small { display: block; margin-top: 12px; font-size: 12px; opacity: .76; }
+.companion-inspiration .companion-inspiration-categories { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.companion-inspiration .companion-inspiration-categories button { padding: 7px 11px; min-width: 0; font-size: 12px; border-radius: 999px; background: rgb(var(--theme-card-rgb, 255 255 255) / .6); }
+.companion-inspiration .companion-inspiration-categories button[aria-pressed="true"] { color: var(--theme-ink, currentColor); border-color: var(--theme-accent, #865a69); background: rgb(var(--theme-accent-rgb, 134 90 105) / .13); }
+.companion-inspiration .inspiration-category-label { display: block; margin-bottom: 4px; color: var(--theme-muted, currentColor); font-size: 11px; letter-spacing: .04em; }
+.companion-inspiration .inspiration-symbol { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 14px; font-size: 24px; color: var(--theme-accent, #865a69); background: rgb(var(--theme-accent-rgb, 134 90 105) / .1); }
+.companion-inspiration .inspiration-draw { border-color: var(--theme-accent, #865a69); }
+.companion-inspiration .inspiration-use { background: rgb(var(--theme-accent-rgb, 134 90 105) / .13); border-color: rgb(var(--theme-accent-rgb, 134 90 105) / .3); }
+.companion-inspiration button:disabled { cursor: default; opacity: .5; }
+@media (max-width: 600px) {
+  .settings-intro { align-items: start; gap: 12px; }
+  .settings-intro .install-button { padding: 9px 13px; min-height: 44px; font-size: 13px; }
+  .companion-inspiration { padding: 15px; }
+  .companion-inspiration-result { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; }
+  .companion-inspiration-result button { grid-column: 2; justify-self: start; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :where(.settings-page, .feature-page, .fun-view) :where(button, input, select, textarea) { transition: none; }
+  .companion-inspiration button:active { transform: none !important; }
+}
+
+:root[data-dengta-reduced-motion="true"] .companion-inspiration button:active { transform: none !important; }
+
+:root[data-dengta-reduced-motion="true"] *,
+:root[data-dengta-reduced-motion="true"] *::before,
+:root[data-dengta-reduced-motion="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-dengta-reduced-motion="true"] .dengta-prelude { display: none !important; }
+.session-dialog-card { box-sizing: border-box; max-width: min(440px, 100%); max-height: min(680px, calc(100dvh - 40px)); overflow-y: auto; border: 1px solid var(--theme-control-border); border-radius: 20px; color: var(--theme-ink); background: rgb(var(--theme-card-rgb, 255 255 255) / .94); }
+.session-dialog-card input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; }
+.session-dialog-card .session-dialog-hint { margin: 0; color: var(--theme-muted, #777); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.session-dialog-card .session-dialog-feedback { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--theme-control-border); border-radius: 12px; color: var(--theme-ink); background: rgb(var(--theme-card-rgb, 255 255 255) / .65); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.session-dialog-card .session-dialog-feedback p { margin: 0; }
+.session-dialog-card .session-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.session-dialog-card button { min-height: 44px; padding: 10px 16px; }
+.session-dialog-card button.danger-button { color: #fff; background: #b42342; border-color: transparent; }
+.session-dialog-card :focus-visible { outline: 2px solid var(--theme-accent); outline-offset: 3px; }
+.message-next-actions { margin-top:14px; padding-top:12px; border-top:1px solid currentColor; color:inherit; overflow-wrap:anywhere; }
+.message-next-actions strong { font-size:.85em; }
+.message-next-actions ul { margin:8px 0 0; padding-left:1.25em; line-height:1.7; }
+.art-studio-page .section-intro small { display:block; margin-top:10px; color:var(--theme-muted); line-height:1.6; }
+.art-studio-page .companion-artwork-library .profile-section-heading h3 { color:var(--theme-ink); }
+.art-studio-page .section-intro button,.profile-art-studio-link { min-height:44px; margin-top:12px; padding:10px 14px; border-radius:12px; border:1px solid var(--theme-control-border); color:var(--theme-ink); background:var(--theme-control-background); }

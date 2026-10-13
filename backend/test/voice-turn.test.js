@@ -253,11 +253,14 @@ async function main() {
     assert.match(serverSource, /voiceUpload\.single\("file"\)/);
     assert.match(
         serverSource,
-        /effectiveModel\s*=\s*await resolveTurnModel\(\s*settings,\s*fields\.requestedModel\s*\)/,
+        /effectiveModel\s*=\s*await resolveConversationTurnModel\(\s*settings,\s*conversation,\s*fields\.requestedModel,\s*database\s*\)/,
         "语音模型覆盖必须复用普通聊天的模型白名单解析器"
     );
     assert.ok(
-        serverSource.indexOf("const effectiveModel = await resolveTurnModel") <
+        serverSource.lastIndexOf(
+            "const effectiveModel = await resolveConversationTurnModel",
+            serverSource.indexOf("const voiceAnalysis = await analyzeVoiceWithHervoice")
+        ) <
             serverSource.indexOf("const voiceAnalysis = await analyzeVoiceWithHervoice"),
         "必须先拒绝无效模型，再消耗语音转写服务额度"
     );
@@ -268,6 +271,12 @@ async function main() {
         serverSource,
         /promptArchitecture:\s*MAIN_CHAT_PROMPT_ARCHITECTURE/
     );
+    assert.match(
+        serverSource,
+        /const worldBookContext = await resolveWorldBookContext\(\{\s*database,\s*settings: effectiveSettings,\s*messages: context\.messages\s*\}\)/,
+        "语音轮次必须通过租户数据库和当前可见上下文解析世界书"
+    );
+    assert.match(serverSource, /promptArchitecture:\s*MAIN_CHAT_PROMPT_ARCHITECTURE,\s*worldBookContext/);
     assert.match(serverSource, /model:\s*effectiveModel \|\| ""/);
     assert.doesNotMatch(
         serverSource,

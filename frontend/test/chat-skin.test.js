@@ -126,7 +126,8 @@ test("the cream skin keeps local font, role-specific ornaments and reduced-motio
   assert.match(css, /ChillRoundF-v3\.0\.ttf/);
   assert.match(css, /data-chat-skin="taotao-cream"/);
   assert.match(css, /prefers-reduced-motion/);
-  assert.match(app, /getMessageSkinPresentation/);
+  assert.match(app, /<ChatTranscript/);
+  assert.match(fs.readFileSync(new URL("../src/ChatTranscript.jsx",import.meta.url),"utf8"), /getMessageSkinPresentation/);
   assert.match(app, /placeholder=\{[\s\S]*?composerHint/);
   assert.match(ornament, /isUser \? "is-cat" : "is-bear"/);
   assert.ok(

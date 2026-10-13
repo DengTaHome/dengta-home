@@ -2,12 +2,18 @@ const {
     memoryBudgetEnabled,
     selectMemoriesForContext
 } = require("./memory-budget");
+const {
+    adaptiveMessageLimit,
+    resolveContextWindow
+} = require("./context-budget");
 const { isNurseryRelevant } = require("./nursery-engine");
 const { loadNurseryRuntimeSnapshot } = require("./nursery");
 const {
     filterMemoriesForContext,
     filterProviderBoundaryMessages
 } = require("./persistent-memory-filter");
+const { recallMemories } = require("./kiwi-memory-client");
+const { readContextHistory, resolveCompressionThreshold } = require("./context-history");
 
 function normalizeContextResetAt(value) {
     const candidate =
@@ -43,11 +49,32 @@ function applyContextResetCutoff(
 function confirmedMemoryQuery(database, settings, limit) {
     const query = database
         .from("memories")
-        .select("id, summary, created_at, updated_at")
-        .eq("confirmation_status", "confirmed");
+        .select("id, summary, created_at, updated_at, locked")
+        .eq("confirmation_status", "confirmed")
+        .eq("superseded", false);
     return applyContextResetCutoff(query, settings)
+        .order("locked", { ascending: false })
         .order("updated_at", { ascending: false })
         .limit(limit);
+}
+
+async function loadCalendarSummaries(database, settings, limit = 10) {
+    if (!settings?.user_id || !settings?.companion_id) return [];
+    try {
+        const { data, error } = await database
+            .from("memory_calendar")
+            .select("id, period_type, period_start, period_end, summary")
+            .eq("user_id", settings.user_id)
+            .eq("companion_id", settings.companion_id)
+            .eq("superseded", false)
+            .order("period_start", { ascending: false })
+            .limit(limit);
+        if (error) return [];
+        return data || [];
+    } catch {
+        // memory_calendar table may not exist yet — graceful fallback
+        return [];
+    }
 }
 
 async function loadMainChatContextRows({
@@ -56,29 +83,32 @@ async function loadMainChatContextRows({
     settings
 }) {
     const useMemoryBudget = memoryBudgetEnabled();
-    const messageLimit = Math.max(
-        2,
-        Number(settings?.context_turns || 20) * 2
+    const modelContextWindow = resolveContextWindow(settings?.model);
+    const windowLimit = adaptiveMessageLimit(modelContextWindow);
+    // 用户设置的 context_turns（上下文保留轮数）生效：
+    //   目标条数 = 轮数×2 + 20 条缓冲；窗口预算仍作为硬上限（取两者较小值，至少 16 条）。
+    const turnLimit = Math.max(
+        0,
+        Math.round(Number(settings?.context_turns) || 0)
     );
-    const historyQuery = applyContextResetCutoff(
+    const messageLimit = turnLimit > 0
+        ? Math.max(16, Math.min(windowLimit, turnLimit * 2 + 20))
+        : windowLimit;
+    const historyQuery = () => applyContextResetCutoff(
         database
             .from("messages")
             .select("id, role, content, created_at, tool_calls")
             .eq("conversation_id", conversationId)
-            .eq("visible", true),
+            .eq("visible", true)
+            .eq("context_visible", true),
         settings
-    )
-        .order("created_at", { ascending: false })
-        .limit(messageLimit);
-    const [historyResult, memoriesResult] = await Promise.all([
-        historyQuery,
-        confirmedMemoryQuery(database, settings, useMemoryBudget ? 40 : 5)
-    ]);
-    if (historyResult.error) throw historyResult.error;
-    if (memoriesResult.error) throw memoriesResult.error;
-    const messages = filterProviderBoundaryMessages(
-        (historyResult.data || []).reverse()
     );
+    const [messages, memoriesResult, calendarSummaries] = await Promise.all([
+        readContextHistory({ query: historyQuery, messageLimit, tokenLimit: modelContextWindow }),
+        confirmedMemoryQuery(database, settings, useMemoryBudget ? 80 : 12),
+        loadCalendarSummaries(database, settings, useMemoryBudget ? 10 : 3)
+    ]);
+    if (memoriesResult.error) throw memoriesResult.error;
     const latestUserMessage = [...messages]
         .reverse()
         .find((message) => message.role === "user");
@@ -99,13 +129,34 @@ async function loadMainChatContextRows({
             }
         );
     }
+    // kiwi-mem 多租户记忆网关召回（未配置 KIWI_MEM_URL 时为空数组，零开销）。
+    // 按当前租户（settings.user_id/companion_id）隔离检索，与其他用户互不可见。
+    const kiwiMemories = await recallMemories(
+        latestUserMessage?.content || "",
+        {
+            userId: settings?.user_id,
+            companionId: settings?.companion_id
+        }
+    );
+    const allMemoryCandidates = [...kiwiMemories, ...(memoriesResult.data || [])];
+    const allMemories = useMemoryBudget
+        ? selectMemoriesForContext(
+              filterMemoriesForContext(allMemoryCandidates),
+              {
+                  query: latestUserMessage?.content || "",
+                  maxItems: 20,
+                  charBudget: 8000
+              }
+          )
+        : filterMemoriesForContext(allMemoryCandidates).slice(0, 12);
+    const coreMemories = allMemories.filter((m) => m.locked === true);
+    const regularMemories = allMemories.filter((m) => m.locked !== true);
     return {
         messages,
-        memories: useMemoryBudget
-            ? selectMemoriesForContext(filterMemoriesForContext(memoriesResult.data), {
-                  query: latestUserMessage?.content || ""
-              })
-            : filterMemoriesForContext(memoriesResult.data).slice(0, 5),
+        memories: allMemories,
+        coreMemories,
+        regularMemories,
+        calendarSummaries,
         nursery
     };
 }
@@ -123,7 +174,8 @@ async function loadCompanionInteractionContextRows({
                     "id, role, content, created_at, tool_calls"
                 )
                 .eq("conversation_id", conversationId)
-                .eq("visible", true),
+                .eq("visible", true)
+                .eq("context_visible", true),
             settings
         );
     const [userResult, assistantResult, interactionResult, memoriesResult] =
@@ -183,22 +235,25 @@ async function loadMemoryCompressionRows({
     conversationId,
     settings
 }) {
-    const messagesQuery = applyContextResetCutoff(
+    const messagesQuery = () => applyContextResetCutoff(
         database
             .from("messages")
-            .select("id, role, content, created_at")
+            .select("id, role, content, created_at, tool_calls")
             .eq("conversation_id", conversationId)
-            .eq("visible", true),
+            .eq("visible", true)
+            .eq("context_visible", true),
         settings
-    ).order("created_at", { ascending: true });
-    const [messagesResult, memoriesResult] = await Promise.all([
-        messagesQuery,
+    );
+    const capacity = resolveContextWindow(settings?.model);
+    const scanBudget = Math.max(capacity, resolveCompressionThreshold(settings, capacity));
+    const [messages, memoriesResult] = await Promise.all([
+        readContextHistory({ query: messagesQuery, messageLimit: adaptiveMessageLimit(scanBudget),
+            tokenLimit: scanBudget, ascending: true }),
         confirmedMemoryQuery(database, settings, 5)
     ]);
-    if (messagesResult.error) throw messagesResult.error;
     if (memoriesResult.error) throw memoriesResult.error;
     return {
-        messages: filterProviderBoundaryMessages(messagesResult.data),
+        messages,
         memories: filterMemoriesForContext(memoriesResult.data)
     };
 }
@@ -206,6 +261,7 @@ async function loadMemoryCompressionRows({
 module.exports = {
     applyContextResetCutoff,
     isContextTimestampCurrent,
+    loadCalendarSummaries,
     loadCompanionInteractionContextRows,
     loadMainChatContextRows,
     loadMemoryCompressionRows,

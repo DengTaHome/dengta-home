@@ -1,0 +1,100 @@
+/* Keep dynamic copy on one complete CJK face. Decorative faces stay decorative. */
+@font-face {
+  font-family: "DengTa Sans CJK";
+  src: url("/fonts/DengTaSans-cjk-v2.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: optional;
+}
+
+:root {
+  --dengta-font-standard:
+    "DengTa Sans CJK", system-ui, sans-serif;
+  --dengta-font-system:
+    system-ui, -apple-system, BlinkMacSystemFont, "HarmonyOS Sans SC",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  --dengta-font: var(--dengta-font-standard);
+  --font-ui: var(--dengta-font);
+  --font-display: var(--dengta-font);
+  --font-hand: var(--dengta-font);
+  --apple-font-text: var(--dengta-font);
+  --apple-font-display: var(--dengta-font);
+  --apple-font-ui: var(--dengta-font);
+}
+
+:root[data-dengta-font-mode="system"] {
+  --dengta-font: var(--dengta-font-system);
+}
+
+html,
+body,
+#root,
+button,
+input,
+textarea,
+select {
+  font-family: var(--dengta-font);
+  font-synthesis: none;
+}
+
+body :where(h1, h2, h3, h4, h5, h6, p, span, small, strong, em, label, dt, dd, li, blockquote, a) {
+  font-family: var(--dengta-font) !important;
+}
+
+.app-shell .message-bubble,
+.app-shell .message-content,
+.app-shell .message-content p,
+.app-shell .message-content li,
+.app-shell .message-content blockquote,
+.app-shell .message-content strong,
+.app-shell .message-content em,
+.app-shell .message-content a,
+.app-shell .message-reference-block,
+.app-shell .composer,
+.app-shell .composer textarea,
+.app-shell .composer textarea::placeholder,
+.app-shell .thinking-panel,
+.app-shell .thinking-panel summary,
+.app-shell .thinking-panel-body,
+.app-shell .reply-suggestions,
+.app-shell .together-page,
+.app-shell .together-page button,
+.app-shell .together-page input,
+.app-shell .together-page textarea,
+.app-shell .together-page select {
+  font-family: var(--dengta-font) !important;
+}
+
+.app-shell .brand,
+.app-shell .primary-nav,
+.app-shell .session-list,
+.app-shell .topbar,
+.app-shell .view-content,
+.app-shell .settings-sheet,
+.app-shell .settings-card,
+.app-shell .notice,
+.app-shell .dialog-card,
+.app-shell .mobile-nav,
+.app-shell .companion-status,
+.app-shell .ambient-context-badge,
+.app-shell .moment-card,
+.app-shell .diary-entry,
+.app-shell .memory-card,
+.app-shell .nursery-page,
+.app-shell .duel-page {
+  font-family: var(--dengta-font) !important;
+}
+
+.app-shell .message-content {
+  font-weight: 400;
+}
+
+.app-shell .message-content code,
+.app-shell .message-content pre,
+.app-shell .message-content kbd,
+.app-shell .message-content samp,
+body :where(code, pre, kbd, samp),
+.screen-glance-times,
+.prompt-receipt-times {
+  font-family: var(--font-data), monospace !important;
+}

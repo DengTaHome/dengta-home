@@ -38,6 +38,10 @@ function fakeBuilder(log) {
 
 function fakeAdminSupabase(log) {
     return {
+        rpc(name, parameters) {
+            log.push(["rpc", name, parameters]);
+            return Promise.resolve({ data: { ok: true }, error: null });
+        },
         from(table) {
             const builder = fakeBuilder(log);
             return {
@@ -127,6 +131,23 @@ assert.notEqual(scope.profile, input.profile);
 
 scope.db.from("messages").select("*").eq("id", 9);
 scope.db.from("nursery_children").select("id").eq("status", "active");
+scope.db.from("voice_provider_profiles").select("provider");
+scope.db.from("account_media_assets").select("id, purpose");
+scope.db.from("private_media_preferences").select("purpose, asset_id");
+scope.db.from("music_playlists").select("id, name");
+scope.db.from("music_playlist_items").select("id, playlist_id");
+scope.db.from("music_favorites").select("item_id");
+scope.db.from("music_playback_queues").select("id, revision");
+scope.db.from("music_playback_queue_items").select("id, position");
+scope.db.from("music_understandings").select("provider_track_id, analysis");
+scope.db.from("netease_qr_connections").select("id, netease_uid");
+scope.db.rpc("apply_music_queue_operation", { p_session_id: "session-1" });
+assert.deepEqual(log.find((entry) => entry[0] === "rpc"), ["rpc", "apply_music_queue_operation", {
+    p_session_id: "session-1",
+    p_user_id: userId,
+    p_companion_id: companionId
+}]);
+assert.throws(() => scope.db.rpc("unsafe_rpc", {}), /does not allow unscoped RPC/);
 scope.db.from("nursery_actions").insert({
     id: "55555555-5555-4555-8555-555555555555",
     child_id: "66666666-6666-4666-8666-666666666666",
@@ -220,6 +241,52 @@ assert.equal(
     "select、update、delete 都必须附加伴侣过滤"
 );
 assert.equal(scope.db.from("messages").upsert, undefined);
+assert.equal(scope.db.from("music_playlist_items").upsert, undefined);
+assert.equal(scope.db.from("netease_qr_connections").upsert, undefined);
+scope.db.from("music_understandings").upsert({
+    provider_track_id: "123",
+    analysis: { rhythm: { bpm: 120 } },
+    user_id: otherUserId,
+    companion_id: otherCompanionId
+}, { onConflict: "provider_track_id", ignoreDuplicates: true });
+const musicUpsert = log.find(entry => entry[0] === "music_understandings" && entry[1] === "upsert");
+assert.deepEqual(musicUpsert[2], {
+    provider_track_id: "123", analysis: { rhythm: { bpm: 120 } },
+    user_id: userId, companion_id: companionId
+});
+assert.deepEqual(musicUpsert[3], {
+    onConflict: "user_id,companion_id,provider_track_id", ignoreDuplicates: true
+});
+scope.db.from("music_understandings").upsert([
+    { provider_track_id: "124", user_id: otherUserId, companion_id: otherCompanionId },
+    { provider_track_id: "125" }
+]);
+const musicBatch = log.filter(entry => entry[0] === "music_understandings" && entry[1] === "upsert")[1];
+assert(musicBatch[2].every(row => row.user_id === userId && row.companion_id === companionId));
+assert.equal(musicBatch[3].onConflict, "user_id,companion_id,provider_track_id");
+scope.db.from("memories").upsert(
+    {
+        summary: "scoped imported memory",
+        external_source_type: "supabase_memory",
+        external_source_id: "project:memory"
+    },
+    {
+        onConflict:
+            "user_id,companion_id,external_source_type,external_source_id"
+    }
+);
+assert.deepEqual(
+    log.find(
+        (entry) => entry[0] === "memories" && entry[1] === "upsert"
+    )?.[2],
+    {
+        summary: "scoped imported memory",
+        external_source_type: "supabase_memory",
+        external_source_id: "project:memory",
+        user_id: userId,
+        companion_id: companionId
+    }
+);
 assert.throws(
     () => scope.db.from("unknown_table"),
     /does not allow unscoped table/

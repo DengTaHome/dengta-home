@@ -1,0 +1,22 @@
+.diary-library { display:grid; gap:16px; min-width:0; }
+.story-chapters { color:var(--theme-ink); border:1px solid var(--theme-control-border); background:rgb(var(--theme-card-rgb) / .93); border-radius:20px; padding:18px; min-width:0; }
+.story-chapters summary { list-style:none; display:flex; justify-content:space-between; gap:12px; align-items:center; min-height:44px; cursor:pointer; overflow-wrap:anywhere; }
+.story-chapters summary::-webkit-details-marker { display:none; }
+.story-chapters summary small { display:block; color:var(--theme-muted); }
+.story-chapters summary strong { display:block; font-size:21px; }
+.story-chapters p { line-height:1.65; overflow-wrap:anywhere; }
+.story-chapters label { display:block; margin:12px 0 6px; font-weight:600; }
+.story-chapters input,.story-chapters textarea { box-sizing:border-box; width:100%; min-height:44px; background:rgb(var(--theme-card-rgb) / .9); color:inherit; border:1px solid var(--theme-control-border); border-radius:12px; padding:10px 12px; font:inherit; }
+.story-chapters textarea { resize:vertical; max-height:60dvh; }
+.story-chapter-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.story-book-export { align-items:center; padding-top:12px; border-top:1px solid var(--theme-control-border); }
+.story-book-export span { flex:1 1 180px; color:var(--theme-muted); font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.story-chapter-actions button,.story-chapter-undo button { min-height:44px; border:1px solid var(--theme-control-border); color:inherit; background:rgb(var(--theme-card-rgb) / .95); border-radius:12px; padding:8px 12px; cursor:pointer; font:inherit; }
+.story-chapters :is(button,input,textarea,summary):focus-visible { outline:2px solid var(--theme-accent); outline-offset:3px; }
+.story-chapters button:disabled { opacity:.55; cursor:default; }
+.story-chapter-feedback,.story-chapter-undo { background:rgb(var(--theme-accent-rgb) / .08); border-radius:12px; padding:12px; }
+.story-chapter-undo { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+.story-chapter-list { padding:0; list-style:none; display:grid; gap:12px; }
+.story-chapter-list li { border-top:1px solid var(--theme-control-border); padding-top:12px; min-width:0; }
+.story-chapters pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; line-height:1.75; max-height:45dvh; overflow:auto; padding:8px 0; }
+.story-chapter-empty { color:var(--theme-muted); }

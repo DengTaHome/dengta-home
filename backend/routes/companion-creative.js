@@ -5,6 +5,7 @@ const {
 } = require("../services/companion-creative");
 const {
     planCreativeArtwork,
+    publishArtworkMessage,
     scheduleCreativeCheck
 } = require("../services/tenant-companion-creative");
 const {
@@ -30,6 +31,21 @@ function sendCreativeError(res, error) {
         error: safe.code,
         code: safe.code,
         message: safe.message,
+        ...(safe.credential_state
+            ? { credential_state: safe.credential_state }
+            : {}),
+        ...(safe.credential_reentry_required === true
+            ? { credential_reentry_required: true }
+            : {}),
+        ...(safe.credential_scope
+            ? { credential_scope: safe.credential_scope }
+            : {}),
+        ...(safe.metadata_state
+            ? { metadata_state: safe.metadata_state }
+            : {}),
+        ...(safe.metadata_reentry_required === true
+            ? { metadata_reentry_required: true }
+            : {}),
         ...(safe.upstream_status
             ? { upstream_status: safe.upstream_status }
             : {})
@@ -110,9 +126,15 @@ function createCompanionCreativeRouter({
 
     router.get("/artworks", async (req, res) => {
         try {
+            const artworks = await req.creativeCenter.listArtworks();
+            const metadataRequiringReentry = artworks.filter(
+                (artwork) => artwork.metadata_state === "needs_reentry"
+            ).length;
             res.json({
                 ok: true,
-                artworks: await req.creativeCenter.listArtworks()
+                artworks,
+                metadata_reentry_required: metadataRequiringReentry > 0,
+                metadata_requiring_reentry: metadataRequiringReentry
             });
         } catch (error) {
             sendCreativeError(res, error);
@@ -242,15 +264,29 @@ function createCompanionCreativeRouter({
                 generateImmediately
             });
             let artwork = created.row;
+            let message = null;
             if (generateImmediately) {
                 artwork = await req.creativeCenter.generateArtwork(
                     artwork.id
                 );
+                if (
+                    artwork.visibility === "ordinary" &&
+                    artwork.state === "ready" &&
+                    artwork.storage_path
+                ) {
+                    message = await publishArtworkMessage({
+                        database: req.creativeScope.db,
+                        center: req.creativeCenter,
+                        artwork,
+                        now
+                    });
+                }
             }
             res.status(201).json({
                 ok: true,
                 created: true,
                 requires_confirmation: !generateImmediately,
+                message_id: message?.id || null,
                 artwork: req.creativeCenter.publicArtwork(artwork)
             });
         } catch (error) {
@@ -272,8 +308,27 @@ function createCompanionCreativeRouter({
             const artwork = await req.creativeCenter.generateArtwork(
                 req.params.id
             );
+            let message = null;
+            if (
+                ((artwork.visibility === "ordinary" &&
+                    artwork.state === "ready") ||
+                    (artwork.visibility === "surprise" &&
+                        artwork.state === "revealed")) &&
+                artwork.storage_path
+            ) {
+                message = await publishArtworkMessage({
+                    database: req.creativeScope.db,
+                    center: req.creativeCenter,
+                    artwork,
+                    surpriseReveal:
+                        artwork.visibility === "surprise" &&
+                        artwork.state === "revealed",
+                    now
+                });
+            }
             res.json({
                 ok: true,
+                message_id: message?.id || null,
                 artwork: req.creativeCenter.publicArtwork(artwork)
             });
         } catch (error) {

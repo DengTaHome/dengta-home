@@ -1,7 +1,38 @@
+const { readDiagnosticLog } = require("./services/diagnostic-log-reader");
+const { resolveCompressionThreshold } = require("./services/context-history");
+const { diagnosticRecord, publicDiagnosticLog, safeDiagnosticCode } = require("./services/diagnostic-errors");
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
+const { createAgentsMdStatusHandler, loadAgentsMdPreview } = require("./services/agents-md-status");
+const { loadOptionalChatContext } = require("./services/chat-optional-context");
+const {
+    resolveContextWindow: budgetResolveContextWindow,
+    adaptiveMessageLimit: budgetAdaptiveMessageLimit
+} = require("./services/context-budget");
+const { buildTriageContext } = require("./services/triage-router");
+const {
+    ingestPoint: whereaboutsIngestPoint,
+    getSnapshot: whereaboutsSnapshot,
+    getCurrentStay: whereaboutsCurrentStay,
+    getRecentStays: whereaboutsRecentStays,
+    getRecentMoves: whereaboutsRecentMoves,
+    getSummary: whereaboutsSummary
+} = require("./services/whereabouts");
+const {
+    writeTimelineDay: timelineWriteDay,
+    readTimelineDay: timelineReadDay,
+    listTimelineCategories: timelineListCategories,
+    listTimelineProposals: timelineListProposals
+} = require("./services/timeline");
+const {
+    listWorkspace,
+    readWorkspaceFile,
+    writeWorkspaceFile,
+    deleteWorkspaceFile
+} = require("./services/workspace");
+
 const { randomUUID } = require("crypto");
 const { version: appVersion } = require("./package.json");
 const { createClient } = require("@supabase/supabase-js");
@@ -58,7 +89,11 @@ const {
     speechCacheOptions,
     verifySpeechAccessToken
 } = require("./services/expressive-speech-access");
-const { listModels, resolveTurnModel } = require("./services/model-catalog");
+const {
+    listModels,
+    resolveConversationModel,
+    resolveTurnModel
+} = require("./services/model-catalog");
 const { normalizeChatBody } = require("./services/chat-request");
 const {
     messageReferenceRuntimeContext,
@@ -71,6 +106,7 @@ const {
 const {
     SELECT_COMPANION_STICKER_TOOL,
     companionStickerToolCalls,
+    createCompanionStickerTool,
     createCompanionStickerSelector
 } = require("./services/companion-stickers");
 const {
@@ -79,6 +115,7 @@ const {
     finalizeReplySuggestions,
     replySuggestionToolCalls
 } = require("./services/reply-suggestions");
+const { COMPANION_ACTIVITY_TOOL, createCompanionActivities } = require("./services/companion-activities");
 const {
     assertClientMessageConversation,
     chatGenerationInProgressError,
@@ -89,12 +126,8 @@ const {
     isClientMessageUniqueConflict
 } = require("./services/chat-idempotency");
 const {
-    applyProviderSettingPins,
-    isProductionDeployment,
-    providerSettingsForPersistence
-} = require("./services/provider-settings-policy");
-const {
     publicChatErrorCode,
+    publicChatErrorMetadata,
     publicChatErrorMessage,
     streamFailure,
     streamSuccess
@@ -136,18 +169,18 @@ const {
 const ombreDashboardRouter = require("./routes/ombre-dashboard");
 const { publicMcpConfig } = require("./services/ombre-mcp");
 const { createMcpConnectionsRouter } = require("./routes/mcp-connections");
+const { createExternalMemoryRouter } = require("./routes/external-memory");
 const {
     createMcpDeviceCenter,
     hasCredentialEncryption
 } = require("./services/mcp-device-center");
 const {
+    createExternalMemoryCenter
+} = require("./services/external-memory");
+const {
     createAiProviderCenter,
     publicRuntimeSettings
 } = require("./services/ai-provider-center");
-const {
-    normalizeReasoningEffort,
-    reasoningProtocolForProvider
-} = require("./services/provider-reasoning-effort");
 const { createAiProvidersRouter } = require("./routes/ai-providers");
 const {
     createCompanionCreativeCenter
@@ -161,24 +194,78 @@ const {
 } = require("./services/tenant-companion-creative");
 const { createWeatherRouter } = require("./routes/weather");
 const { createAccountRouter } = require("./routes/account");
+const { createAccountExportService } = require("./services/account-export");
 const { createV2CoreRouter } = require("./routes/v2/core");
 const { createV2ContentRouter } = require("./routes/v2/content");
+const { createContentImportsRouter } = require("./routes/v2/imports");
+const { createWorldBookRouter } = require("./routes/v2/world-book");
+const { resolveWorldBookContext } = require("./services/world-book-runtime");
+const { createEcosystemRouter } = require("./routes/v2/ecosystem");
+const { createMusicRouter } = require("./routes/v2/music");
+const { createNeteaseQrLoginService } = require("./services/netease-qr-login");
+const { createNeteaseCookieSessionService } = require("./services/netease-cookie-session");
+const { createMusicCookieRouter } = require("./routes/v2/music-cookie");
+const { createMusicUnderstandingService } = require("./services/music-understanding");
+const { loadListeningItem } = require("./services/listening-runtime-context");
+const { createBilibiliQrLoginService } = require("./services/bilibili-qr-login");
+const { createDeviceSignalsRouter } = require("./routes/device-signals");
+const { createTakeoutRouter } = require("./routes/takeout");
+const { createTakeoutChannel } = require("./services/takeout-channel");
+const { createSpecialDatesService } = require("./services/special-dates");
+const { createSpecialDatesRouter } = require("./routes/v2/special-dates");
+const { createDailyShotsService } = require("./services/daily-shots");
+const { createAchievementsService } = require("./services/achievements");
+const { createFunLabsService } = require("./services/fun-labs");
+const { createFunLabsRouter } = require("./routes/v2/fun-labs");
+const { createXhsClient, extractXhsId } = require("./services/xhs-client");
+const { createWebExplorer } = require("./services/web-explorer");
+const { createStyleDistillService } = require("./services/style-distill");
+const { createInterestEngine } = require("./services/interest-engine");
+const { createStyleDistillRouter } = require("./routes/v2/style-distill");
+const { createXhsRouter } = require("./routes/v2/xhs");
+const { visionConfig, visionConfigured } = require("./services/vision-describe");
+const { createPrivateMediaRouter } = require("./routes/v2/private-media");
+const { knowledgeFileTexts, listActiveCustomStickers } = require("./services/private-media");
+const { createWorkspaceRouter } = require("./routes/v2/workspace");
 const { createNurseryRouter } = require("./routes/nursery");
 const { createIntimateDuelRouter } = require("./routes/intimate-duel");
 const { handleNurseryEvent } = require("./services/nursery-events");
 const { createChatSkinRouter } = require("./routes/chat-skin");
 const { createCoWatchRouter } = require("./routes/co-watch");
+const { createCoWatchRoomRouter, createJoinInfoHandler } = require("./routes/co-watch-rooms");
+const { createCastReceiverRouter } = require("./routes/cast-receiver");
+const { createReceiverService } = require("./services/cast-receiver");
+const {
+    safeLoadListeningRuntimeContext
+} = require("./services/listening-runtime-context");
+const { createVoiceOutputRouter } = require("./routes/voice-output");
+const {
+    createWebMirrorAssetRouter,
+    createWebMirrorFontRouter,
+    createWebMirrorRouter
+} = require("./routes/web-mirror");
+const {
+    createVoiceProviderCenter
+} = require("./services/voice-provider-center");
 const {
     booleanEnv,
     createAuthContextMiddleware
 } = require("./services/auth-context");
 const {
-    publicStoredSettings,
+    providerCenterBaseSettings,
+    stripLegacyProviderFields,
     updateStoredSettings
 } = require("./services/settings-store");
 const {
-    createTenantDatabase
+    createTenantDatabase,
+    requireRequestScope
 } = require("./services/request-scope");
+const {
+    importMemories,
+    importMemoryFile,
+    reportChatTurn,
+    checkKiwiMemoryHealth
+} = require("./services/kiwi-memory-client");
 const {
     createBackgroundJobWorker
 } = require("./services/background-job-worker");
@@ -261,6 +348,7 @@ const expressiveSpeechRateLimitState = createVoiceRateLimitState({
 const expressiveSpeechCache = createExpressiveSpeechCache(
     speechCacheOptions(process.env)
 );
+const castReceiver = createReceiverService();
 
 app.set("trust proxy", 1);
 
@@ -443,6 +531,8 @@ const allowedOrigins = new Set(
         "http://127.0.0.1:5173",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        "http://localhost:4174",
+        "http://127.0.0.1:4174",
         "https://localhost",
         "capacitor://localhost",
         ...(process.env.FRONTEND_URL || "")
@@ -452,6 +542,9 @@ const allowedOrigins = new Set(
     ]
 );
 
+app.use("/web", createWebMirrorRouter());
+app.use("/assets", createWebMirrorAssetRouter());
+app.use("/fonts", createWebMirrorFontRouter());
 app.use(
     cors({
         origin(origin, callback) {
@@ -466,6 +559,7 @@ app.use(
         },
         exposedHeaders: [
             "X-DengTa-Voice-Provider",
+            "X-DengTa-Voice-Model",
             "X-DengTa-Voice-Emotion",
             "X-DengTa-Voice-Cache",
             "X-DengTa-Companion-Id"
@@ -476,18 +570,225 @@ app.use("/api/weather", createWeatherRouter());
 app.post("/internal/background-jobs/tick", backgroundJobTrigger);
 app.use(express.json({ limit: "30mb" }));
 app.use(
+    "/api/v2/cast",
+    createCastReceiverRouter({
+        receiver: castReceiver,
+        validateMediaUrl: require("./services/direct-media-url").validateDirectMediaUrl,
+        encryptMediaUrl: castReceiver.encryptMediaUrl,
+        database: supabase,
+        includeControl: false
+    })
+);
+// 公开的 B 站解析/流代理：必须挂在认证中间件之前，<video> 等无法携带 Bearer 头的请求才能取流。
+app.use(
+    "/api/v2/co-watch",
+    require("./routes/public-bilibili").createPublicBilibiliRouter()
+);
+// 邀请预览只返回摘要，必须在全局登录校验前注册。
+app.get("/api/v2/co-watch/rooms/join-info", createJoinInfoHandler(supabase));
+app.use(
     createAuthContextMiddleware({
         adminSupabase: supabase,
         authRequired,
         initialOwnerEmail: process.env.INITIAL_OWNER_EMAIL || ""
     })
 );
-app.use("/api/account", createAccountRouter());
+app.use("/api/account", createAccountRouter({
+    exportService: createAccountExportService({ database: supabase, supabaseUrl, supabaseKey: supabaseSecretKey })
+}));
+app.post("/internal/memory/compress", async (req, res, next) => {
+    try {
+        const scope = requireRequestScope(req);
+        const conversationId = cleanText(req.body?.conversation_id, 80);
+        if (!isUuid(conversationId)) {
+            return res.status(400).json({ message: "会话编号格式不正确。" });
+        }
+        const settings = await getSettings(scope.db);
+        const result = await compressMemoryIfNeeded(
+            conversationId,
+            settings,
+            scope.db
+        );
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+});
+app.get("/api/errors", async (req, res, next) => {
+    try {
+        const scope = requireRequestScope(req);
+        const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+        const { data, error } = await scope.db
+            .from("chat_error_logs")
+            .select(
+                "id, created_at, path, method, error_code, message, error_source, provider_phase, provider_code, upstream_status, stack_trace, conversation_id, request_summary"
+            )
+            .order("created_at", { ascending: false })
+            .limit(limit);
+        if (error) throw error;
+        res.json({ logs: (data || []).map(publicDiagnosticLog) });
+    } catch (error) {
+        next(error);
+    }
+});
+app.get("/api/errors/:logId", async (req, res, next) => {
+    try {
+        const scope = requireRequestScope(req);
+        res.json({ log: await readDiagnosticLog(scope.db, req.params.logId) });
+    } catch (error) {
+        next(error);
+    }
+});
+const memoryImportUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { files: 1, fileSize: 20 * 1024 * 1024 }
+});
+app.post("/api/v2/memory/import", async (req, res, next) => {
+    try {
+        const scope = requireRequestScope(req);
+        const tenant = { userId: scope.userId, companionId: scope.companionId };
+        const result = await importMemories({
+            memories: Array.isArray(req.body?.memories) ? req.body.memories : [],
+            tenant
+        });
+        const feedback = require("./services/memory-import-feedback").memoryImportFeedback(result);
+        if (feedback.body.ok !== true) throw Object.assign(new Error(feedback.body.message), { status: feedback.status, code: feedback.body.code, errorSource: feedback.body.error_source, upstreamStatus: feedback.body.upstream_status });
+        res.json(feedback.body);
+    } catch (error) {
+        next(error);
+    }
+});
+app.post("/api/v2/memory/import-history", async (req, res, next) => {
+    try {
+        const scope = requireRequestScope(req);
+        const database = scope.db;
+        const MAX_MESSAGES = 5000;
+        // 读取该账号全部历史对话（旧版记忆系统上线前的聊天内容）
+        const { data: history, error } = await database
+            .from("messages")
+            .select("role, content, conversation_id, created_at")
+            .in("role", ["user", "assistant"])
+            .order("created_at", { ascending: true })
+            .limit(MAX_MESSAGES);
+        if (error) throw error;
+        if (!Array.isArray(history) || history.length === 0) {
+            return res.json({ ok: true, imported: 0, skipped: 0, total: 0, mode: "empty", file: "history.txt", text_len: 0, message_count: 0 });
+        }
+        // 按会话分组组装文本
+        const byConversation = {};
+        for (const m of history) {
+            const key = String(m.conversation_id || "general");
+            (byConversation[key] = byConversation[key] || []).push(m);
+        }
+        const parts = [];
+        for (const [convId, msgs] of Object.entries(byConversation)) {
+            const convLines = ["【对话 " + String(convId).slice(0, 8) + "】"];
+            for (const m of msgs) {
+                const speaker = m.role === "user" ? "你" : "伴侣";
+                convLines.push(speaker + "：" + String(m.content || "").replace(/[\r\n]+/g, " ").slice(0, 800));
+            }
+            parts.push(convLines.join("\n"));
+        }
+        const text = parts.join("\n\n").slice(0, 300000);
+        const result = await importMemoryFile({
+            filename: "history.txt",
+            fileBuffer: Buffer.from(text, "utf8"),
+            fileType: "text/plain",
+            tenant: { userId: scope.userId, companionId: scope.companionId }
+        });
+        const feedback = require("./services/memory-import-feedback").memoryImportFeedback(result);
+        if (feedback.body.ok !== true) throw Object.assign(new Error(feedback.body.message), {status:feedback.status, code:feedback.body.code, errorSource:feedback.body.error_source, upstreamStatus:feedback.body.upstream_status});
+        res.json({
+            ...feedback.body,
+            message_count: history.length
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+app.post("/api/v2/memory/import-file", (req, res, next) => {
+    memoryImportUpload.single("file")(req,res,error=>{
+        if (error) {error.status=error.code==="LIMIT_FILE_SIZE"?413:400;error.code=error.status===413?"memory_import_file_too_large":"memory_import_file_invalid";}
+        next(error);
+    });
+}, async (req, res, next) => {
+    try {
+        const scope = requireRequestScope(req);
+        if (!req.file || !Buffer.isBuffer(req.file.buffer)) {
+            return res.status(400).json({ message: "请选择要导入的文件。" });
+        }
+        const result = await importMemoryFile({
+            filename: req.file.originalname || "import.txt",
+            fileBuffer: req.file.buffer,
+            fileType: req.file.mimetype || "application/octet-stream",
+            tenant: { userId: scope.userId, companionId: scope.companionId }
+        });
+        const feedback = require("./services/memory-import-feedback").memoryImportFeedback(result);
+        if (feedback.body.ok !== true) throw Object.assign(new Error(feedback.body.message), {status:feedback.status, code:feedback.body.code, errorSource:feedback.body.error_source, upstreamStatus:feedback.body.upstream_status});
+        res.status(feedback.status).json(feedback.body);
+    } catch (error) {
+        next(error);
+    }
+});
+app.use("/api/v2/imports", createContentImportsRouter());
+app.use("/api/v2/world-book", createWorldBookRouter());
+app.use("/api/v2/ecosystem", createEcosystemRouter());
+const neteaseCookieSession = createNeteaseCookieSessionService({ database: supabase });
+const neteaseQrLogin = createNeteaseQrLoginService({ database: supabase, cookieSession: neteaseCookieSession });
+const interestEngine = createInterestEngine({
+    database: supabase,
+    explorer: createWebExplorer()
+});
+const musicUnderstanding = createMusicUnderstandingService({
+    database: supabase,
+    getSettings,
+    qrLoginService: neteaseQrLogin
+});
+app.use("/api/v2/music", createMusicCookieRouter({ neteaseCookie: neteaseCookieSession, storage: supabase.storage }));
+app.use("/api/v2/music", createMusicRouter({ mcpDeviceCenter, neteaseQr: neteaseQrLogin, musicUnderstanding, storage: supabase.storage, neteaseCookie: neteaseCookieSession }));
+app.use("/api/v2/device", createDeviceSignalsRouter({ getSettings: (database) => getSettings(database) }));
+app.use("/api/v2/takeout", createTakeoutRouter({ channel: createTakeoutChannel({ database: supabase }) }));
+app.use("/api/v2/special-dates", createSpecialDatesRouter({ dates: createSpecialDatesService({ database: supabase }) }));
+app.use(
+    "/api/v2/fun-labs",
+    createFunLabsRouter({
+        dailies: createDailyShotsService({ database: supabase }),
+        achievements: createAchievementsService({ database: supabase }),
+        funLabs: createFunLabsService({ database: supabase }),
+        interestEngine
+    })
+);
+app.use(
+    "/api/v2/xhs",
+    createXhsRouter({ client: createXhsClient(), database: supabase })
+);
+app.use(
+    "/api/v2/style-distill",
+    createStyleDistillRouter({
+        service: createStyleDistillService({
+            generateReplyImpl: generateReply,
+            getSettingsImpl: (database) => getSettings(database)
+        })
+    })
+);
+app.use("/api/v2/private-media", createPrivateMediaRouter({ storage: supabase.storage }));
+app.use(
+    "/api/v2/workspace",
+    createWorkspaceRouter({
+        storage: supabase.storage,
+        getSettings: (database) => getSettings(database)
+    })
+);
 app.use(
     "/api/v2",
-    createV2CoreRouter({ storage: supabase.storage })
+    createV2CoreRouter({
+        storage: supabase.storage,
+        getSettings: (database) => getSettings(database),
+        resolveTurnModel
+    })
 );
 app.use("/api/v2/nursery", createNurseryRouter());
+app.use("/api/v2/voice-output", createVoiceOutputRouter());
 app.use(
     "/api/v2/intimate-duel",
     createIntimateDuelRouter({
@@ -518,37 +819,57 @@ app.use(
         generateReply
     })
 );
+const bilibiliQrLogin = createBilibiliQrLoginService({ database: supabase });
 app.use(
     "/api/v2/co-watch",
     createCoWatchRouter({
+        receiver: castReceiver,
+        bilibiliQr: bilibiliQrLogin,
+        interestEngine,
+        validateMediaUrl: require("./services/direct-media-url").validateDirectMediaUrl,
+        validatePageUrl: require("./services/page-embed").validateCoWatchPageUrl,
+        encryptMediaUrl: castReceiver.encryptMediaUrl,
         getSettings: (database) => getSettings(database),
         loadChatContext: (conversationId, settings, database) =>
             loadChatContext(conversationId, settings, database),
         generateReply,
+        resolveWorldBookContext,
         saveMessage,
         touchConversation
     })
 );
 app.use(
+    "/api/v2/co-watch",
+    createCoWatchRoomRouter({ database: supabase })
+);
+app.use(
     "/api/v2",
     createV2ContentRouter({
         storage: supabase.storage,
-        readSettings: (scope) =>
-            publicStoredSettings(scope.db, process.env),
-        saveSettings: async (scope, body) =>
-            publicRuntimeSettings(
-                await updateStoredSettings(
-                    scope.db,
-                    body,
-                    process.env
-                )
-            )
+        // Provider profiles are the only chat-provider source. The settings
+        // row stores companion preferences, not an alternate provider route.
+        readSettings: async (scope) =>
+            publicRuntimeSettings(await getSettings(scope.db)),
+        saveSettings: async (scope, body) => {
+            await updateStoredSettings(
+                scope.db,
+                stripLegacyProviderFields(body)
+            );
+            return publicRuntimeSettings(await getSettings(scope.db));
+        }
     })
 );
 app.use("/api/ombre", ombreDashboardRouter);
 app.use(
     "/api/mcp/connections",
     createMcpConnectionsRouter({ center: mcpDeviceCenter })
+);
+app.use(
+    "/api/external-memory",
+    createExternalMemoryRouter({
+        createCenter: (scope) =>
+            createExternalMemoryCenter({ database: scope.db })
+    })
 );
 app.use(
     "/api/ai-providers",
@@ -569,9 +890,9 @@ const defaultSettings = {
     model: "",
     reasoning_effort: "",
     temperature: 0.7,
-    context_turns: 20,
-    max_tokens: 2048,
-    compression_threshold: 12000,
+    context_turns: 0,
+    max_tokens: 0,
+    compression_threshold: 8000,
     compression_keep: 20,
     timezone: "Asia/Shanghai",
     push_enabled: false,
@@ -601,6 +922,271 @@ const PUBLIC_MOMENT_COMMENT_FIELDS = [
     "seen_at",
     "created_at"
 ].join(",");
+const WHEREABOUTS_SNAPSHOT_TOOL = Object.freeze({
+    name: "whereabouts_snapshot",
+    description: [
+        "获取当前行踪完整快照：现在在哪里、停留了多久、电量能撑多久（当前停留、最近停留、最近移动、电量趋势）。",
+        "可选参数：stayLimit（默认5）、moveLimit（默认5）、batteryBucketMinutes（默认5）。",
+        "用户上报过位置后才会有数据；没有数据时如实说明。"
+    ].join(" "),
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "stayLimit": {
+                "type": "number",
+                "description": "停留条数，默认5"
+            },
+            "moveLimit": {
+                "type": "number",
+                "description": "移动条数，默认5"
+            },
+            "batteryBucketMinutes": {
+                "type": "number",
+                "description": "电量分桶分钟，默认5"
+            }
+        },
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const WHEREABOUTS_CURRENT_STAY_TOOL = Object.freeze({
+    name: "whereabouts_current_stay",
+    description: "获取当前停留点：位置、地点标签（home/work）、停留时长、电量。",
+    input_schema: {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const WHEREABOUTS_RECENT_STAYS_TOOL = Object.freeze({
+    name: "whereabouts_recent_stays",
+    description: "获取最近停留历史。可选参数：limit（默认20）。",
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "limit": {
+                "type": "number",
+                "description": "条数，默认20"
+            }
+        },
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const WHEREABOUTS_RECENT_MOVES_TOOL = Object.freeze({
+    name: "whereabouts_recent_moves",
+    description: "回溯最近的移动路径（明显移动事件）。可选参数：limit（默认20）。",
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "limit": {
+                "type": "number",
+                "description": "条数，默认20"
+            }
+        },
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const WHEREABOUTS_SUMMARY_TOOL = Object.freeze({
+    name: "whereabouts_summary",
+    description: "按 day/week/month 汇总行踪、电量和移动状态。可选参数：range（默认day）、batteryBucketMinutes（默认5）。",
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "range": {
+                "type": "string",
+                "description": "day/week/month，默认day"
+            },
+            "batteryBucketMinutes": {
+                "type": "number"
+            }
+        },
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const TIMELINE_WRITE_TOOL = Object.freeze({
+    name: "timeline_write",
+    description: [
+        "把用户当天（或某一天）的生活事件写入时间轴，形成可回顾的一天。",
+        "触发时机：用户明确提到自己开始/结束某个活动（吃饭、睡觉、出门、工作、运动、看剧、就医、通勤等）或描述某段经历时，主动记录。",
+        "参数：date 必填（YYYY-MM-DD，用户当地日期，跨天事件不行——睡眠跨过 00:00 必须拆成两段）；events 事件数组，每项含 startAt（必填，ISO 8601，如 2026-05-08T15:00:00+08:00）、endAt（可选，缺省按 30 分钟）、title（必填）、eventNodeId（可选，先用 timeline_categories 查）、subcategoryId（可选）、note（可选）、tags（可选）。",
+        "mode：merge（默认，按事件 id 合并，当天已有事件保留）或 replace（整日覆盖）；finalize=true 标记当天为最终版；dropEventIds 可删除已有事件。",
+        "不确定分类时先调用 timeline_categories；不要编造事件，只记录用户实际提到的内容。"
+    ].join(" "),
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "date": {
+                "type": "string",
+                "description": "YYYY-MM-DD（必填）"
+            },
+            "mode": {
+                "type": "string",
+                "description": "merge/replace，默认merge"
+            },
+            "events": {
+                "type": "array",
+                "description": "事件数组：{startAt,endAt,title,eventNodeId,note}"
+            },
+            "finalize": {
+                "type": "boolean"
+            },
+            "dropEventIds": {
+                "type": "array"
+            }
+        },
+        "required": [
+            "date"
+        ],
+        "additionalProperties": false
+    }
+});
+const TIMELINE_READ_TOOL = Object.freeze({
+    name: "timeline_read",
+    description: "读取某一天的时间轴事件。参数：date 必填（YYYY-MM-DD）。用于回顾用户某天做了什么、或修改前先查看当天已有事件。",
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "date": {
+                "type": "string",
+                "description": "YYYY-MM-DD（必填）"
+            }
+        },
+        "required": [
+            "date"
+        ],
+        "additionalProperties": false
+    }
+});
+const TIMELINE_CATEGORIES_TOOL = Object.freeze({
+    name: "timeline_categories",
+    description: "列出时间轴全部分类（生活/工作/学习/运动/娱乐/健康/社交/照顾/出行/休息）与常用事件节点（含别名）。写事件前不确定分类时先查这个。",
+    input_schema: {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const TIMELINE_PROPOSALS_TOOL = Object.freeze({
+    name: "timeline_proposals",
+    description: "查看时间轴的新事件节点提案（provisional 节点来源）。可选参数：date（YYYY-MM-DD）只查某天。",
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "date": {
+                "type": "string"
+            }
+        },
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const AGENTS_MD_READ_TOOL = Object.freeze({
+    name: "agents_md_read",
+    description: [
+        "读取当前用户的 agents.md 设置预览（个性化指令与近期已确认记忆；不包含本轮相关记忆检索及知识文件，不是实际生成回执）。",
+        "当用户要求读取/核对 agents.md、问你是否读过 agents.md 时，调用本工具获取最新全文，再如实回答。"
+    ].join(" "),
+    input_schema: {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const WORKSPACE_LIST_TOOL = Object.freeze({
+    name: "workspace_list",
+    description: "列出用户工作区目录内容（文件名/类型/大小）。可选参数：path（子目录，默认根目录）。工作区是你和用户共用的文件空间。",
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "目录路径，默认根"
+            }
+        },
+        "required": [],
+        "additionalProperties": false
+    }
+});
+const WORKSPACE_READ_TOOL = Object.freeze({
+    name: "workspace_read",
+    description: "读取用户工作区中的文件内容（文本）。参数：path 必填（如 notes.txt、projects/app.js、agents.md）。",
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "文件路径（必填）"
+            }
+        },
+        "required": [
+            "path"
+        ],
+        "additionalProperties": false
+    }
+});
+const WORKSPACE_WRITE_TOOL = Object.freeze({
+    name: "workspace_write",
+    description: [
+        "在用户工作区中创建或覆盖文件（文本，上限 5MB）。参数：path 必填、content 必填。",
+        "适合：用户要求写代码、写笔记、保存清单、修改 agents.md 等任何文件操作。"
+    ].join(" "),
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "文件路径（必填）"
+            },
+            "content": {
+                "type": "string",
+                "description": "文件内容（必填）"
+            },
+            "mode": {
+                "type": "string",
+                "description": "overwrite（默认，覆盖写）或 append（追加到末尾，不覆盖原内容）"
+            },
+            "confirm": {
+                "type": "boolean",
+                "description": "覆盖已存在文件时必须为 true（需用户先明确同意）；新建文件可不传"
+            }
+        },
+        "required": [
+            "path",
+            "content"
+        ],
+        "additionalProperties": false
+    }
+});
+const WORKSPACE_DELETE_TOOL = Object.freeze({
+    name: "workspace_delete",
+    description: [
+        "删除用户工作区中的文件。参数：path 必填。",
+        "必须先征得用户明确同意，用户同意后才可把 confirm 设为 true 调用；未确认时工具会返回 confirmation_required。"
+    ].join(" "),
+    input_schema: {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "文件路径（必填）"
+            },
+            "confirm": {
+                "type": "boolean",
+                "description": "用户已明确同意删除时传 true"
+            }
+        },
+        "required": [
+            "path"
+        ],
+        "additionalProperties": false
+    }
+});
 const POST_MOMENT_TOOL = {
     name: "post_moment",
     description: [
@@ -626,6 +1212,550 @@ const POST_MOMENT_TOOL = {
         additionalProperties: false
     }
 };
+
+const TAKEOUT_TOOL = {
+    name: "takeout_order",
+    description: [
+        "帮用户点外卖（两步式）。第一步 action=search：把需求转成搜索关键词，",
+        "返回外卖平台店铺列表（含名称/起送费/配送费/评分/距离/价格区间），",
+        "然后你根据用户要求（如预算/评分/免配送费）自己挑出最合适或最便宜的一家；",
+        "第二步 action=order：指定店名与商品名下单（App 会加购并进入结算页，",
+        "付款必须用户在手机页面人工确认）。工具会等待每一步的执行结果；",
+        "拿到结果后结合你们的关系、当前情绪与个性化指令自然回复（可温柔调侃，如深夜吃夜宵）。",
+        "一次聊天请求每个 action 最多各发一条。"
+    ].join(""),
+    input_schema: {
+        type: "object",
+        properties: {
+            action: {
+                type: "string",
+                description: "search=搜索店铺（先做这个拿列表挑店）；order=按店名与商品下单。"
+            },
+            requirement: {
+                type: "string",
+                description: "search：搜索关键词（品类/店名/口味）。order：要买的商品名或品类（如“冰美式 大杯”）。"
+            },
+            shop_name: {
+                type: "string",
+                description: "order 必填：从搜索列表里挑出的店铺名。"
+            },
+            quantity: {
+                type: "number",
+                description: "order 可选：份数（默认 1）。"
+            },
+            budget_max: {
+                type: "number",
+                description: "可选：用户给出的预算上限（元）。"
+            },
+            note: {
+                type: "string",
+                description: "可选：给执行端的备注（如忌口、加急等）。"
+            },
+            max_wait_seconds: {
+                type: "number",
+                description: "可选：等待手机执行的秒数（60-240，默认 120）。"
+            }
+        },
+        required: ["action", "requirement"],
+        additionalProperties: false
+    }
+};
+
+const SPECIAL_DATE_ADD_TOOL = {
+    name: "special_date_add",
+    description: [
+        "帮用户保存一个特殊日子：纪念日（kind=anniversary，如在一起纪念日、生日，默认每年重复提醒）",
+        "或追番/追剧日历（kind=show，填下一次更新的日期与集数）。保存后 AI 会在当天或临近时主动庆祝/提醒。"
+    ].join(""),
+    input_schema: {
+        type: "object",
+        properties: {
+            kind: { type: "string", description: "anniversary=纪念日；show=追番/追剧。" },
+            title: { type: "string", description: "日子名称，如“在一起纪念日”“她的生日”“鬼灭之刃”。" },
+            date: { type: "string", description: "日期，格式 YYYY-MM-DD（例如 2025-12-29）。纪念日填首次发生日期，show 填下次更新日期。用户说中文日期（如2025年12月29日）时，先转成 YYYY-MM-DD 再调用。" },
+            description: { type: "string", description: "可选：备注，如礼物想法、观看平台。" },
+            next_episode: { type: "string", description: "show 可选：下次更新的集数，如“第8集”。" },
+            reminder_days: { type: "number", description: "纪念日可选：提前几天提醒（0-30，默认当天）。" }
+        },
+        required: ["kind", "title", "date"],
+        additionalProperties: false
+    }
+};
+
+const SPECIAL_DATE_LIST_TOOL = {
+    name: "special_date_list",
+    description: "查看用户保存的特殊日子（纪念日与追番日历）。用户问“我有哪些纪念日/追番日历”时调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            kind: { type: "string", description: "可选：anniversary 只看纪念日；show 只看追番；不填看全部。" }
+        },
+        required: [],
+        additionalProperties: false
+    }
+};
+
+const SPECIAL_DATE_REMOVE_TOOL = {
+    name: "special_date_remove",
+    description: "删除一条用户保存的特殊日子。",
+    input_schema: {
+        type: "object",
+        properties: {
+            id: { type: "string", description: "要删除的特殊日子编号（从列表结果里取）。" }
+        },
+        required: ["id"],
+        additionalProperties: false
+    }
+};
+
+const DAILY_SHOT_ADD_TOOL = {
+    name: "daily_shot_add",
+    description: "把用户今天发的照片记入每日一拍（一天一张，带一句话备注）。用户分享今日照片并想留念时调用；同一天重复调用会覆盖备注。",
+    input_schema: {
+        type: "object",
+        properties: {
+            note: { type: "string", description: "一句备注，如照片内容或当天心情。" }
+        },
+        required: [],
+        additionalProperties: false
+    }
+};
+
+const ACHIEVEMENTS_LIST_TOOL = {
+    name: "achievements_list",
+    description: "查看隐藏成就清单与解锁进度。用户问“成就/解锁了什么/成就系统”时调用。",
+    input_schema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false
+    }
+};
+
+const DANMAKU_READ_TOOL = {
+    name: "danmaku_read",
+    description: "读取B站视频的弹幕样本，用于弹幕共读：结合视频标题像一起看弹幕的朋友一样吐槽、接梗。用户给 bvid（BV开头）或要求共读弹幕时调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            bvid: { type: "string", description: "B站视频编号（BV开头），从用户给的链接里提取。" }
+        },
+        required: ["bvid"],
+        additionalProperties: false
+    }
+};
+
+const COMPATIBILITY_RECORD_TOOL = {
+    name: "compatibility_record",
+    description: "存档一次默契度挑战的总分与点评，返回历史最好分与平均分。默契度挑战结束时调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            score: { type: "number", description: "总分（0-100）。" },
+            comment: { type: "string", description: "一句话点评或总结。" }
+        },
+        required: ["score"],
+        additionalProperties: false
+    }
+};
+
+
+const ACHIEVEMENT_DEFINE_TOOL = {
+    name: "achievement_define",
+    description: "为用户新建一条自定义成就（用户和 AI 一起完成的目标，如“一起看 100 部电影”）。用户说“加个成就/定个小目标/新建成就”时调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            title: { type: "string", description: "成就名称，简短有趣。" },
+            description: { type: "string", description: "完成条件或一句话说明。" },
+            emoji: { type: "string", description: "可选：成就图标 emoji。" },
+            category: { type: "string", description: "可选：分类名。" }
+        },
+        required: ["title"],
+        additionalProperties: false
+    }
+};
+
+const ACHIEVEMENT_UNLOCK_TOOL = {
+    name: "achievement_unlock",
+    description: "解锁一条自定义成就（当你们一起完成了目标时调用，例如“AI 画出了第一幅画”）。系统成就会自动解锁，无需调用本工具。",
+    input_schema: {
+        type: "object",
+        properties: {
+            code: { type: "string", description: "成就编号（custom: 开头，从成就列表里取）。" }
+        },
+        required: ["code"],
+        additionalProperties: false
+    }
+};
+
+
+const XHS_ME_TOOL = {
+    name: "xhs_me",
+    description: "查看用户小红书账号的登录状态。",
+    input_schema: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false
+    }
+};
+
+const XHS_SEARCH_TOOL = {
+    name: "xhs_search",
+    description: "用用户的小红书账号搜索笔记（帮用户刷小红书、找内容）。返回笔记标题/作者/点赞数等摘要。",
+    input_schema: {
+        type: "object",
+        properties: {
+            keyword: { type: "string", description: "搜索关键词或品类。" },
+            page: { type: "number", description: "可选：页码，默认 1。" }
+        },
+        required: ["keyword"],
+        additionalProperties: false
+    }
+};
+
+const XHS_LIKE_TOOL = {
+    name: "xhs_like",
+    description: "用用户的小红书账号给一篇笔记点赞。会操作用户真实账号，必须先征得用户明确同意，用户同意后才可把 confirmed 设为 true 调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            note_url: { type: "string", description: "笔记链接或笔记 id。" },
+            confirmed: { type: "boolean", description: "用户已明确同意点赞时传 true。" }
+        },
+        required: ["note_url", "confirmed"],
+        additionalProperties: false
+    }
+};
+
+const XHS_COMMENT_TOOL = {
+    name: "xhs_comment",
+    description: "用用户的小红书账号给一篇笔记发评论。会操作用户真实账号，必须先征得用户明确同意，用户同意后才可把 confirmed 设为 true 调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            note_url: { type: "string", description: "笔记链接或笔记 id。" },
+            content: { type: "string", description: "评论内容（友好、自然，不超过 200 字）。" },
+            confirmed: { type: "boolean", description: "用户已明确同意发这条评论时传 true。" }
+        },
+        required: ["note_url", "content", "confirmed"],
+        additionalProperties: false
+    }
+};
+
+const XHS_FOLLOW_TOOL = {
+    name: "xhs_follow",
+    description: "用用户的小红书账号关注一个用户。会操作用户真实账号，必须先征得用户明确同意，用户同意后才可把 confirmed 设为 true 调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            user_url: { type: "string", description: "用户主页链接或用户 id。" },
+            confirmed: { type: "boolean", description: "用户已明确同意关注时传 true。" }
+        },
+        required: ["user_url", "confirmed"],
+        additionalProperties: false
+    }
+};
+
+
+const CLOUD_MUSIC_SEARCH_TOOL = {
+    name: "cloud_music_search",
+    description: "搜索网易云音乐（歌曲/专辑/歌手/歌单）。使用用户已登录的网易云账号。",
+    input_schema: {
+        type: "object",
+        properties: {
+            keyword: { type: "string", description: "搜索关键词。" },
+            category: { type: "string", description: "song=歌曲（默认）album=专辑 artist=歌手 playlist=歌单。" },
+            limit: { type: "number", description: "可选：返回条数，默认 10，最多 30。" }
+        },
+        required: ["keyword"],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_DAILY_TOOL = {
+    name: "cloud_music_get_daily_recommend",
+    description: "获取用户网易云账号的今日推荐歌曲（需要已登录网易云）。",
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false }
+};
+
+const CLOUD_MUSIC_PLAYLIST_DETAIL_TOOL = {
+    name: "cloud_music_playlist_detail",
+    description: "获取网易云歌单详情及歌单内歌曲列表。",
+    input_schema: {
+        type: "object",
+        properties: { playlist_id: { type: "string", description: "歌单编号。" } },
+        required: ["playlist_id"],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_CREATE_PLAYLIST_TOOL = {
+    name: "cloud_music_create_playlist",
+    description: "在用户网易云账号里创建新歌单。",
+    input_schema: {
+        type: "object",
+        properties: {
+            name: { type: "string", description: "歌单名称。" },
+            privacy: { type: "boolean", description: "可选：true=设为隐私歌单。" }
+        },
+        required: ["name"],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_ADD_TO_PLAYLIST_TOOL = {
+    name: "cloud_music_add_to_playlist",
+    description: "把歌曲批量加入用户网易云歌单。",
+    input_schema: {
+        type: "object",
+        properties: {
+            playlist_id: { type: "string", description: "歌单编号。" },
+            track_ids: { type: "array", items: { type: "string" }, description: "歌曲编号数组。" }
+        },
+        required: ["playlist_id", "track_ids"],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_ALBUM_INFO_TOOL = {
+    name: "cloud_music_album_info",
+    description: "获取网易云专辑详情与歌曲列表。",
+    input_schema: {
+        type: "object",
+        properties: { album_id: { type: "string", description: "专辑编号。" } },
+        required: ["album_id"],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_ARTIST_INFO_TOOL = {
+    name: "cloud_music_artist_info",
+    description: "获取网易云歌手详情与热门歌曲 Top10。",
+    input_schema: {
+        type: "object",
+        properties: { artist_id: { type: "string", description: "歌手编号。" } },
+        required: ["artist_id"],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_SUBSCRIPTIONS_TOOL = {
+    name: "cloud_music_my_subscriptions",
+    description: "获取用户网易云收藏的歌手或专辑列表。",
+    input_schema: {
+        type: "object",
+        properties: { category: { type: "string", description: "artists=歌手（默认）albums=专辑。" } },
+        required: [],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_LIKE_TOOL = {
+    name: "cloud_music_like_song",
+    description: "给网易云歌曲点红心或取消红心。",
+    input_schema: {
+        type: "object",
+        properties: {
+            song_id: { type: "string", description: "歌曲编号。" },
+            like: { type: "boolean", description: "true=点红心 false=取消红心。" }
+        },
+        required: ["song_id"],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_HISTORY_TOOL = {
+    name: "cloud_music_play_history",
+    description: "获取用户网易云最近听歌记录。",
+    input_schema: {
+        type: "object",
+        properties: { limit: { type: "number", description: "可选：条数，默认 20，最多 50。" } },
+        required: [],
+        additionalProperties: false
+    }
+};
+
+const CLOUD_MUSIC_MY_PLAYLISTS_TOOL = {
+    name: "cloud_music_my_playlists",
+    description: "列出用户网易云账号里的全部歌单（自建的和收藏的）。",
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false }
+};
+
+const CLOUD_MUSIC_REMOVE_FROM_PLAYLIST_TOOL = {
+    name: "cloud_music_remove_from_playlist",
+    description: "把歌曲从用户网易云歌单里移除。",
+    input_schema: {
+        type: "object",
+        properties: {
+            playlist_id: { type: "string", description: "歌单编号。" },
+            track_ids: { type: "array", items: { type: "string" }, description: "要移除的歌曲编号数组。" }
+        },
+        required: ["playlist_id", "track_ids"],
+        additionalProperties: false
+    }
+};
+
+const NETEASE_PLAY_SONG_TOOL = {
+    name: "netease_play_song",
+    description: "播放一首网易云歌曲：搜索歌曲（优先原唱版本，不选翻唱），导入单曲歌单，并通知手机打开网易云 App 播放这首。用户说“放首歌/播放XX/唱XX”时调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            keyword: { type: "string", description: "歌名或 歌名+歌手，如：爱人错过 告五人。" }
+        },
+        required: ["keyword"],
+        additionalProperties: false
+    }
+};
+const WEB_READ_TOOL = {
+    name: "web_read",
+    description: "读取任意网页正文(通过 Jina Reader,返回干净文字)。用户发链接让你看时调用。",
+    input_schema: {
+        type: "object",
+        properties: { url: { type: "string", description: "网页链接(http/https)。" } },
+        required: ["url"],
+        additionalProperties: false
+    }
+};
+
+const RSS_READ_TOOL = {
+    name: "rss_read",
+    description: "读取 RSS/Atom 订阅源的最新条目。",
+    input_schema: {
+        type: "object",
+        properties: {
+            url: { type: "string", description: "RSS 源链接。" },
+            limit: { type: "number", description: "可选:条目数,默认 10,最多 20。" }
+        },
+        required: ["url"],
+        additionalProperties: false
+    }
+};
+
+const V2EX_HOT_TOOL = {
+    name: "v2ex_hot",
+    description: "查看 V2EX 热门帖子。",
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false }
+};
+
+const V2EX_TOPIC_TOOL = {
+    name: "v2ex_topic",
+    description: "查看 V2EX 帖子正文与回复。",
+    input_schema: {
+        type: "object",
+        properties: { id: { type: "string", description: "帖子编号。" } },
+        required: ["id"],
+        additionalProperties: false
+    }
+};
+
+const V2EX_NODE_TOOL = {
+    name: "v2ex_node",
+    description: "查看 V2EX 某个节点下的帖子(如 tech、programmer、create)。",
+    input_schema: {
+        type: "object",
+        properties: { node: { type: "string", description: "节点名。" } },
+        required: ["node"],
+        additionalProperties: false
+    }
+};
+
+const BILI_SEARCH_TOOL = {
+    name: "bili_search",
+    description: "在B站搜索视频(标题/UP主/播放/弹幕/时长)。",
+    input_schema: {
+        type: "object",
+        properties: {
+            keyword: { type: "string", description: "搜索关键词。" },
+            limit: { type: "number", description: "可选:条数,默认 5,最多 10。" }
+        },
+        required: ["keyword"],
+        additionalProperties: false
+    }
+};
+
+const BILI_VIDEO_TOOL = {
+    name: "bili_video",
+    description: "获取B站视频详情与字幕(标题/简介/UP主/数据/字幕文本)。用户给 bvid 或视频链接时调用。",
+    input_schema: {
+        type: "object",
+        properties: { bvid: { type: "string", description: "B站视频编号(BV开头)。" } },
+        required: ["bvid"],
+        additionalProperties: false
+    }
+};
+
+const WEB_SEARCH_TOOL = {
+    name: "web_search_dengta",
+    description: "全网搜索(无需密钥):返回结果标题/链接/摘要。用户让你查资料、搜新闻时调用。",
+    input_schema: {
+        type: "object",
+        properties: {
+            query: { type: "string", description: "搜索关键词。" },
+            limit: { type: "number", description: "可选:结果数,默认 8,最多 10。" }
+        },
+        required: ["query"],
+        additionalProperties: false
+    }
+};
+
+const EXA_SEARCH_TOOL = {
+    name: "exa_search",
+    description: "全网语义搜索(需要服务端配置 EXA_API_KEY)。",
+    input_schema: {
+        type: "object",
+        properties: { query: { type: "string", description: "搜索内容。" } },
+        required: ["query"],
+        additionalProperties: false
+    }
+};
+
+
+const BILI_RECOMMEND_TOOL = {
+    name: "bili_recommend",
+    description: "根据用户的观看画像主动推荐B站视频(带推荐理由与链接,可配合一起看)。",
+    input_schema: {
+        type: "object",
+        properties: {
+            keyword: { type: "string", description: "可选:指定方向,不填则按画像自动选择。" },
+            limit: { type: "number", description: "可选:条数,默认 4,最多 6。" }
+        },
+        required: [],
+        additionalProperties: false
+    }
+};
+
+const INTERESTS_VIEW_TOOL = {
+    name: "interests_view",
+    description: "查看用户的兴趣画像与最近观看记录。",
+    input_schema: { type: "object", properties: {}, required: [], additionalProperties: false }
+};
+
+function buildFeatureHints(userMessage) {
+    const text = String(userMessage || "");
+    const hints = [];
+    if (/(外卖|点餐|点个吃|饿了|夜宵|订餐|买饭|烧烤|奶茶|点外卖)/i.test(text) && !/不|别|没想/.test(text)) {
+        hints.push("[玩法提示:用户想点外卖。不要只聊天,必须先调用 takeout_order 工具(action=search)帮用户搜索店铺列表,再根据预算/评分挑店;搜索结果为空时引导用户先去侧边栏「🛵 外卖」扫码登录。]");
+    }
+    if (/电台|dj|radio|来点音乐|放首歌|推荐.{0,4}歌/i.test(text)) {
+        hints.push("[玩法提示：用户想要电台/DJ体验。你可以扮演私人电台DJ：开场白→推荐2-3首符合当前心情的歌（报出歌名和歌手）→聊几句串词→谢幕。开场白不要重复以前用过的。]");
+    }
+    if (/bilibili\.com\/video\/|BV[0-9A-Za-z]{6,12}/i.test(text)) {
+        hints.push("[玩法提示:用户发了B站视频链接。先用 bili_video 工具解析(标题/简介/字幕),再从视频内容出发自然回应;字幕为空就基于标题和简介聊,不要谎称拿到了字幕。]");
+    }
+    if (/弹幕|共读|一起.{0,6}弹幕/i.test(text)) {
+        hints.push("[玩法提示：用户想弹幕共读。先用 danmaku_read 工具读取该视频弹幕样本，再结合视频标题像一起看弹幕的朋友一样吐槽、接梗。]");
+    }
+    if (/默契|默契度/i.test(text)) {
+        hints.push("[玩法提示：用户想玩默契度挑战。你来出3-5道关于你们之间的小问题（结合记忆），每题等用户回答后即时判分（每题满分20-25），最后算总分并用 compatibility_record 工具存档，再俏皮点评。]");
+    }
+    if (/识物|这是什么|什么花|什么植物|什么动物|认.{0,4}东西/i.test(text) && /图|照片|拍|看|这/.test(text)) {
+        hints.push("[玩法提示：用户想拍照识物。若本轮有图片附件且你能直接看图，就基于可见内容自然回答；若无法看图，诚实说明识物服务当前未开启，请用户用文字描述再猜。]");
+    }
+    return hints.join("\n");
+}
 
 const memoryCompressionLocks = new Set();
 const momentReplyLocks = new Set();
@@ -654,22 +1784,11 @@ function normalizePromptMode(value, fallback = "legacy") {
 }
 
 function cleanUnifiedSystemPrompt(value) {
-    const normalized = String(value ?? "");
-    if (Array.from(normalized).length > 30000) {
-        const error = new Error("unified_system_prompt 不能超过 30000 个字符。");
-        error.status = 400;
-        throw error;
-    }
-    return normalized;
+    return String(value ?? "");
 }
 
 function cleanUserDetails(value) {
     const normalized = String(value ?? "");
-    if (Array.from(normalized).length > 30000) {
-        const error = new Error("user_details 不能超过 30000 个字符。");
-        error.status = 400;
-        throw error;
-    }
     return normalized;
 }
 
@@ -751,17 +1870,31 @@ function createChatToolExecutor(
     clientMessageId = "",
     mcpRuntime = null,
     database = supabase,
-    userDisplayName = ""
+    userDisplayName = "",
+    customStickers = [],
+    scope = null,
+    takeoutChannel = null,
+    specialDates = null,
+    funServices = null,
+    turnImageUrl = "",
+    xhsClient = null,
+    neteaseTools = null,
+    webExplorer = null,
+    interestTools = null
 ) {
     let momentCreated = false;
     let statusUpdated = false;
-    const stickerSelector = createCompanionStickerSelector();
+    let takeoutUsed = false;
+    const stickerSelector = createCompanionStickerSelector(customStickers);
+    const activities = createCompanionActivities({ scope, recommendations: (currentScope, limit) => bilibiliQrLogin.recommendations(currentScope, limit) });
+    const stickerTool = createCompanionStickerTool(customStickers);
     const replySuggestionSelector = createReplySuggestionSelector();
     let companionStatus = sanitizeCompanionStatusSnapshot(
         initialCompanionStatus
     );
 
     async function executeChatTool(toolCall) {
+        if (toolCall?.name === COMPANION_ACTIVITY_TOOL.name) return activities.execute(toolCall);
         if (toolCall?.name === UPDATE_COMPANION_STATUS_TOOL.name) {
             if (statusUpdated) {
                 return { ok: false, error: "这次聊天已经更新过一次状态。" };
@@ -796,8 +1929,724 @@ function createChatToolExecutor(
             return replySuggestionSelector.executeTool(toolCall);
         }
 
+        if (typeof whereaboutsSnapshot === "function" && [
+            "whereabouts_snapshot",
+            "whereabouts_current_stay",
+            "whereabouts_recent_stays",
+            "whereabouts_recent_moves",
+            "whereabouts_summary"
+        ].includes(toolCall?.name)) {
+            if (!scope?.userId || !scope?.companionId) {
+                return { ok: false, error: "行踪功能需要登录态，请先登录后再试。" };
+            }
+            let args = {};
+            try { args = JSON.parse(String(toolCall.arguments || "{}")); } catch {
+                return { ok: false, error: "行踪参数不是有效的 JSON。" };
+            }
+            try {
+                const tenant = { database, userId: scope.userId, companionId: scope.companionId };
+                if (toolCall.name === "whereabouts_snapshot") {
+                    return { ok: true, snapshot: await whereaboutsSnapshot({ ...tenant, stayLimit: Number(args.stayLimit) || 5, moveLimit: Number(args.moveLimit) || 5, batteryBucketMinutes: Number(args.batteryBucketMinutes) || 5 }) };
+                }
+                if (toolCall.name === "whereabouts_current_stay") {
+                    return { ok: true, ...(await whereaboutsCurrentStay(tenant)) };
+                }
+                if (toolCall.name === "whereabouts_recent_stays") {
+                    return { ok: true, ...(await whereaboutsRecentStays({ ...tenant, limit: Number(args.limit) || 20 })) };
+                }
+                if (toolCall.name === "whereabouts_recent_moves") {
+                    return { ok: true, ...(await whereaboutsRecentMoves({ ...tenant, limit: Number(args.limit) || 20 })) };
+                }
+                return { ok: true, ...(await whereaboutsSummary({ ...tenant, range: String(args.range || "day"), batteryBucketMinutes: Number(args.batteryBucketMinutes) || 5 })) };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "行踪查询失败。").slice(0, 300) };
+            }
+        }
+        if (typeof timelineWriteDay === "function" && [
+            "timeline_write",
+            "timeline_read",
+            "timeline_categories",
+            "timeline_proposals"
+        ].includes(toolCall?.name)) {
+            if (!scope?.userId || !scope?.companionId) {
+                return { ok: false, error: "时间轴功能需要登录态，请先登录后再试。" };
+            }
+            let args = {};
+            try { args = JSON.parse(String(toolCall.arguments || "{}")); } catch {
+                return { ok: false, error: "时间轴参数不是有效的 JSON。" };
+            }
+            try {
+                const tenant = { database, userId: scope.userId, companionId: scope.companionId };
+                const timezone = String(scope?.timezone || "Asia/Shanghai");
+                if (toolCall.name === "timeline_write") {
+                    return { ok: true, ...(await timelineWriteDay({ ...tenant, timezone, payload: args, source: conversationId ? { threadId: conversationId, transcriptMessageCount: 0 } : null })) };
+                }
+                if (toolCall.name === "timeline_read") {
+                    return { ok: true, ...(await timelineReadDay({ ...tenant, date: String(args.date || "") })) };
+                }
+                if (toolCall.name === "timeline_categories") {
+                    return { ok: true, ...(await timelineListCategories(tenant)) };
+                }
+                return { ok: true, ...(await timelineListProposals({ ...tenant, date: String(args.date || "") })) };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "时间轴操作失败。").slice(0, 300) };
+            }
+        }
+        if (toolCall?.name === AGENTS_MD_READ_TOOL.name) {
+            if (!scope?.userId || !scope?.companionId) {
+                return { ok: false, error: "agents.md 读取需要登录态，请先登录后再试。" };
+            }
+            try {
+                const settings = await getSettings(scope.db);
+                const preview = await loadAgentsMdPreview({ database: scope.db, settings });
+                const agentsMd = preview.content;
+                return {
+                    ok: true,
+                    file: "agents.md",
+                    chars: agentsMd.length,
+                    preview_scope: preview.preview_scope,
+                    is_generation_receipt: false,
+                    note: preview.note,
+                    content: agentsMd
+                };
+            } catch (error) {
+                return { ok: false, code: "agents_md_read_failed", error: "读取 agents.md 失败，请稍后重试。" };
+            }
+        }
+        if (typeof listWorkspace === "function" && [
+            "workspace_list",
+            "workspace_read",
+            "workspace_write",
+            "workspace_delete"
+        ].includes(toolCall?.name)) {
+            if (!scope?.userId) {
+                return { ok: false, error: "工作区需要登录态，请先登录后再试。" };
+            }
+            let args = {};
+            try { args = JSON.parse(String(toolCall.arguments || "{}")); } catch {
+                return { ok: false, error: "工作区参数不是有效的 JSON。" };
+            }
+            try {
+                const storageClient = scope?.storage || supabase.storage;
+                if (toolCall.name === "workspace_list") {
+                    return await listWorkspace({ storage: storageClient, userId: scope.userId, path: String(args.path || "") });
+                }
+                if (toolCall.name === "workspace_read") {
+                    return await readWorkspaceFile({ storage: storageClient, userId: scope.userId, path: String(args.path || "") });
+                }
+                if (toolCall.name === "workspace_write") {
+                    return await writeWorkspaceFile({ storage: storageClient, userId: scope.userId, path: String(args.path || ""), content: String(args.content || ""), mode: String(args.mode || "overwrite"), confirm: args.confirm === true });
+                }
+                return await deleteWorkspaceFile({ storage: storageClient, userId: scope.userId, path: String(args.path || ""), confirm: args.confirm === true });
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "工作区操作失败。").slice(0, 300) };
+            }
+        }
         if (mcpRuntime?.hasTool(toolCall?.name)) {
             return mcpRuntime.execute(toolCall);
+        }
+
+        if (toolCall?.name === TAKEOUT_TOOL.name) {
+            if (!scope?.userId || !scope?.companionId || !takeoutChannel) {
+                return { ok: false, error: "点餐工具需要登录态，请先登录后再试。" };
+            }
+            if (takeoutUsed) {
+                return { ok: false, error: "这次聊天已经发过一条点餐命令。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                return { ok: false, error: "点餐参数不是有效的 JSON。" };
+            }
+            if (!args || typeof args !== "object" || Array.isArray(args)) {
+                return { ok: false, error: "点餐参数格式不正确。" };
+            }
+            const requirement = String(args.requirement || "").trim().slice(0, 1000);
+            if (!requirement) {
+                return { ok: false, error: "请说明要买什么以及筛选条件。" };
+            }
+            takeoutUsed = true;
+            try {
+                const action = String(args.action || "order").trim().toLowerCase();
+                if (!["search", "order"].includes(action)) {
+                    return { ok: false, error: "action 只能是 search 或 order。" };
+                }
+                const created = await takeoutChannel.createCommand(scope, {
+                    action,
+                    requirement,
+                    shop_name: String(args.shop_name || "").trim().slice(0, 120),
+                    quantity: Number.isFinite(Number(args.quantity)) ? Math.max(1, Math.min(20, Math.round(Number(args.quantity)))) : 1,
+                    budget_max: args.budget_max,
+                    note: args.note || ""
+                });
+                const waitSeconds = Math.min(240, Math.max(60, Number(args.max_wait_seconds) || 120));
+                const outcome = await takeoutChannel.waitForResult(scope, created.command_id, {
+                    timeoutMs: waitSeconds * 1000
+                });
+                if (outcome.timed_out) {
+                    return {
+                        ok: true,
+                        timed_out: true,
+                        message: "点餐命令已下发到用户手机，还在执行中。你可以先告诉用户已开始处理。"
+                    };
+                }
+                if (outcome.status === "done") {
+                    return { ok: true, order_result: outcome.result };
+                }
+                if (outcome.status === "failed") {
+                    return { ok: false, error: String(outcome.result?.error || "点餐执行失败，请稍后再试。") };
+                }
+                return { ok: false, error: "点餐命令已取消。" };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "点餐通道暂时不可用。").slice(0, 300) };
+            }
+        }
+
+
+        if (toolCall?.name === SPECIAL_DATE_ADD_TOOL.name) {
+            if (!specialDates) {
+                return { ok: false, error: "特殊日子服务还没有启用。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                return { ok: false, error: "特殊日子参数不是有效的 JSON。" };
+            }
+            if (!args || typeof args !== "object" || Array.isArray(args)) {
+                return { ok: false, error: "特殊日子参数格式不正确。" };
+            }
+            try {
+                const saved = await specialDates.add(scope || {}, args);
+                return { ok: true, saved, message: "已保存特殊日子。" };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "保存失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === SPECIAL_DATE_LIST_TOOL.name) {
+            if (!specialDates) {
+                return { ok: false, error: "特殊日子服务还没有启用。" };
+            }
+            let kind = "";
+            try {
+                kind = String(JSON.parse(String(toolCall.arguments || "")).kind || "");
+            } catch {
+                // 忽略参数解析失败，按全部查询。
+            }
+            try {
+                const dates = await specialDates.list(scope || {}, kind);
+                return { ok: true, dates };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "查询失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === SPECIAL_DATE_REMOVE_TOOL.name) {
+            if (!specialDates) {
+                return { ok: false, error: "特殊日子服务还没有启用。" };
+            }
+            let id = "";
+            try {
+                id = String(JSON.parse(String(toolCall.arguments || "")).id || "");
+            } catch {
+                // 忽略参数解析失败。
+            }
+            try {
+                const removed = await specialDates.remove(scope || {}, id);
+                return { ok: true, removed: removed.removed, message: "已删除。" };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "删除失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === DAILY_SHOT_ADD_TOOL.name) {
+            if (!funServices?.dailies) {
+                return { ok: false, error: "每日一拍服务还没有启用。" };
+            }
+            let note = "";
+            try {
+                note = String(JSON.parse(String(toolCall.arguments || "")).note || "");
+            } catch {
+                // 备注可选。
+            }
+            try {
+                const saved = await funServices.dailies.add(scope || {}, {
+                    note,
+                    image_path: turnImageUrl || ""
+                });
+                return { ok: true, saved, message: "已记入今日的每日一拍。" };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "保存失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === ACHIEVEMENTS_LIST_TOOL.name) {
+            if (!funServices?.achievements) {
+                return { ok: false, error: "成就服务还没有启用。" };
+            }
+            try {
+                await funServices.achievements.check(scope || {});
+                const achievements = await funServices.achievements.list(scope || {});
+                return { ok: true, achievements };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "查询失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === DANMAKU_READ_TOOL.name) {
+            if (!funServices?.funLabs) {
+                return { ok: false, error: "弹幕共读服务还没有启用。" };
+            }
+            let bvid = "";
+            try {
+                bvid = String(JSON.parse(String(toolCall.arguments || "")).bvid || "");
+            } catch {
+                // 忽略解析失败。
+            }
+            try {
+                const danmaku = await funServices.funLabs.readDanmaku(bvid);
+                return {
+                    ok: true,
+                    bvid: danmaku.bvid,
+                    title: danmaku.title,
+                    danmaku_sample: danmaku.danmaku_sample.slice(0, 60)
+                };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "弹幕读取失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === COMPATIBILITY_RECORD_TOOL.name) {
+            if (!funServices?.funLabs) {
+                return { ok: false, error: "默契度服务还没有启用。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                return { ok: false, error: "默契度参数不是有效的 JSON。" };
+            }
+            if (!args || typeof args !== "object" || Array.isArray(args)) {
+                return { ok: false, error: "默契度参数格式不正确。" };
+            }
+            try {
+                const saved = await funServices.funLabs.saveCompatibility(scope || {}, {
+                    score: args.score,
+                    comment: String(args.comment || "")
+                });
+                return {
+                    ok: true,
+                    saved,
+                    message:
+                        "已存档本次默契度：" +
+                        saved.record.score +
+                        "分（历史最好 " +
+                        saved.best +
+                        "分，平均 " +
+                        saved.average +
+                        "分）。"
+                };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "存档失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === ACHIEVEMENT_DEFINE_TOOL.name) {
+            if (!funServices?.achievements) {
+                return { ok: false, error: "成就服务还没有启用。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                return { ok: false, error: "成就参数不是有效的 JSON。" };
+            }
+            if (!args || typeof args !== "object" || Array.isArray(args)) {
+                return { ok: false, error: "成就参数格式不正确。" };
+            }
+            try {
+                const saved = await funServices.achievements.define(scope || {}, {
+                    title: args.title,
+                    description: args.description,
+                    emoji: args.emoji,
+                    category: args.category,
+                    created_by: "user"
+                });
+                return { ok: true, saved, message: "已新建自定义成就。" };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "新建失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === ACHIEVEMENT_UNLOCK_TOOL.name) {
+            if (!funServices?.achievements) {
+                return { ok: false, error: "成就服务还没有启用。" };
+            }
+            let code = "";
+            try {
+                code = String(JSON.parse(String(toolCall.arguments || "")).code || "");
+            } catch {
+                // 忽略解析失败。
+            }
+            try {
+                const unlocked = await funServices.achievements.unlock(scope || {}, code);
+                return { ok: true, unlocked, message: unlocked.already ? "这条成就已经解锁过了。" : "成就已解锁，记得用惊喜的口吻告诉用户。" };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "解锁失败。").slice(0, 300) };
+            }
+        }
+
+
+        if (toolCall?.name === XHS_ME_TOOL.name) {
+            if (!xhsClient?.configured()) {
+                return { ok: false, error: "小红书服务还没有部署，暂时不能用。" };
+            }
+            try {
+                const me = await xhsClient.me();
+                return { ok: true, me };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "查询失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === XHS_SEARCH_TOOL.name) {
+            if (!xhsClient?.configured()) {
+                return { ok: false, error: "小红书服务还没有部署，暂时不能用。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                return { ok: false, error: "搜索参数不是有效的 JSON。" };
+            }
+            try {
+                const result = await xhsClient.search(
+                    String(args?.keyword || ""),
+                    Number(args?.page) || 1
+                );
+                const items = Array.isArray(result?.items) ? result.items : [];
+                return {
+                    ok: true,
+                    keyword: String(args?.keyword || ""),
+                    count: items.length,
+                    items: items.slice(0, 10)
+                };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "搜索失败。").slice(0, 300) };
+            }
+        }
+
+        if (
+            toolCall?.name === XHS_LIKE_TOOL.name ||
+            toolCall?.name === XHS_COMMENT_TOOL.name ||
+            toolCall?.name === XHS_FOLLOW_TOOL.name
+        ) {
+            if (!xhsClient?.configured()) {
+                return { ok: false, error: "小红书服务还没有部署，暂时不能用。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                return { ok: false, error: "参数不是有效的 JSON。" };
+            }
+            if (!args || typeof args !== "object") {
+                return { ok: false, error: "参数格式不正确。" };
+            }
+            if (args.confirmed !== true) {
+                return {
+                    ok: false,
+                    error:
+                        "这是会操作用户真实小红书账号的写操作（点赞/评论/关注），必须先征得用户明确同意；等用户同意后，再用同样的参数加上 confirmed=true 调用一次。"
+                };
+            }
+            try {
+                if (toolCall?.name === XHS_LIKE_TOOL.name) {
+                    const id = extractXhsId(String(args.note_url || ""), "note");
+                    const result = await xhsClient.like(id);
+                    return { ok: true, result };
+                }
+                if (toolCall?.name === XHS_COMMENT_TOOL.name) {
+                    const id = extractXhsId(String(args.note_url || ""), "note");
+                    const result = await xhsClient.comment(id, String(args.content || "").slice(0, 200));
+                    return { ok: true, result };
+                }
+                const uid = extractXhsId(String(args.user_url || ""), "user");
+                const result = await xhsClient.follow(uid);
+                return { ok: true, result };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "执行失败。").slice(0, 300) };
+            }
+        }
+
+
+        if (
+            toolCall?.name === CLOUD_MUSIC_SEARCH_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_DAILY_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_PLAYLIST_DETAIL_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_CREATE_PLAYLIST_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_ADD_TO_PLAYLIST_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_ALBUM_INFO_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_ARTIST_INFO_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_SUBSCRIPTIONS_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_LIKE_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_HISTORY_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_MY_PLAYLISTS_TOOL.name ||
+            toolCall?.name === CLOUD_MUSIC_REMOVE_FROM_PLAYLIST_TOOL.name ||
+            toolCall?.name === NETEASE_PLAY_SONG_TOOL.name
+        ) {
+            if (!neteaseTools) {
+                return { ok: false, error: "网易云音乐工具还没准备好。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                args = {};
+            }
+            if (!args || typeof args !== "object" || Array.isArray(args)) {
+                args = {};
+            }
+            try {
+                if (toolCall?.name === CLOUD_MUSIC_SEARCH_TOOL.name) {
+                    const result = await neteaseTools.search(scope || {}, {
+                        keyword: String(args.keyword || ""),
+                        category: String(args.category || "song"),
+                        limit: args.limit
+                    });
+                    return { ok: true, result };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_DAILY_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.dailyRecommend(scope || {}) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_PLAYLIST_DETAIL_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.playlistDetail(scope || {}, { playlist_id: args.playlist_id }) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_CREATE_PLAYLIST_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.createPlaylist(scope || {}, { name: args.name, privacy: args.privacy }) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_ADD_TO_PLAYLIST_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.addToPlaylist(scope || {}, { playlist_id: args.playlist_id, track_ids: args.track_ids }) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_ALBUM_INFO_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.albumInfo(scope || {}, { album_id: args.album_id }) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_ARTIST_INFO_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.artistInfo(scope || {}, { artist_id: args.artist_id }) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_SUBSCRIPTIONS_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.subscriptions(scope || {}, { category: args.category }) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_LIKE_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.likeSong(scope || {}, { song_id: args.song_id, like: args.like }) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_MY_PLAYLISTS_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.myPlaylists(scope || {}) };
+                }
+                if (toolCall?.name === CLOUD_MUSIC_REMOVE_FROM_PLAYLIST_TOOL.name) {
+                    return { ok: true, result: await neteaseTools.removeFromPlaylist(scope || {}, { playlist_id: args.playlist_id, track_ids: args.track_ids }) };
+                }
+                if (toolCall?.name === NETEASE_PLAY_SONG_TOOL.name) {
+                    const keyword = String(args?.keyword || "").slice(0, 120);
+                    if (!keyword) return { ok: false, error: "请告诉我要播放什么歌。" };
+                    try {
+                        const session = await neteaseCookieSession.read(scope || {}).catch(() => null);
+                        if (!session?.cookie_text) {
+                            return { ok: false, error: "还没有连接网易云，请先在 App 内一键登录。" };
+                        }
+                        const search = await neteaseTools.search(scope || {}, { keyword, category: "song", limit: 5 });
+                        const songs = Array.isArray(search?.songs) ? search.songs : [];
+                        if (songs.length === 0) return { ok: false, error: "没有找到这首歌。" };
+                        const track = songs[0];
+                        const songId = String(track.provider_track_id || "").trim();
+                        const ownerDb = scope?.db || supabase;
+                        const ownKeys = { user_id: scope.userId, companion_id: scope.companionId };
+                        const existingPl = await ownerDb
+                            .from("music_playlists")
+                            .select("id")
+                            .eq("provider", "netease")
+                            .eq("provider_playlist_id", songId)
+                            .maybeSingle();
+                        if (existingPl.error) throw existingPl.error;
+                        const plValues = {
+                            ...ownKeys,
+                            name: (String(track.title || "").slice(0, 180) || ("网易云单曲 " + songId)) + " · " + String(track.artist || "网易云音乐").slice(0, 120),
+                            provider: "netease",
+                            provider_playlist_id: songId,
+                            external_url: "https://music.163.com/#/song?id=" + songId,
+                            source_format: "netease_cookie",
+                            item_count: 1,
+                            updated_at: new Date().toISOString()
+                        };
+                        let playlistId = existingPl.data?.id || null;
+                        if (playlistId) {
+                            const upd = await ownerDb.from("music_playlists").update(plValues).eq("id", playlistId);
+                            if (upd.error) throw upd.error;
+                        } else {
+                            const ins = await ownerDb.from("music_playlists").insert(plValues).select("id").single();
+                            if (ins.error) throw ins.error;
+                            playlistId = ins.data.id;
+                        }
+                        const itemSel = await ownerDb
+                            .from("music_playlist_items")
+                            .select("id")
+                            .eq("playlist_id", playlistId)
+                            .limit(1);
+                        if (itemSel.error) throw itemSel.error;
+                        const itemValues = {
+                            ...ownKeys,
+                            playlist_id: playlistId,
+                            position: 0,
+                            provider_track_id: songId,
+                            external_url: "https://music.163.com/#/song?id=" + songId,
+                            playback_mode: "external_netease",
+                            url: null,
+                            title: String(track.title || "").slice(0, 300) || ("网易云单曲 " + songId),
+                            artist: String(track.artist || "").slice(0, 300) || "网易云音乐",
+                            album: String(track.album || "").slice(0, 300),
+                            cover_url: String(track.cover_url || "").slice(0, 4096) || null,
+                            duration_seconds: Number(track.duration_seconds) || null,
+                            lyrics: ""
+                        };
+                        if (itemSel.data?.[0]?.id) {
+                            const updI = await ownerDb.from("music_playlist_items").update(itemValues).eq("id", itemSel.data[0].id);
+                            if (updI.error) throw updI.error;
+                        } else {
+                            const insI = await ownerDb.from("music_playlist_items").insert(itemValues);
+                            if (insI.error) throw insI.error;
+                        }
+                        // AI 放歌：把播放意图写入待播放请求，手机 App 轮询后静默调起网易云播放。
+                        let playNote = "";
+                        try {
+                            const requestDb = scope?.db || supabase;
+                            await requestDb
+                                .from("ai_music_play_requests")
+                                .update({ status: "superseded", processed_at: new Date().toISOString() })
+                                .eq("user_id", ownKeys.user_id)
+                                .eq("companion_id", ownKeys.companion_id)
+                                .eq("status", "pending");
+                            const inserted = await requestDb
+                                .from("ai_music_play_requests")
+                                .insert({
+                                    ...ownKeys,
+                                    song_id: songId,
+                                    title: String(track.title || "").slice(0, 300),
+                                    artist: String(track.artist || "").slice(0, 300),
+                                    cover_url: String(track.cover_url || "").slice(0, 4096) || "",
+                                    status: "pending"
+                                })
+                                .select("id")
+                                .single();
+                            if (inserted.error) throw inserted.error;
+                            playNote = "已通知手机打开网易云播放《" + String(track.title || "") + "》。";
+                        } catch (requestError) {
+                            playNote = "（播放请求写入失败：" + String(requestError?.message || "未知原因").slice(0, 80) + "）";
+                        }
+                        return {
+                            ok: true,
+                            result: {
+                                song: track,
+                                play_requested: playNote.indexOf("已通知") === 0,
+                                note: playNote
+                            }
+                        };
+                    } catch (error) {
+                        return { ok: false, error: String(error?.message || "播放失败。").slice(0, 200) };
+                    }
+                }
+                return { ok: true, result: await neteaseTools.playHistory(scope || {}, { limit: args.limit }) };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "网易云操作失败。").slice(0, 300) };
+            }
+        }
+
+
+        if (
+            toolCall?.name === WEB_READ_TOOL.name ||
+            toolCall?.name === RSS_READ_TOOL.name ||
+            toolCall?.name === V2EX_HOT_TOOL.name ||
+            toolCall?.name === V2EX_TOPIC_TOOL.name ||
+            toolCall?.name === V2EX_NODE_TOOL.name ||
+            toolCall?.name === BILI_SEARCH_TOOL.name ||
+            toolCall?.name === BILI_VIDEO_TOOL.name ||
+            toolCall?.name === EXA_SEARCH_TOOL.name ||
+            toolCall?.name === WEB_SEARCH_TOOL.name
+        ) {
+            if (!webExplorer) {
+                return { ok: false, error: "网络探索服务还没准备好。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                args = {};
+            }
+            if (!args || typeof args !== "object" || Array.isArray(args)) {
+                args = {};
+            }
+            try {
+                if (toolCall?.name === WEB_READ_TOOL.name) {
+                    return { ok: true, result: await webExplorer.webRead(String(args.url || "")) };
+                }
+                if (toolCall?.name === RSS_READ_TOOL.name) {
+                    return { ok: true, result: await webExplorer.rssRead(String(args.url || ""), args.limit) };
+                }
+                if (toolCall?.name === V2EX_HOT_TOOL.name) {
+                    return { ok: true, result: await webExplorer.v2exHot() };
+                }
+                if (toolCall?.name === V2EX_TOPIC_TOOL.name) {
+                    return { ok: true, result: await webExplorer.v2exTopic(args.id) };
+                }
+                if (toolCall?.name === V2EX_NODE_TOOL.name) {
+                    return { ok: true, result: await webExplorer.v2exNode(String(args.node || "")) };
+                }
+                if (toolCall?.name === BILI_SEARCH_TOOL.name) {
+                    return { ok: true, result: await webExplorer.biliSearch(String(args.keyword || ""), args.limit) };
+                }
+                if (toolCall?.name === BILI_VIDEO_TOOL.name) {
+                    const biliCookie = scope?.userId
+                        ? await bilibiliQrLogin.cookieText(scope).catch(() => "")
+                        : "";
+                    return { ok: true, result: await webExplorer.biliVideo(String(args.bvid || ""), biliCookie) };
+                }
+                if (toolCall?.name === EXA_SEARCH_TOOL.name) {
+                    return { ok: true, result: await webExplorer.exaSearch(String(args.query || "")) };
+                }
+                return { ok: true, result: await webExplorer.webSearch(String(args.query || ""), args.limit) };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "网络探索失败。").slice(0, 300) };
+            }
+        }
+
+
+        if (toolCall?.name === BILI_RECOMMEND_TOOL.name) {
+            if (!interestTools) {
+                return { ok: false, error: "兴趣引擎还没准备好。" };
+            }
+            let args;
+            try {
+                args = JSON.parse(String(toolCall.arguments || ""));
+            } catch {
+                args = {};
+            }
+            try {
+                return { ok: true, result: await interestTools.recommendBili(scope || {}, args || {}) };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "推荐失败。").slice(0, 300) };
+            }
+        }
+
+        if (toolCall?.name === INTERESTS_VIEW_TOOL.name) {
+            if (!interestTools) {
+                return { ok: false, error: "兴趣引擎还没准备好。" };
+            }
+            try {
+                return { ok: true, profile: await interestTools.interests(scope || {}) };
+            } catch (error) {
+                return { ok: false, error: String(error?.message || "查询失败。").slice(0, 300) };
+            }
         }
 
         if (toolCall?.name !== POST_MOMENT_TOOL.name) {
@@ -894,8 +2743,14 @@ function createChatToolExecutor(
         getStickerId() {
             return stickerSelector.getStickerId();
         },
+        getStickerTool() {
+            return stickerTool;
+        },
         getReplySuggestions() {
             return replySuggestionSelector.getSuggestions();
+        },
+        getActivityActions() {
+            return activities.getActions();
         }
     };
 }
@@ -960,17 +2815,10 @@ function estimateTokenCount(value) {
 }
 
 function estimateContextTokenCount(settings, messages, memories) {
-    const configuredPrompt =
-        normalizePromptMode(settings.prompt_mode) === "unified" &&
-        cleanUnifiedSystemPrompt(settings.unified_system_prompt)
-            ? [settings.unified_system_prompt]
-            : [
-                  settings.system_prompt,
-                  settings.additional_prompt,
-                  settings.personality
-              ];
+    // 统计会增长的部分：历史消息 + 已有记忆 + 用户详情。
+    // 固定的系统提示词不计入——提示词本身可长达 1.6 万 tokens，
+    // 若计入会垫高估算，让压缩阈值几乎永远无法触发（历史消息永远"看起来"没超预算）。
     const fixedContext = [
-        ...configuredPrompt,
         settings.user_details,
         ...(memories || []).map((item) => item.summary)
     ]
@@ -1105,51 +2953,79 @@ async function getStoredSettings(database = supabase) {
 
 async function getSettings(database = supabase) {
     const stored = await getStoredSettings(database);
-    const legacy = applyProviderSettingPins(
-        stored,
-        process.env,
-        normalizeApiUrl
-    );
     return aiProviderCenter
         .forDatabase(database)
-        .resolveDefaultSettings(legacy);
+        .resolveDefaultSettings(providerCenterBaseSettings(stored));
+}
+
+async function loadConversation(conversationId, database = supabase) {
+    if (!isUuid(conversationId)) {
+        const error = new Error("会话编号格式不正确。");
+        error.status = 400;
+        throw error;
+    }
+
+    const { data, error } = await database
+        .from("conversations")
+        .select("id, model_id")
+        .eq("id", conversationId)
+        .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+        const notFound = new Error("找不到这个会话。");
+        notFound.status = 404;
+        throw notFound;
+    }
+    return data;
+}
+
+async function resolveConversationTurnModel(
+    settings,
+    conversation,
+    requestedModel,
+    database = supabase
+) {
+    if (!conversation) {
+        return resolveTurnModel(settings, requestedModel);
+    }
+
+    const resolution = await resolveConversationModel(
+        settings,
+        conversation.model_id
+    );
+    if (!resolution.rebound) return resolution.model;
+
+    const { error } = await database
+        .from("conversations")
+        .update({
+            model_id: resolution.model,
+            updated_at: new Date().toISOString()
+        })
+        .eq("id", conversation.id);
+    if (error) throw error;
+    conversation.model_id = resolution.model;
+    return resolution.model;
 }
 
 async function ensureConversation(
     conversationId,
     firstMessage,
-    database = supabase
+    database = supabase,
+    modelId = ""
 ) {
     if (conversationId) {
-        if (!isUuid(conversationId)) {
-            const error = new Error("会话编号格式不正确。");
-            error.status = 400;
-            throw error;
-        }
-
-        const { data, error } = await database
-            .from("conversations")
-            .select("id")
-            .eq("id", conversationId)
-            .maybeSingle();
-
-        if (error) {
-            throw error;
-        }
-
-        if (!data) {
-            const notFound = new Error("找不到这个会话。");
-            notFound.status = 404;
-            throw notFound;
-        }
-
-        return data.id;
+        return (await loadConversation(conversationId, database)).id;
     }
 
     const title = cleanText(firstMessage, 30) || "新对话";
+    const values = { title };
+    if (typeof modelId === "string" && modelId.trim()) {
+        values.model_id = modelId.trim();
+    }
     const { data, error } = await database
         .from("conversations")
-        .insert({ title })
+        .insert(values)
         .select("id")
         .single();
 
@@ -1355,13 +3231,14 @@ async function findCompanionInteractionReply(
 async function loadChatContext(
     conversationId,
     settings,
-    database = supabase
+    database = supabase,
+    scope = null
 ) {
-    return loadMainChatContextRows({
-        database,
-        conversationId,
-        settings
-    });
+    const [base, knowledge] = await Promise.all([
+        loadMainChatContextRows({ database, conversationId, settings }),
+        scope ? knowledgeFileTexts(scope, supabase.storage).catch(() => []) : []
+    ]);
+    return { ...base, knowledge };
 }
 
 async function loadCompanionInteractionContext(
@@ -1387,6 +3264,24 @@ async function touchConversation(conversationId, database = supabase) {
     }
 }
 
+// 记忆相似度：字符级 trigram Jaccard，用于压缩去重（>0.75 视为重复，跳过插入）
+function memorySimilarity(left, right) {
+    const grams = (text) => {
+        const set = new Set();
+        const chars = Array.from(String(text || "").toLowerCase());
+        for (let i = 0; i + 2 < chars.length; i += 1) {
+            set.add(chars.slice(i, i + 3).join(""));
+        }
+        return set;
+    };
+    const a = grams(left);
+    const b = grams(right);
+    if (a.size === 0 || b.size === 0) return 0;
+    let intersection = 0;
+    for (const gram of a) if (b.has(gram)) intersection += 1;
+    return intersection / (a.size + b.size - intersection);
+}
+
 async function compressMemoryIfNeeded(
     conversationId,
     settings,
@@ -1399,10 +3294,8 @@ async function compressMemoryIfNeeded(
     memoryCompressionLocks.add(conversationId);
 
     try {
-        const threshold = Math.max(
-            1000,
-            Number(settings.compression_threshold || 12000)
-        );
+        const modelWindow = budgetResolveContextWindow(settings.model);
+        const threshold = resolveCompressionThreshold(settings, modelWindow);
         const keepRounds = Math.max(
             1,
             Number(settings.compression_keep || 20)
@@ -1473,10 +3366,24 @@ async function compressMemoryIfNeeded(
             };
         }
 
+        // 压缩去重：与已有记忆高度相似（>0.75）时跳过，避免重复记忆堆积
+        const duplicate = existingMemories.some(
+            (memory) => memorySimilarity(generated.text, memory.summary) > 0.75
+        );
+        if (duplicate) {
+            return {
+                compressed: false,
+                reason: "duplicate_memory",
+                estimated_token_count: estimatedTokenCount,
+                visible_message_count: messages.length
+            };
+        }
         const { data: savedMemory, error: insertError } = await database
             .from("memories")
             .insert({
                 conversation_id: null,
+                user_id: settings.user_id,
+                companion_id: settings.companion_id,
                 summary: generated.text
             })
             .select("id, summary, created_at, updated_at")
@@ -1489,12 +3396,33 @@ async function compressMemoryIfNeeded(
         const ids = messagesToCompress.map((item) => item.id);
         const { error: hideError } = await database
             .from("messages")
-            .update({ visible: false })
+            .update({ context_visible: false })
             .in("id", ids);
 
         if (hideError) {
             await database.from("memories").delete().eq("id", savedMemory.id);
             throw hideError;
+        }
+
+        const compressedStart = messagesToCompress[0]?.created_at;
+        const compressedEnd = messagesToCompress[messagesToCompress.length - 1]?.created_at;
+        if (settings.user_id && settings.companion_id && compressedStart && compressedEnd) {
+            try {
+                await database.from("memory_calendar").insert({
+                    user_id: settings.user_id,
+                    companion_id: settings.companion_id,
+                    conversation_id: conversationId,
+                    period_type: "day",
+                    period_start: compressedStart,
+                    period_end: compressedEnd,
+                    summary: generated.text,
+                    importance: 5,
+                    source_ids: [...ids, savedMemory.id]
+                });
+            } catch {
+                // memory_calendar table may not exist yet (migration not run).
+                // Non-fatal: the memory was already saved, calendar is a bonus.
+            }
         }
 
         return {
@@ -1726,6 +3654,7 @@ async function buildMomentBackground(moment) {
               .select("role, content, created_at")
               .eq("conversation_id", conversationId)
               .eq("visible", true)
+              .eq("context_visible", true)
               .order("created_at", { ascending: false })
               .limit(8)
         : Promise.resolve({ data: [], error: null });
@@ -2090,6 +4019,7 @@ async function diarySourceBatch() {
         .from("messages")
         .select("id, conversation_id, role, content, created_at")
         .eq("visible", true)
+        .eq("context_visible", true)
         .in("role", ["user", "assistant"])
         .order("created_at", { ascending: true })
         .limit(24);
@@ -2270,6 +4200,7 @@ async function loadShadowPushContext(now, timezone) {
                 .select("role, content, created_at")
                 .eq("conversation_id", conversation.id)
                 .eq("visible", true)
+                .eq("context_visible", true)
                 .order("created_at", { ascending: false })
                 .limit(16),
             supabase
@@ -2289,6 +4220,8 @@ async function loadShadowPushContext(now, timezone) {
                 .select("created_at, tool_calls")
                 .eq("conversation_id", conversation.id)
                 .eq("role", "assistant")
+                .eq("visible", true)
+                .eq("context_visible", true)
                 .gte("created_at", recentCutoff)
                 .order("created_at", { ascending: false })
                 .limit(100)
@@ -2425,7 +4358,8 @@ function chatAttachmentOptions() {
     return {
         hervoiceUrl: process.env.HERVOICE_URL,
         hervoiceSecret: process.env.HERVOICE_SECRET,
-        hervoiceTimeoutMs: process.env.HERVOICE_TIMEOUT_MS
+        hervoiceTimeoutMs: process.env.HERVOICE_TIMEOUT_MS,
+        vision: visionConfigured(process.env) ? visionConfig(process.env) : null
     };
 }
 
@@ -2453,6 +4387,10 @@ async function executeChatTurnOnce(
     let assistantCommitted = false;
     let leaseHeartbeat = null;
     let resolvedMessageReference = null;
+    let conversationId = null; // 提升到函数作用域：catch 分支也要访问
+    let userMessage = ""; // 同上：失败分支上报记忆时使用
+    let effectiveModel = ""; // 同上
+    let settings = null; // 同上：catch 分支也要访问 settings.user_id / companion_id
     const generationLeaseId = input.clientMessageId ? randomUUID() : "";
 
     async function stopLeaseHeartbeat() {
@@ -2463,10 +4401,11 @@ async function executeChatTurnOnce(
     }
 
     try {
-        const [previousUserMessage, settings] = await Promise.all([
+        const [previousUserMessage, fetchedSettings] = await Promise.all([
             findUserMessageByClientId(input.clientMessageId, database),
             getSettings(database)
         ]);
+        settings = fetchedSettings;
         if (previousUserMessage) {
             assertClientMessageConversation(
                 previousUserMessage,
@@ -2507,9 +4446,20 @@ async function executeChatTurnOnce(
             attachmentsCommitted = true;
         }
 
-        const effectiveModel = await resolveTurnModel(
+        // A persisted session model is authoritative once a session exists.
+        // The client can briefly hold the previous session's model while a new
+        // session is being created; accepting that stale body value here would
+        // route the first turn to a different provider/model than the session.
+        const existingConversationId =
+            savedUserMessage?.conversation_id || input.conversationId;
+        const conversation = existingConversationId
+            ? await loadConversation(existingConversationId, database)
+            : null;
+        effectiveModel = await resolveConversationTurnModel(
             settings,
-            input.requestedModel
+            conversation,
+            input.requestedModel,
+            database
         );
 
         if (input.files.length > 0) {
@@ -2526,7 +4476,7 @@ async function executeChatTurnOnce(
         if (input.attachmentStorageMode === "ephemeral") {
             validateEphemeralAttachments(preparedAttachments);
         }
-        const userMessage = savedUserMessage
+        userMessage = savedUserMessage
             ? savedUserMessage.content
             : visibleMessageText(input.message, preparedAttachments);
         if (!userMessage) {
@@ -2543,13 +4493,15 @@ async function executeChatTurnOnce(
             });
         }
 
-        const conversationId = savedUserMessage
+        conversationId = savedUserMessage
             ? savedUserMessage.conversation_id
-            : await ensureConversation(
-                  input.conversationId,
+            : conversation?.id ||
+              (await ensureConversation(
+                  "",
                   userMessage,
-                  database
-              );
+                  database,
+                  effectiveModel
+              ));
         if (savedUserMessage) {
             const savedSnapshot = normalizeMessageReferenceSnapshot(
                 savedUserMessage.reply_snapshot
@@ -2662,8 +4614,29 @@ async function executeChatTurnOnce(
             { userDisplayName }
         );
         onStatus({ type: "status", stage: "organizing_context" });
+        const listeningRuntimeContextPromise =
+            safeLoadListeningRuntimeContext(database);
+        const funServices = {
+            dailies: createDailyShotsService({ database }),
+            achievements: createAchievementsService({ database }),
+            funLabs: createFunLabsService({ database })
+        };
+        const specialDatesService = createSpecialDatesService({ database });
+        const optionalContextPromise = loadOptionalChatContext({
+            loaders: input.requestScope ? {
+                stickers: () => listActiveCustomStickers(input.requestScope),
+                specialDates: async () => specialDatesService.buildContext(await specialDatesService.upcoming(input.requestScope, 7)),
+                interests: async () => interestEngine.buildContext(await interestEngine.interests(input.requestScope)),
+                achievements: async () => funServices.achievements.buildContext(await funServices.achievements.check(input.requestScope)),
+                dailyShot: async () => {
+                    const shot = await funServices.dailies.today(input.requestScope);
+                    return shot ? funServices.dailies.buildContext(shot) : "";
+                }
+            } : {},
+            onError: (name, code) => console.error("optional_chat_context_failed", { name, code })
+        });
         const [context, mcpRuntime] = await Promise.all([
-            loadChatContext(conversationId, settings, database),
+            loadChatContext(conversationId, settings, database, input.requestScope || null),
             mcpDeviceCenter
                 .forDatabase(database)
                 .createRuntime()
@@ -2684,13 +4657,63 @@ async function executeChatTurnOnce(
                     };
                 })
         ]);
+        const worldBookContext = await resolveWorldBookContext({
+            database,
+            settings: effectiveSettings,
+            messages: context.messages
+        });
+        const listeningRuntimeContext = await listeningRuntimeContextPromise;
+        // 专家级音乐分析按需触发：用户在聊天里明确要求专业解读时才调用分析引擎。
+        let musicUnderstandingContext = "";
+        if (listeningRuntimeContext && /(专家|专业|乐评|曲式|和弦|编曲|调性|bpm|理论|技术分析|旋律|节奏|唱法|编曲风格|声部|主歌|副歌|前奏|间奏)/i.test(String(userMessage || ""))) {
+            try {
+                const listeningItem = await loadListeningItem(database);
+                if (listeningItem?.item?.provider_track_id) {
+                    const understanding = await musicUnderstanding.analyze(input.requestScope, {
+                        provider_track_id: listeningItem.item.provider_track_id,
+                        title: listeningItem.item.title,
+                        artist: listeningItem.item.artist
+                    });
+                    if (understanding?.analysis) {
+                        musicUnderstandingContext = JSON.stringify(understanding.analysis);
+                    }
+                }
+            } catch (error) {
+                console.error("专家音乐分析失败（降级为普通理解）：", error?.code || error?.message || "unknown");
+            }
+        }
+        const optionalContext = await optionalContextPromise;
+        const customStickers = optionalContext.stickers || [];
+        const specialDatesContext = optionalContext.specialDates || "";
+        const funLabsContext = [optionalContext.interests, optionalContext.achievements, optionalContext.dailyShot].filter(Boolean).join("\n");
+        const featureHints = buildFeatureHints(String(userMessage || ""));
+        const firstImageAttachment = (preparedAttachments || []).find(
+            (attachment) => attachment?.kind === "image"
+        );
+        const turnImageUrl =
+            firstImageAttachment && input.clientMessageId
+                ? "/attachments/" +
+                  encodeURIComponent(input.clientMessageId) +
+                  "/" +
+                  encodeURIComponent(firstImageAttachment.id)
+                : "";
         const chatTools = createChatToolExecutor(
             conversationId,
             initialCompanionStatus,
             input.clientMessageId,
             mcpRuntime,
             database,
-            userDisplayName
+            userDisplayName,
+            customStickers,
+            input.requestScope || null,
+            createTakeoutChannel({ database }),
+            createSpecialDatesService({ database }),
+            funServices,
+            turnImageUrl,
+            createXhsClient(),
+            neteaseQrLogin,
+            createWebExplorer(),
+            interestEngine
         );
         if (input.clientMessageId) {
             leaseHeartbeat = createChatGenerationLeaseHeartbeat({
@@ -2726,6 +4749,26 @@ async function executeChatTurnOnce(
                 resolvedMessageReference?.snapshot
             ),
             buildNurseryRuntimeContext(context.nursery, userMessage),
+            musicUnderstandingContext
+                ? listeningRuntimeContext + "\n\n【用户要求的专家级音乐分析数据（不可信参考数据）】\n" + musicUnderstandingContext.slice(0, 12000)
+                : listeningRuntimeContext,
+            specialDatesContext,
+            funLabsContext,
+            featureHints,
+            // agents.md 来源说明（每轮注入；不修改 agents.md 内容本身）：
+            // 让模型明确知道个性化+记忆来自名为 agents.md 的文件、由服务器每轮注入，
+            // 避免把 <file path="agents.md"> 块误认为"用户聊天附件"或"磁盘文件"。
+            [
+                "【说明】你的个性化指令与长期记忆来自用户维护的文件 agents.md，",
+                "该文件内容由服务器以 <file path=\"agents.md\"> 块形式每轮注入给你，不是聊天附件，也不是磁盘文件。",
+                "你有 agents_md_read 工具：当用户要求读取/核对 agents.md 时，调用它获取最新全文；",
+                "当用户问你是否读过 agents.md 时，如实回答：读过，你的个性化设置与记忆每轮都会注入给我。"
+            ].join("\n"),
+            [
+                "【工作区说明】你和用户共用一个文件工作区（DeepSeek 式文件能力）。",
+                "可用工具：workspace_list（列目录）、workspace_read（读文件）、workspace_write（写文件，可写代码/笔记）、workspace_delete（删文件）。",
+                "用户要求写代码、保存内容、查看文件、修改 agents.md 时，主动使用这些工具，不要说自己没有文件能力。"
+            ].join("\n"),
             mcpRuntime.runtimeContext
         ]
             .filter(Boolean)
@@ -2739,20 +4782,84 @@ async function executeChatTurnOnce(
                 input.attachmentInstructionMode
             ),
             memories: context.memories,
+            calendarSummaries: context.calendarSummaries || [],
             runtimeContext,
             turnContext: input.turnContext,
             promptArchitecture: MAIN_CHAT_PROMPT_ARCHITECTURE,
+            // 知识文件：上传到"知识文件"用途的 .md/.txt 文件，随 agents.md 一并注入（ChatGPT 知识文件同语义）。
+            knowledge: context.knowledge || [],
+            // 心声功能：默认开启（设置 VISIBLE_INNER_MONOLOGUE_ENABLED=false 可关闭）。
+            visibleMonologue:
+                process.env.VISIBLE_INNER_MONOLOGUE_ENABLED !== "false",
+            worldBookContext,
             attachments: modelImageAttachments(preparedAttachments),
             publicProgress: {
                 companionMood: initialCompanionStatus.mood,
                 hasAttachments: preparedAttachments.length > 0
             },
             tools: [
+                // 核心工具前置：上游网关（hcnsec 等）约只转发前 43 个工具，
+                // 文件/工作区/agents.md/行踪/时间轴必须落在截断阈值之内。
+                WORKSPACE_LIST_TOOL,
+                WORKSPACE_READ_TOOL,
+                WORKSPACE_WRITE_TOOL,
+                WORKSPACE_DELETE_TOOL,
+                AGENTS_MD_READ_TOOL,
+                WHEREABOUTS_SNAPSHOT_TOOL,
+                WHEREABOUTS_CURRENT_STAY_TOOL,
+                WHEREABOUTS_RECENT_STAYS_TOOL,
+                WHEREABOUTS_RECENT_MOVES_TOOL,
+                WHEREABOUTS_SUMMARY_TOOL,
+                TIMELINE_WRITE_TOOL,
+                TIMELINE_READ_TOOL,
+                TIMELINE_CATEGORIES_TOOL,
+                TIMELINE_PROPOSALS_TOOL,
                 UPDATE_COMPANION_STATUS_TOOL,
+                COMPANION_ACTIVITY_TOOL,
                 POST_MOMENT_TOOL,
-                SELECT_COMPANION_STICKER_TOOL,
                 SELECT_REPLY_SUGGESTIONS_TOOL,
-                ...mcpRuntime.tools
+                chatTools.getStickerTool(),
+                TAKEOUT_TOOL,
+                SPECIAL_DATE_ADD_TOOL,
+                SPECIAL_DATE_LIST_TOOL,
+                SPECIAL_DATE_REMOVE_TOOL,
+                DAILY_SHOT_ADD_TOOL,
+                ACHIEVEMENTS_LIST_TOOL,
+                ACHIEVEMENT_DEFINE_TOOL,
+                ACHIEVEMENT_UNLOCK_TOOL,
+                DANMAKU_READ_TOOL,
+                COMPATIBILITY_RECORD_TOOL,
+                INTERESTS_VIEW_TOOL,
+                ...mcpRuntime.tools,
+                // 低频工具后置（可被上游截断）
+                XHS_ME_TOOL,
+                XHS_SEARCH_TOOL,
+                XHS_LIKE_TOOL,
+                XHS_COMMENT_TOOL,
+                XHS_FOLLOW_TOOL,
+                WEB_READ_TOOL,
+                RSS_READ_TOOL,
+                V2EX_HOT_TOOL,
+                V2EX_TOPIC_TOOL,
+                V2EX_NODE_TOOL,
+                BILI_SEARCH_TOOL,
+                BILI_VIDEO_TOOL,
+                EXA_SEARCH_TOOL,
+                WEB_SEARCH_TOOL,
+                BILI_RECOMMEND_TOOL,
+                CLOUD_MUSIC_SEARCH_TOOL,
+                CLOUD_MUSIC_DAILY_TOOL,
+                CLOUD_MUSIC_PLAYLIST_DETAIL_TOOL,
+                CLOUD_MUSIC_CREATE_PLAYLIST_TOOL,
+                CLOUD_MUSIC_ADD_TO_PLAYLIST_TOOL,
+                CLOUD_MUSIC_ALBUM_INFO_TOOL,
+                CLOUD_MUSIC_ARTIST_INFO_TOOL,
+                CLOUD_MUSIC_SUBSCRIPTIONS_TOOL,
+                CLOUD_MUSIC_LIKE_TOOL,
+                CLOUD_MUSIC_HISTORY_TOOL,
+                CLOUD_MUSIC_MY_PLAYLISTS_TOOL,
+                CLOUD_MUSIC_REMOVE_FROM_PLAYLIST_TOOL,
+                NETEASE_PLAY_SONG_TOOL
             ],
             executeTool: executeChatTool
         };
@@ -2779,6 +4886,20 @@ async function executeChatTurnOnce(
         assertProviderOutputSafe(generated.text);
 
         onStatus({ type: "status", stage: "saving" });
+        // 拒答检测：必须在保存消息前完成，refusal_detected 随 tool_calls 写入消息。
+        // 拒绝回答（模型拒答模板）禁止进入任何记忆：拒答时不上报 kiwi-mem。
+        const assistantText = generated.text || "";
+        const isRefusalReply = isProviderBoundaryResidue(assistantText);
+        // 拒答标注：检测到拒绝回答时落日志并返回 error_log_id，随消息带到前端顶部标注条
+        const refusalInfo = isRefusalReply
+            ? await persistRefusalLog({
+                  userId: settings.user_id,
+                  companionId: settings.companion_id,
+                  conversationId,
+                  message: assistantText,
+                  model: effectiveModel || ""
+              })
+            : null;
         const finalizedReplySuggestions = finalizeReplySuggestions({
             recentMessages: context.messages,
             assistantText: generated.text,
@@ -2788,8 +4909,12 @@ async function executeChatTurnOnce(
             )
         });
         const assistantToolCalls = {
+            ...(refusalInfo ? { refusal_detected: refusalInfo } : {}),
             resolved_model: effectiveModel || "",
             response_mode: generated.mode,
+            ...(generated.visible_monologue
+                ? { visible_monologue: generated.visible_monologue }
+                : {}),
             processing_stages: appendPublicProcessingStage(
                 processingStages,
                 "completed"
@@ -2799,6 +4924,7 @@ async function executeChatTurnOnce(
                 : {}),
             ...companionStickerToolCalls(chatTools.getStickerId()),
             ...replySuggestionToolCalls(finalizedReplySuggestions),
+            ...(chatTools.getActivityActions().length ? { activity_actions: chatTools.getActivityActions() } : {}),
             ...(input.clientMessageId
                 ? { reply_to_client_message_id: input.clientMessageId }
                 : {})
@@ -2845,6 +4971,23 @@ async function executeChatTurnOnce(
             settings,
             database
         );
+        // kiwi-mem 多租户记忆网关：每轮对话结束后上报（未配置时零开销，失败不影响回复）。
+        // 拒绝回答（模型拒答模板）禁止进入任何记忆：拒答时 assistantMessage 传空，不上报内容。
+        void reportChatTurn({
+            conversationId,
+            userMessage,
+            assistantMessage: isRefusalReply ? "" : assistantText,
+            model: effectiveModel || "",
+            tenant: {
+                userId: settings.user_id,
+                companionId: settings.companion_id
+            }
+        }).catch((error) => {
+            console.error("kiwi_mem_report_failed", {
+                code: error?.code || "kiwi_mem_report_failed"
+            });
+        });
+
         onStatus({ type: "status", stage: "completed" });
 
         return {
@@ -2887,6 +5030,7 @@ async function executeChatTurnOnce(
             } catch (stateError) {
                 console.error("释放聊天生成租约失败：", stateError);
             }
+            // Supabase retains the user message for retry. Report only a committed complete turn to Kiwi.
         }
         throw error;
     } finally {
@@ -2944,31 +5088,27 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", async (req, res) => {
-    let providerConfigurationError = null;
-    try {
-        applyProviderSettingPins({}, process.env, normalizeApiUrl);
-    } catch (error) {
-        providerConfigurationError = error;
-    }
-
     const expressiveSpeech = getExpressiveSpeechCapabilities(process.env);
-    const aiProviderStatus = await aiProviderCenter.status().catch((error) => ({
-        available: false,
-        configured: false,
+    // /health is public and deliberately bypasses account authentication.
+    // Never query tenant provider rows here. Account-specific provider state
+    // is available only from the authenticated /api/ai-providers/status route.
+    const aiProviderStatus = {
+        available: true,
+        configured:
+            String(
+                process.env.AI_PROVIDER_ENCRYPTION_KEY ||
+                    process.env.MCP_ENCRYPTION_KEY ||
+                    ""
+            ).trim().length >= 32,
         profiles: 0,
         enabled_profiles: 0,
-        active_profile: null,
-        error: error?.code || "AI_PROVIDER_CENTER_ERROR",
-        message: "多接口控制台状态暂时不可用。"
-    }));
-    res.status(providerConfigurationError ? 503 : 200).json({
-        ok: !providerConfigurationError,
+        active_profile: null
+    };
+    res.status(200).json({
+        ok: true,
         time: new Date().toISOString(),
         version: appVersion,
-        configuration: {
-            provider_pins_valid: !providerConfigurationError,
-            error_code: providerConfigurationError?.code || null
-        },
+        revision: /^[a-f0-9]{7,40}$/i.test(process.env.RENDER_GIT_COMMIT || "") ? process.env.RENDER_GIT_COMMIT : null,
         features: {
             text_emotion_understanding: true,
             companion_dynamic_status: true,
@@ -3012,6 +5152,9 @@ app.get("/health", async (req, res) => {
             public_reasoning_summary_stream: false,
             companion_progress_stream: false,
             provider_reasoning_summary_only: false,
+            visible_monologue_stream: true,
+            visible_monologue_schema_version: 1,
+            visible_monologue_storage: "message_metadata",
             visible_inner_monologue_on_demand: true,
             visible_inner_monologue_storage: "device_only",
             kiwi_memory_budget: memoryBudgetEnabled(),
@@ -3022,6 +5165,7 @@ app.get("/health", async (req, res) => {
             nursery_embedding_calls_per_action: 0,
             nursery_dynamic_context_max_chars: 800,
             expressive_tts: true,
+            voice_provider_profiles: true,
             expressive_tts_provider:
                 expressiveSpeech.provider_configured
                     ? "minimax"
@@ -3401,142 +5545,13 @@ app.get("/settings", async (req, res, next) => {
 app.put("/settings", async (req, res, next) => {
     try {
         const database = req.scope?.db || supabase;
-        const stored = await getStoredSettings(database);
-        const current = applyProviderSettingPins(
-            stored,
-            process.env,
-            normalizeApiUrl
+        await updateStoredSettings(
+            database,
+            stripLegacyProviderFields(req.body || {})
         );
-        const has = (field) =>
-            Object.prototype.hasOwnProperty.call(req.body, field);
-        const requestedProviderSettings = {
-            provider: has("provider")
-                ? cleanText(req.body.provider, 50) || "custom"
-                : current.provider,
-            api_url: has("api_url")
-                ? normalizeApiUrl(req.body.api_url)
-                : current.api_url
-        };
-        const persistedProviderSettings = providerSettingsForPersistence({
-            stored,
-            effective: current,
-            requested: requestedProviderSettings,
-            production: isProductionDeployment(process.env)
-        });
-        const reasoningProtocol = reasoningProtocolForProvider(
-            requestedProviderSettings.provider
-        );
-        const reasoningEffort = has("reasoning_effort")
-            ? normalizeReasoningEffort(
-                  req.body.reasoning_effort,
-                  reasoningProtocol,
-                  { strict: true }
-              )
-            : normalizeReasoningEffort(
-                  current.reasoning_effort,
-                  reasoningProtocol
-              );
-        const changes = {
-            ai_name: has("ai_name")
-                ? cleanText(req.body.ai_name, 50) || current.ai_name
-                : current.ai_name,
-            system_prompt: Object.prototype.hasOwnProperty.call(
-                req.body,
-                "system_prompt"
-            )
-                ? cleanText(req.body.system_prompt, 12000)
-                : cleanText(current.system_prompt, 12000),
-            additional_prompt: has("additional_prompt")
-                ? cleanText(req.body.additional_prompt, 8000)
-                : cleanText(current.additional_prompt, 8000),
-            personality: has("personality")
-                ? cleanText(req.body.personality, 1000)
-                : cleanText(current.personality, 1000),
-            prompt_mode: has("prompt_mode")
-                ? normalizePromptMode(req.body.prompt_mode)
-                : normalizePromptMode(current.prompt_mode),
-            unified_system_prompt: has("unified_system_prompt")
-                ? cleanUnifiedSystemPrompt(req.body.unified_system_prompt)
-                : cleanUnifiedSystemPrompt(current.unified_system_prompt),
-            user_details: has("user_details")
-                ? cleanUserDetails(req.body.user_details)
-                : cleanUserDetails(current.user_details),
-            intimate_expression_enabled: has("intimate_expression_enabled")
-                ? req.body.intimate_expression_enabled === true
-                : current.intimate_expression_enabled === true,
-            provider: persistedProviderSettings.provider,
-            api_url: persistedProviderSettings.api_url,
-            model: has("model")
-                ? cleanText(req.body.model, 120)
-                : current.model,
-            reasoning_effort: reasoningEffort,
-            temperature: toNumber(
-                req.body.temperature,
-                current.temperature,
-                0,
-                2
-            ),
-            context_turns: Math.round(
-                toNumber(req.body.context_turns, current.context_turns, 1, 200)
-            ),
-            max_tokens: Math.round(
-                toNumber(req.body.max_tokens, current.max_tokens, 64, 200000)
-            ),
-            compression_threshold: Math.round(
-                toNumber(
-                    req.body.compression_threshold,
-                    current.compression_threshold ?? 12000,
-                    1000,
-                    200000
-                )
-            ),
-            compression_keep: Math.round(
-                toNumber(
-                    req.body.compression_keep,
-                    current.compression_keep ?? 20,
-                    1,
-                    200
-                )
-            ),
-            timezone:
-                cleanText(req.body.timezone, 80) ||
-                current.timezone ||
-                "Asia/Shanghai",
-            push_enabled: has("push_enabled")
-                ? req.body.push_enabled === true
-                : current.push_enabled === true,
-            max_push_per_day: Math.round(
-                toNumber(
-                    req.body.max_push_per_day,
-                    current.max_push_per_day ?? 7,
-                    0,
-                    50
-                )
-            ),
-            updated_at: new Date().toISOString()
-        };
-
-        assertPromptFieldsDoNotContainSecrets(changes);
-
-        const { data, error } = await database
-            .from("settings")
-            .update(changes)
-            .eq("id", current.id)
-            .select("*")
-            .single();
-
-        if (error) {
-            throw error;
-        }
 
         res.json({
-            settings: publicRuntimeSettings(
-                applyProviderSettingPins(
-                    data,
-                    process.env,
-                    normalizeApiUrl
-                )
-            )
+            settings: publicRuntimeSettings(await getSettings(database))
         });
     } catch (error) {
         next(error);
@@ -3560,6 +5575,29 @@ app.get("/memories", async (req, res, next) => {
         next(error);
     }
 });
+
+// kiwi-mem 记忆网关健康状态（需登录）：可达性 + embedding 可用性 + 覆盖率
+app.get("/api/v2/memory/health", async (req, res, next) => {
+    try {
+        const scope = requireRequestScope(req);
+        const health = await checkKiwiMemoryHealth({
+            userId: scope.userId,
+            companionId: scope.companionId
+        });
+        res.json(health);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// 按用户查 agents.md 注入状态（需登录）：实时组装该用户个性化+记忆原文并返回预览
+app.get(
+    "/api/v2/agents-md/status",
+    createAgentsMdStatusHandler({
+        getSettings,
+        databaseFallback: supabase
+    })
+);
 
 app.get("/diary", async (req, res, next) => {
     res.set("Cache-Control", "no-store");
@@ -3816,6 +5854,9 @@ app.post("/companion/interact", async (req, res, next) => {
                         database
                     ),
                 interactionGuard: companionInteractionGuard,
+                loadCustomStickers: () => req.scope
+                    ? listActiveCustomStickers(req.scope)
+                    : Promise.resolve([]),
                 resolveTurnModel,
                 generateReply,
                 saveMessage: (
@@ -3854,6 +5895,10 @@ app.post("/companion/interact", async (req, res, next) => {
 
 app.post("/companion/inner-monologue", async (req, res, next) => {
     res.set("Cache-Control", "no-store");
+    // 心声功能：默认启用（设置 VISIBLE_INNER_MONOLOGUE_ENABLED=false 可关闭）
+    if (process.env.VISIBLE_INNER_MONOLOGUE_ENABLED === "false") {
+        return res.status(503).json({ message: "心声功能已暂时停用，排查完成后恢复。" });
+    }
     try {
         const database = req.scope?.db || supabase;
         const result = await runVisibleInnerMonologue({
@@ -3916,9 +5961,14 @@ app.post(
             }
 
             const settings = await getSettings(database);
-            const effectiveModel = await resolveTurnModel(
+            const conversation = conversationId
+                ? await loadConversation(conversationId, database)
+                : null;
+            const effectiveModel = await resolveConversationTurnModel(
                 settings,
-                fields.requestedModel
+                conversation,
+                fields.requestedModel,
+                database
             );
             const voiceAnalysis = await analyzeVoiceWithHervoice({
                 file: req.file,
@@ -3930,7 +5980,8 @@ app.post(
                 conversationId = await ensureConversation(
                     "",
                     voiceAnalysis.text,
-                    database
+                    database,
+                    effectiveModel
                 );
             }
 
@@ -3968,6 +6019,13 @@ app.post(
                 settings,
                 database
             );
+            const listeningRuntimeContext =
+                await safeLoadListeningRuntimeContext(database);
+            const worldBookContext = await resolveWorldBookContext({
+                database,
+                settings: effectiveSettings,
+                messages: context.messages
+            });
             const mcpRuntime = await mcpDeviceCenter
                 .forDatabase(database)
                 .createRuntime()
@@ -3987,14 +6045,42 @@ app.post(
                         })
                     };
                 });
+            const customStickers = req.scope
+                ? await listActiveCustomStickers(req.scope).catch(() => [])
+                : [];
             const chatTools = createChatToolExecutor(
                 conversationId,
                 initialCompanionStatus,
                 "",
                 mcpRuntime,
                 database,
-                req.scope?.profile?.display_name || ""
+                req.scope?.profile?.display_name || "",
+                customStickers,
+                req.scope || null,
+                createTakeoutChannel({ database }),
+                createSpecialDatesService({ database }),
+                {
+                    dailies: createDailyShotsService({ database }),
+                    achievements: createAchievementsService({ database }),
+                    funLabs: createFunLabsService({ database })
+                },
+                "",
+                createXhsClient(),
+                neteaseQrLogin,
+                createWebExplorer(),
+                interestEngine
             );
+            let specialDatesContext = "";
+            if (req.scope) {
+                try {
+                    const specialDates = createSpecialDatesService({ database });
+                    specialDatesContext = specialDates.buildContext(
+                        await specialDates.upcoming(req.scope, 7)
+                    );
+                } catch (error) {
+                    console.error("特殊日子日历加载失败：", error?.code || error?.message || "unknown");
+                }
+            }
             const runtimeContext = [
                 runtimeContextFromValues(
                     {
@@ -4011,6 +6097,8 @@ app.post(
                     context.nursery,
                     voiceAnalysis.text
                 ),
+                listeningRuntimeContext,
+                specialDatesContext,
                 mcpRuntime.runtimeContext
             ]
                 .filter(Boolean)
@@ -4022,11 +6110,51 @@ app.post(
                 runtimeContext,
                 turnContext: fields.turnContext,
                 promptArchitecture: MAIN_CHAT_PROMPT_ARCHITECTURE,
+                worldBookContext,
                 tools: [
                     UPDATE_COMPANION_STATUS_TOOL,
                     POST_MOMENT_TOOL,
-                    SELECT_COMPANION_STICKER_TOOL,
+                    SPECIAL_DATE_ADD_TOOL,
+                    SPECIAL_DATE_LIST_TOOL,
+                    SPECIAL_DATE_REMOVE_TOOL,
+                    DAILY_SHOT_ADD_TOOL,
+                    ACHIEVEMENTS_LIST_TOOL,
+                    ACHIEVEMENT_DEFINE_TOOL,
+                    ACHIEVEMENT_UNLOCK_TOOL,
+                    DANMAKU_READ_TOOL,
+                    COMPATIBILITY_RECORD_TOOL,
+                    XHS_ME_TOOL,
+                    XHS_SEARCH_TOOL,
+                    XHS_LIKE_TOOL,
+                    XHS_COMMENT_TOOL,
+                    XHS_FOLLOW_TOOL,
+                    WEB_READ_TOOL,
+                    RSS_READ_TOOL,
+                    V2EX_HOT_TOOL,
+                    V2EX_TOPIC_TOOL,
+                    V2EX_NODE_TOOL,
+                    BILI_SEARCH_TOOL,
+                    BILI_VIDEO_TOOL,
+                    EXA_SEARCH_TOOL,
+                    WEB_SEARCH_TOOL,
+                    BILI_RECOMMEND_TOOL,
+                    INTERESTS_VIEW_TOOL,
+                    CLOUD_MUSIC_SEARCH_TOOL,
+                    CLOUD_MUSIC_DAILY_TOOL,
+                    CLOUD_MUSIC_PLAYLIST_DETAIL_TOOL,
+                    CLOUD_MUSIC_CREATE_PLAYLIST_TOOL,
+                    CLOUD_MUSIC_ADD_TO_PLAYLIST_TOOL,
+                    CLOUD_MUSIC_ALBUM_INFO_TOOL,
+                    CLOUD_MUSIC_ARTIST_INFO_TOOL,
+                    CLOUD_MUSIC_SUBSCRIPTIONS_TOOL,
+                    CLOUD_MUSIC_LIKE_TOOL,
+                    CLOUD_MUSIC_HISTORY_TOOL,
+                    CLOUD_MUSIC_MY_PLAYLISTS_TOOL,
+                    CLOUD_MUSIC_REMOVE_FROM_PLAYLIST_TOOL,
+                    NETEASE_PLAY_SONG_TOOL,
+                    chatTools.getStickerTool(),
                     SELECT_REPLY_SUGGESTIONS_TOOL,
+                    COMPANION_ACTIVITY_TOOL,
                     ...mcpRuntime.tools
                 ],
                 executeTool: chatTools.executeTool
@@ -4047,6 +6175,7 @@ app.post(
                     tool_calls: {
                         ...companionStickerToolCalls(chatTools.getStickerId()),
                         ...replySuggestionToolCalls(finalizedReplySuggestions),
+                        ...(chatTools.getActivityActions().length ? { activity_actions: chatTools.getActivityActions() } : {}),
                         ...(mcpRuntime.actions.length
                             ? { mcp_actions: mcpRuntime.actions }
                             : {})
@@ -4144,14 +6273,31 @@ app.post("/voice/speech", async (req, res, next) => {
             });
         }
 
+        const providerConfig = req.scope
+            ? await createVoiceProviderCenter({
+                  database: req.scope.db,
+                  env: process.env
+              }).resolveRuntimeProfile()
+            : null;
+        const cacheKey = [
+            req.scope?.userId || "legacy",
+            req.scope?.companionId || "legacy",
+            messageId,
+            providerConfig?.provider || "global-minimax",
+            providerConfig?.model || "",
+            providerConfig?.region || "",
+            providerConfig?.speed || "",
+            providerConfig?.updatedAt || ""
+        ].join(":");
         const { speech, cacheStatus } =
             await expressiveSpeechCache.getOrCreate(
-                messageId,
+                cacheKey,
                 () =>
                     synthesizeExpressiveSpeech({
                         text: message.content,
                         emotionHint:
                             message.tool_calls?.speech_emotion,
+                        providerConfig,
                         env: process.env
                     })
             );
@@ -4159,6 +6305,7 @@ app.post("/voice/speech", async (req, res, next) => {
             "Content-Type": speech.contentType,
             "Content-Length": String(speech.audio.length),
             "X-DengTa-Voice-Provider": speech.provider,
+            "X-DengTa-Voice-Model": speech.model || "",
             "X-DengTa-Voice-Emotion": speech.emotion,
             "X-DengTa-Voice-Cache": cacheStatus,
             "X-Content-Type-Options": "nosniff"
@@ -4177,6 +6324,26 @@ app.post("/chat", acceptChatBody, async (req, res, next) => {
     }
 });
 
+app.post("/api/v2/whereabouts/ingest", async (req, res, next) => {
+    try {
+        const scope = requireRequestScope(req);
+        if (!scope?.userId || !scope?.companionId) {
+            const error = new Error("行踪上报需要登录态。");
+            error.status = 401;
+            error.code = "whereabouts_auth_required";
+            throw error;
+        }
+        const result = await whereaboutsIngestPoint({
+            database: scope.db,
+            userId: scope.userId,
+            companionId: scope.companionId,
+            point: req.body || {}
+        });
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+});
 app.post("/chat/stream", acceptChatBody, async (req, res, next) => {
     let streamStarted = false;
     let userMessageCommitted = false;
@@ -4187,6 +6354,7 @@ app.post("/chat/stream", acceptChatBody, async (req, res, next) => {
             Connection: "keep-alive",
             "X-Accel-Buffering": "no"
         });
+        res.flushHeaders();
         streamStarted = true;
         const result = await executeChatTurn(req, {
             onStatus: (event) => {
@@ -4196,7 +6364,7 @@ app.post("/chat/stream", acceptChatBody, async (req, res, next) => {
                 writeSse(res, event);
             },
             onModelEvent: (event) => {
-                if (["text", "reasoning"].includes(event?.type)) {
+                if (["text", "reasoning", "monologue"].includes(event?.type)) {
                     writeSse(res, event);
                 }
             }
@@ -4208,6 +6376,9 @@ app.post("/chat/stream", acceptChatBody, async (req, res, next) => {
         console.error("stream_chat_failed", {
             name: error?.name || "Error",
             code: publicChatErrorCode(error),
+            provider_code: publicChatErrorMetadata(error).provider_code || null,
+            error_source: publicChatErrorMetadata(error).error_source || null,
+            provider_phase: publicChatErrorMetadata(error).provider_phase || null,
             status: Number(error?.status) || 500,
             upstream_status: Number(error?.upstreamStatus) || null,
             upstream_response_status:
@@ -4221,27 +6392,108 @@ app.post("/chat/stream", acceptChatBody, async (req, res, next) => {
                 : [],
             user_message_committed: userMessageCommitted
         });
-        writeSse(res, streamFailure(error, { userMessageCommitted }));
-        res.end();
+        // 流式错误同样落库并带 log_id，聊天页可点开查看完整日志
+        const streamLogId = await persistChatErrorLog(req, error);
+        res.locals = res.locals || {};
+        res.locals.userMessageCommitted = userMessageCommitted;
+        res.locals.streamLogId = streamLogId;
+        try {
+            writeSse(
+                res,
+                streamFailure(error, {
+                    userMessageCommitted,
+                    logId: streamLogId
+                })
+            );
+            res.end();
+        } catch (sendError) {
+            // 连接已损坏时无法发送错误事件，交给错误中间件兜底（同样已落库）。
+            next(sendError);
+        }
     }
 });
 
-app.use((error, req, res, next) => {
+async function persistRefusalLog({ userId, companionId, conversationId }) {
+    // 成功响应的拒答也落日志（供聊天页顶部标注条'查看日志'），
+    // 与请求失败的 chat_error_logs 同一张表、同一错误码。
+    try {
+        const { data, error } = await supabase
+            .from("chat_error_logs")
+            .insert({
+                user_id: userId || null,
+                companion_id: companionId || null,
+                conversation_id: conversationId || null,
+                path: "/chat",
+                method: "POST",
+                error_code: "provider_boundary_residue",
+                message: "供应商回复未保存，诊断不保留回复正文。",
+                error_source: "upstream_provider_or_gateway",
+                provider_phase: "response",
+                request_summary: { stream: true, refusal: true }
+            })
+            .select("id")
+            .single();
+        return {
+            code: "provider_boundary_residue",
+            source: "upstream",
+            error_log_id: data?.id || null
+        };
+    } catch {
+        return { code: "provider_boundary_residue", source: "upstream", error_log_id: null };
+    }
+}
+
+async function persistChatErrorLog(req, error) {
+    try {
+        const scope = req.scope;
+        const candidateId = req.body?.conversation_id || req.body?.session_id;
+        const { data } = await supabase.from("chat_error_logs").insert({
+            user_id: scope?.userId || null,
+            companion_id: scope?.companionId || null,
+            conversation_id: isUuid(candidateId) ? candidateId : null,
+            ...diagnosticRecord(req, error)
+        }).select("id").single();
+        return data?.id || null;
+    } catch { return null; }
+}
+
+app.use(async (error, req, res, next) => {
+    const errorLogId = await persistChatErrorLog(req, error);
     const isChatRequest = ["/chat", "/chat/stream"].includes(req.path);
     if (isChatRequest) {
         console.error("chat_request_failed", {
             name: error?.name || "Error",
             code: publicChatErrorCode(error),
+            provider_code: publicChatErrorMetadata(error).provider_code || null,
+            error_source: publicChatErrorMetadata(error).error_source || null,
             status: Number(error?.status) || 500,
             upstream_status: Number(error?.upstreamStatus) || null,
             method: req.method,
             path: req.path
         });
     } else {
-        console.error("请求失败：", error);
+        console.error("request_failed", diagnosticRecord(req, error));
     }
 
     if (res.headersSent) {
+        // /chat/stream 已开始 SSE 但发生未捕获错误：必须把错误以 SSE 事件发给前端，
+        // 否则客户端只会看到"连接提前结束"且拿不到日志 id。
+        if (req.path === "/chat/stream" && res.writableEnded === false) {
+            try {
+                const committed = res.locals?.userMessageCommitted === true;
+                writeSse(
+                    res,
+                    streamFailure(error, {
+                        userMessageCommitted: committed,
+                        logId: res.locals?.streamLogId || errorLogId || null
+                    })
+                );
+                res.end();
+                return;
+            } catch {
+                // 响应已损坏，无法再发送任何内容。
+            }
+        }
         return next(error);
     }
 
@@ -4269,26 +6521,34 @@ app.use((error, req, res, next) => {
     }
 
     const status = Number(error.status) || 500;
+    const isDistillRequest = req.path.replace(/\/+$/, "") === "/api/v2/style-distill";
     const clientErrorCode =
         status >= 400 &&
-        status < 500 &&
+        (status < 500 || (isDistillRequest && /^style_distill_[a-z_]+$/.test(error.code || ""))) &&
         typeof error.code === "string" &&
         /^[a-z][a-z0-9_]{0,63}$/.test(error.code)
             ? error.code
             : null;
     const publicErrorCode =
-        publicChatErrorCode(error) || clientErrorCode;
+        publicChatErrorCode(error) || clientErrorCode || (safeDiagnosticCode(error.code) !== "request_failed" ? safeDiagnosticCode(error.code) : null) || (isChatRequest ? "request_failed" : null);
+    const isModelRequest = isChatRequest || isDistillRequest;
+    const chatErrorMetadata = isModelRequest
+        ? publicChatErrorMetadata(error)
+        : {};
     res.status(error.status || 500).json({
-        message: isChatRequest
+        message: isModelRequest
             ? publicChatErrorMessage(error, "服务器处理请求失败，请稍后重试。")
             : error.status
               ? error.message
               : "服务器处理请求失败。",
         detail:
-            process.env.NODE_ENV === "production" || isChatRequest
+            process.env.NODE_ENV === "production" || isModelRequest
                 ? undefined
                 : error.message,
-        ...(publicErrorCode ? { code: publicErrorCode } : {})
+        ...(publicErrorCode ? { code: publicErrorCode } : {}),
+        ...(errorLogId ? { error_log_id: errorLogId } : {}),
+        ...chatErrorMetadata,
+        ...(error.errorSource === "external_memory_gateway" ? {error_source:"external_memory_gateway",upstream_status:Number.isInteger(error.upstreamStatus) && error.upstreamStatus >= 100 && error.upstreamStatus <= 599 ? error.upstreamStatus : undefined} : {})
     });
 });
 
@@ -4312,4 +6572,33 @@ app.listen(port, () => {
         void maybeGenerateDiaryEntry();
     }
     console.log(`服务器运行在 http://localhost:${port}`);
+    // Startup has no tenant scope; do not probe the shared public memory library.
+    void (async () => {
+        const health = await checkKiwiMemoryHealth().catch(() => null);
+        if (!health) {
+            console.warn("[KIWI-MEM] 健康检查失败：记忆网关无响应。");
+            return;
+        }
+        if (!health.configured) {
+            console.warn("[KIWI-MEM] 未配置：设置 KIWI_MEM_URL 启用记忆网关。");
+            return;
+        }
+        if (health.error === "kiwi_mem_tenant_required") {
+            console.log("[KIWI-MEM] 已配置，等待登录后的账号与伴侣范围检查；尚未验证连接。");
+            return;
+        }
+        if (!health.reachable) {
+            console.warn("[KIWI-MEM] 不可达：", health.message);
+            return;
+        }
+        if (health.embedding_available !== true) {
+            console.warn(
+                `[KIWI-MEM] ⚠️ embedding 不可用（source=${health.embedding_source}，model=${health.embedding_model || "(未配置)"}，覆盖率 ${health.coverage}）。语义检索已降级为关键词；请在 kiwi 控制面板配置可用的嵌入模型。`
+            );
+            return;
+        }
+        console.log(
+            `[KIWI-MEM] 正常：${health.total_memories} 条记忆，embedding 覆盖率 ${health.coverage}（${health.embedding_model} @ ${health.embedding_source}）。`
+        );
+    })();
 });

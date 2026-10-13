@@ -211,6 +211,38 @@ function encryptionConfigured(env = process.env) {
     ).trim().length >= 32;
 }
 
+function inspectProviderCredential(row, env = process.env) {
+    if (row?.auth_type === "none") {
+        return {
+            state: "not_required",
+            usable: true,
+            credential: "__NO_AUTH__"
+        };
+    }
+    if (!row?.secret_ciphertext) {
+        return { state: "missing", usable: false, credential: "" };
+    }
+    try {
+        return {
+            state: "ready",
+            usable: true,
+            credential: decryptCredential(
+                row.secret_ciphertext,
+                vaultEnv(env)
+            )
+        };
+    } catch (error) {
+        return {
+            state:
+                error?.code === "MCP_CREDENTIAL_INVALID"
+                    ? "needs_reentry"
+                    : "unavailable",
+            usable: false,
+            credential: ""
+        };
+    }
+}
+
 function protocolProvider(protocol) {
     if (protocol === "anthropic") return "anthropic";
     if (protocol === "gemini") return "gemini";
@@ -303,8 +335,19 @@ function normalizeModels(value) {
     )].slice(0, 300);
 }
 
-function publicProfile(row) {
+function publicProfile(row, credentialInspection = null) {
     const lastError = safeStoredProviderError(row.last_error);
+    const credentialState =
+        credentialInspection?.state ||
+        (row.auth_type === "none"
+            ? "not_required"
+            : row.secret_ciphertext
+              ? "stored"
+              : "missing");
+    const credentialUsable =
+        typeof credentialInspection?.usable === "boolean"
+            ? credentialInspection.usable
+            : row.auth_type === "none" || Boolean(row.secret_ciphertext);
     return {
         id: row.id,
         name: row.name,
@@ -312,8 +355,9 @@ function publicProfile(row) {
         protocol: row.protocol,
         base_url: row.base_url,
         auth_type: row.auth_type || "bearer",
-        auth_configured:
-            row.auth_type === "none" || Boolean(row.secret_ciphertext),
+        auth_configured: credentialUsable,
+        credential_state: credentialState,
+        credential_reentry_required: credentialState === "needs_reentry",
         default_model: row.default_model || "",
         reasoning_effort: normalizeReasoningEffort(
             row.reasoning_effort,
@@ -376,9 +420,23 @@ function runtimeSettings(row, baseSettings, credential) {
     };
 }
 
+function unconfiguredRuntimeSettings(baseSettings = {}) {
+    return {
+        ...baseSettings,
+        provider: "custom",
+        api_url: "",
+        model: "",
+        reasoning_effort: "",
+        runtime_api_key: "",
+        provider_profile_id: null,
+        provider_profile_name: "",
+        provider_protocol: ""
+    };
+}
+
 function publicRuntimeSettings(settings = {}) {
     const { runtime_api_key: _runtimeApiKey, ...safeSettings } = settings;
-    return safeSettings;
+    return { ...safeSettings, companion_gender_available: ["ai_gender", "ai_pronouns", "ai_gender_label"].every(field => Object.hasOwn(settings, field)) };
 }
 
 function createAiProviderCenter({
@@ -455,10 +513,14 @@ function createAiProviderCenter({
             );
         }
         const credential = String(input.credential || "").trim();
+        const existingCredential = existing
+            ? inspectProviderCredential(existing, env)
+            : null;
         const credentialConfigured =
             authType === "none" ||
             Boolean(credential) ||
-            Boolean(existing?.secret_ciphertext);
+            (existing?.auth_type === authType &&
+                existingCredential?.usable === true);
         const enabled =
             input.enabled === undefined
                 ? existing?.enabled === true
@@ -583,7 +645,7 @@ function createAiProviderCenter({
             .select("*")
             .single();
         if (error) throw mapDatabaseError(error);
-        return publicProfile(data);
+        return publicProfile(data, inspectProviderCredential(data, env));
     }
 
     async function updateProfile(id, input = {}) {
@@ -627,7 +689,7 @@ function createAiProviderCenter({
             .select("*")
             .single();
         if (error) throw mapDatabaseError(error);
-        return publicProfile(data);
+        return publicProfile(data, inspectProviderCredential(data, env));
     }
 
     async function testProfile(id) {
@@ -681,7 +743,10 @@ function createAiProviderCenter({
             .select("*")
             .single();
         if (error) throw mapDatabaseError(error);
-        return { profile: publicProfile(data), models };
+        return {
+            profile: publicProfile(data, inspectProviderCredential(data, env)),
+            models
+        };
     }
 
     async function setDefault(id) {
@@ -712,7 +777,7 @@ function createAiProviderCenter({
             .select("*")
             .single();
         if (error) throw mapDatabaseError(error);
-        return publicProfile(data);
+        return publicProfile(data, inspectProviderCredential(data, env));
     }
 
     async function deleteProfile(id) {
@@ -737,12 +802,11 @@ function createAiProviderCenter({
         const selected = Number.isInteger(limit) && limit >= 0
             ? usable.slice(0, limit)
             : usable;
-        return selected.map((row) => {
-            const credential =
-                row.auth_type === "none"
-                    ? "__NO_AUTH__"
-                    : decryptCredential(row.secret_ciphertext, vaultEnv(env));
-            return runtimeSettings(row, baseSettings, credential);
+        return selected.flatMap((row) => {
+            const inspection = inspectProviderCredential(row, env);
+            return inspection.usable
+                ? [runtimeSettings(row, baseSettings, inspection.credential)]
+                : [];
         });
     }
 
@@ -751,25 +815,45 @@ function createAiProviderCenter({
         // profiles would let a damaged backup credential break the healthy
         // default route even though automatic failover is disabled.
         const profiles = await runtimeProfiles(baseSettings, { limit: 1 });
-        return profiles[0] || baseSettings;
+        return profiles[0] || unconfiguredRuntimeSettings(baseSettings);
     }
 
     async function status() {
         const configured = encryptionConfigured(env);
         try {
             const rows = await listRows();
+            const credentialInspections = new Map(
+                rows.map((row) => [
+                    row.id,
+                    inspectProviderCredential(row, env)
+                ])
+            );
             const active = rows.find(
                 (row) => row.enabled && row.is_default && !isExpired(row)
             ) || rows.find((row) => row.enabled && !isExpired(row));
             const routableProfiles = rows.filter(
-                (row) => row.enabled && !isExpired(row)
+                (row) =>
+                    row.enabled &&
+                    !isExpired(row) &&
+                    credentialInspections.get(row.id)?.usable === true
             );
+            const credentialsRequiringReentry = rows.filter(
+                (row) =>
+                    credentialInspections.get(row.id)?.state ===
+                    "needs_reentry"
+            ).length;
+            const activeCredential = active
+                ? credentialInspections.get(active.id)
+                : null;
             return {
                 available: true,
                 configured,
                 profiles: rows.length,
                 enabled_profiles: rows.filter((row) => row.enabled).length,
                 routable_profiles: routableProfiles.length,
+                credentials_requiring_reentry: credentialsRequiringReentry,
+                credential_reentry_required:
+                    credentialsRequiringReentry > 0,
                 active_profile: active
                     ? {
                           id: active.id,
@@ -780,12 +864,19 @@ function createAiProviderCenter({
                               active.reasoning_effort,
                               active.protocol
                           ),
+                          routable: activeCredential?.usable === true,
+                          credential_state:
+                              activeCredential?.state || "unavailable",
+                          credential_reentry_required:
+                              activeCredential?.state === "needs_reentry",
                           last_status: active.last_status,
                           health: providerHealthSummary(active)
                       }
                     : null,
-                message: configured
-                    ? "多接口控制台可以使用。"
+                message: credentialsRequiringReentry
+                    ? "部分接口凭据由旧密钥加密，请重新填写 API Key；其他设置仍可使用。"
+                    : configured
+                      ? "多接口控制台可以使用。"
                     : "还需配置接口管理口令和加密密钥。"
             };
         } catch (error) {
@@ -808,7 +899,10 @@ function createAiProviderCenter({
     const center = {
         createProfile,
         deleteProfile,
-        listProfiles: async () => (await listRows()).map(publicProfile),
+        listProfiles: async () =>
+            (await listRows()).map((row) =>
+                publicProfile(row, inspectProviderCredential(row, env))
+            ),
         resolveDefaultSettings,
         runtimeProfiles,
         setDefault,
@@ -843,5 +937,6 @@ module.exports = {
     publicProfile,
     publicRuntimeSettings,
     safeStoredProviderError,
-    runtimeSettings
+    runtimeSettings,
+    unconfiguredRuntimeSettings
 };

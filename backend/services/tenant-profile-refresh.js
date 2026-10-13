@@ -456,6 +456,7 @@ async function recentProfileSourceMessages(database, settings) {
         .from("messages")
         .select("id, conversation_id, role, content, created_at")
         .eq("visible", true)
+        .eq("context_visible", true)
         .in("role", ["user", "assistant"]),
         settings
     )

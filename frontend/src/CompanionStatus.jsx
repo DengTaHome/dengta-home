@@ -34,6 +34,7 @@ import {
   settleExpiredCountdown,
 } from "./companion-status";
 import StatusFlowField from "./StatusFlowField";
+import NowPlayingCard from "./NowPlayingCard.jsx";
 
 const DESIRE_ACTIONS = [
   {
@@ -69,15 +70,22 @@ function CompanionStatus({
   active = true,
   closeRequest = 0,
   aiName,
+  aiPronoun = "TA",
   userName,
   status,
   interactionStats,
   intimateExpressionEnabled = false,
   isResponding = false,
+  nowPlaying = null,
+  nowPlayingBusy = false,
+  onNowPlayingPlayPause,
+  onNowPlayingNext,
+  onDismissNowPlaying,
   onChange,
   onExpandedChange,
   onInteract,
   onWatchTogether,
+  onListenTogether,
   onOpenNavigation,
   onOpenSettings,
 }) {
@@ -272,6 +280,7 @@ function CompanionStatus({
   function runDesireAction(action) {
     const baseAction = RECOVERY_ACTIONS.find((item) => item.id === "wish");
     if (!baseAction) return;
+    if (action.id === "music") onListenTogether?.();
     if (action.id === "watching") onWatchTogether?.();
     touchZone({
       ...baseAction,
@@ -372,19 +381,13 @@ function CompanionStatus({
     >
       <section className="sun-glass-liquid-action-stage" aria-label="动态状态">
         <span className="sun-glass-liquid-color-flow" aria-hidden="true" />
-        <button
-          type="button"
-          className="sun-glass-liquid-capsule-toggle"
-          aria-label={expanded ? "收起动态状态" : `展开${displayName}的动态状态`}
-          aria-expanded={expanded}
-          onClick={togglePanel}
-        >
-          <span className="sun-glass-capsule-decoration" aria-hidden="true">
-            <Heart />
-            <MessageCircle />
-            <Sparkles />
-          </span>
-        </button>
+        {nowPlaying ? (
+          <NowPlayingCard song={nowPlaying} busy={nowPlayingBusy} expanded={expanded} onToggle={togglePanel} onPlayPause={onNowPlayingPlayPause} onNext={onNowPlayingNext} onDismiss={onDismissNowPlaying} />
+        ) : (
+          <button type="button" className="sun-glass-liquid-capsule-toggle" aria-label={expanded ? "收起动态状态" : `展开${displayName}的动态状态`} aria-expanded={expanded} onClick={togglePanel}>
+            <span className="sun-glass-capsule-decoration" aria-hidden="true"><Heart /><MessageCircle /><Sparkles /></span>
+          </button>
+        )}
       </section>
 
       <div className="sun-glass-status-ribbon">
@@ -480,7 +483,7 @@ function CompanionStatus({
             <section className="sun-glass-status-section">
               <div className="sun-glass-section-heading">
                 <small>一起做点什么</small>
-                <strong>陪她消磨一小段时光</strong>
+                <strong>陪{aiPronoun}消磨一小段时光</strong>
               </div>
               <div className="sun-glass-desire-actions">
                 {DESIRE_ACTIONS.map((action) => (
@@ -498,8 +501,8 @@ function CompanionStatus({
 
             <section className="sun-glass-status-section">
               <div className="sun-glass-section-heading">
-                <small>触碰她</small>
-                <strong>轻轻碰一下，她会回应你</strong>
+                <small>触碰{aiPronoun}</small>
+                <strong>轻轻碰一下，{aiPronoun}会回应你</strong>
               </div>
               <div className="sun-glass-interaction-grid">
                 {HOT_ZONES.map((zone) => (
@@ -524,10 +527,10 @@ function CompanionStatus({
 
             <section className="sun-glass-status-section">
               <div className="sun-glass-section-heading">
-                <small>陪她恢复</small>
+                <small>陪{aiPronoun}恢复</small>
                 <strong>
                   {normalized.energyLevel <= 25
-                    ? `${displayName}现在很累，陪她慢慢充回力气`
+                    ? `${displayName}现在很累，陪${aiPronoun}慢慢充回力气`
                     : `问问${displayName}现在真正想要什么`}
                 </strong>
               </div>
@@ -541,7 +544,7 @@ function CompanionStatus({
                   >
                     <span aria-hidden="true">{action.icon}</span>
                     <span>
-                      <strong>{action.label}</strong>
+                      <strong>{action.label.replaceAll("她", aiPronoun)}</strong>
                       <small>恢复至少 {action.minimumEnergyGain}%</small>
                     </span>
                   </button>

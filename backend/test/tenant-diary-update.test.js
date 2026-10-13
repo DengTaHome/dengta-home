@@ -151,6 +151,7 @@ function sourceMessages(count = 8) {
                 ? `用户真实消息 ${index + 1}`
                 : `AI 真实回复 ${index + 1}`,
         visible: true,
+        context_visible: true,
         created_at: new Date(
             Date.parse("2026-07-27T01:00:00.000Z") +
                 index * 60 * 1000

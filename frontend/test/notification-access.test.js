@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { createNotificationAccessMonitor } from "../src/notification-access-monitor.js";
+import { readNotificationAccessState, openNotificationAccessSettings } from "../src/device-activity.js";
+
+const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { resolve, promise }; };
+const states = [], timers = new Map(); let nextTimer = 0, listener, reads = 0, opens = 0, removed = 0, granted = false;
+const opts = { supported: true, read: async () => { reads++; return { granted }; }, open: async () => { opens++; return true; }, listen: async callback => { listener = callback; return { remove() { removed++; } }; }, onState: state => states.push(state), setTimer: callback => { timers.set(++nextTimer, callback); return nextTimer; }, clearTimer: id => timers.delete(id) };
+const monitor = createNotificationAccessMonitor(opts);
+monitor.start(); await flush(); assert.equal(states.at(-1).granted, false);
+await monitor.request(); assert.equal(opens, 1); assert.equal(states.at(-1).granted, false, "opening settings is not evidence of authorization");
+granted = true; listener({ isActive: false }); await flush(); const before = reads;
+listener({ isActive: true }); await flush(); assert.equal(reads, before + 1); assert.equal(states.at(-1).granted, true, "returning after any delay rereads authorization");
+granted = false; listener({ isActive: true }); await flush(); assert.equal(states.at(-1).granted, false, "revocation is observed");
+const slow = deferred(), oldRead = deferred(); let calls = 0;
+const racing = createNotificationAccessMonitor({ ...opts, read: () => ++calls === 1 ? oldRead.promise : Promise.resolve({ granted: true }), open: () => { opens++; return slow.promise; } });
+racing.start(); await flush(); await racing.refresh(); oldRead.resolve({ granted: false }); await flush(); assert.equal(states.at(-1).granted, true, "older receipt cannot replace a newer observation");
+const request = racing.request(); const duplicate = racing.request(); await flush(); assert.equal(opens, 2); slow.resolve(true); await Promise.all([request, duplicate]);
+racing.stop(); await flush(); assert.equal(timers.size, 0);
+const delayedHandle = deferred(); const late = createNotificationAccessMonitor({ ...opts, listen: () => delayedHandle.promise }); late.start(); await flush(); late.stop(); const stateCount = states.length;
+delayedHandle.resolve({ remove() { removed++; } }); await flush(); assert.equal(states.length, stateCount); assert.ok(removed >= 2);
+let blockedReads = 0;
+const unsupported = createNotificationAccessMonitor({ ...opts, supported: false, read: () => blockedReads++, listen: () => { throw Error("must not subscribe"); } }); unsupported.start(); await unsupported.request(); await unsupported.refresh(); assert.equal(blockedReads, 0); unsupported.stop();
+const broken = createNotificationAccessMonitor({ ...opts, read: async () => { throw Error("secret detail"); }, open: async () => false }); broken.start(); await flush(); assert.equal(states.at(-1).errorCode, "music_notification_check_failed"); assert.doesNotMatch(states.at(-1).errorMessage, /secret/); await broken.request(); assert.equal(states.at(-1).errorCode, "music_notification_settings_failed"); broken.stop();
+const hanging = createNotificationAccessMonitor({ ...opts, read: () => new Promise(() => {}) }); hanging.start(); await flush(); for (const callback of [...timers.values()]) callback(); await flush(); assert.equal(states.at(-1).checking, false); assert.equal(states.at(-1).errorCode, "music_notification_check_failed"); hanging.stop(); monitor.stop(); await flush(); assert.equal(timers.size, 0);
+
+const capacitor = { isNativePlatform: () => true, isPluginAvailable: () => true };
+for (const receipt of [null, {}, { granted: "true" }]) await assert.rejects(readNotificationAccessState({ capacitor, plugin: { getNotificationAccessState: async () => receipt }, strict: true }), { code: "music_notification_check_failed" });
+assert.deepEqual(await readNotificationAccessState({ capacitor, plugin: { getNotificationAccessState: async () => ({ granted: false }) }, strict: true }), { granted: false });
+assert.equal(await openNotificationAccessSettings({ capacitor, plugin: { openNotificationAccessSettings: async () => {} } }), true);
+assert.equal(await openNotificationAccessSettings({ capacitor, plugin: { openNotificationAccessSettings: async () => { throw Error("private"); } } }), false);
+const app = fs.readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8"), hook = fs.readFileSync(new URL("../src/use-notification-access.js", import.meta.url), "utf8");
+assert.match(app, /useNotificationAccess\(\)/); assert.match(app, /refreshNotificationAccess\(\)/); assert.doesNotMatch(app, /setNotificationAccess|const requestNotificationAccess = useCallback/);
+assert.match(hook, /App.addListener\("appStateChange", callback\)/); assert.match(hook, /useEffect\(\(\) => monitor.start\(\), \[monitor\]\)/);
+const registrationReceipt = deferred(), callbacks = []; let registrations = 0, disposed = 0;
+const recovering = createNotificationAccessMonitor({ ...opts, read: async () => ({ granted: true }), listen: callback => { callbacks.push(callback); registrations++; return registrations === 1 ? registrationReceipt.promise : Promise.resolve({ remove() { disposed++; } }); } });
+recovering.start(); await flush(); assert.equal(timers.size, 1, "registration has its own deadline");
+for (const callback of [...timers.values()]) callback(); await flush();
+assert.equal(states.at(-1).errorCode, "music_notification_listener_timeout"); assert.equal(states.at(-1).granted, true, "registration failure does not invent permission revocation");
+const oldReadCount = states.length; callbacks[0]({ isActive: true }); await flush(); assert.equal(states.length, oldReadCount, "expired native subscription callbacks are inactive");
+await recovering.refresh(); await flush(); assert.equal(registrations, 2); assert.equal(states.at(-1).errorCode, "", "manual refresh restores a failed subscription");
+await recovering.refresh(); assert.equal(registrations, 2, "healthy listeners are reused");
+registrationReceipt.resolve({ remove() { disposed++; } }); await flush(); assert.equal(disposed, 1, "late receipt is disposed after timeout"); recovering.stop(); await flush(); assert.equal(disposed, 2); assert.equal(timers.size, 0);
+for (const receipt of [null, {}, { remove: false }]) {
+  const invalid = createNotificationAccessMonitor({ ...opts, listen: async () => receipt }); invalid.start(); await flush(); assert.equal(states.at(-1).errorCode, "music_notification_listener_failed"); invalid.stop();
+}
+let retries = 0;
+const rejected = createNotificationAccessMonitor({ ...opts, listen: async () => { if (++retries === 1) throw Error("private registration error"); return { remove() {} }; } });
+rejected.start(); await flush(); assert.equal(states.at(-1).errorCode, "music_notification_listener_failed"); assert.doesNotMatch(states.at(-1).errorMessage, /private/); await rejected.refresh(); await flush(); assert.equal(states.at(-1).errorCode, ""); rejected.stop(); await flush(); assert.equal(timers.size, 0);
+console.log("Notification access: native receipts, return/revoke/latest request, independent registration deadline/recovery, invalid handles and cleanup passed; device UX unverified");

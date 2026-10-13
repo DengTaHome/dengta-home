@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>风格提纯弹窗回归</title><link rel="stylesheet" href="/src/index.css"></head>
+<body><div class="app-shell is-settings-open">
+  <div class="settings-sheet-backdrop"><div class="settings-sheet"><h2>风格提纯 · 界面测试</h2><p>此页仅验证设置开启时的弹窗可见性，不调用模型。</p><button id="open">查看示例结果</button></div></div>
+  <div class="achievement-popup-backdrop distill-modal-backdrop" role="dialog" aria-label="风格提纯结果" aria-modal="true">
+    <div class="distill-modal-card"><header class="distill-modal-header"><strong>提纯结果 · 虚构星灯</strong><button aria-label="关闭">×</button></header>
+      <p class="distill-modal-hint">界面测试用例，无真实用户人设或聊天记录。</p><textarea class="distill-modal-editor" aria-label="提纯结果编辑" rows="8">【身份与人设】虚构星灯，轻快的小星星朋友。
+【说话风格】短句和日常用词。
+【口头禅】先喝一口水，咱们慢慢来。</textarea>
+      <div class="distill-modal-actions"><button>复制全文</button><button>下载 Markdown</button></div></div>
+  </div>
+</div><script>
+const modal=document.querySelector('.distill-modal-backdrop');
+document.querySelector('[aria-label="关闭"]').onclick=()=>{modal.hidden=true;modal.style.display='none';};
+document.querySelector('#open').onclick=()=>{modal.hidden=false;modal.style.display='';};
+</script></body></html>

@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import { musicPlaylistStatus, requireMusicPlaylistReceipt } from "../src/music-playlist-status.js";
+import { normalizeMusicPlaylist } from "../src/music-listening.js";
+const partial = normalizeMusicPlaylist({ id: "fictional", item_count: 3, saved_item_count: 1, save_state: "incomplete", items: [{ id: "song" }] });
+assert.match(musicPlaylistStatus(partial), /1\/3/);
+assert.throws(() => requireMusicPlaylistReceipt(partial), { code: "music_playlist_incomplete", status: 409 });
+assert.throws(() => requireMusicPlaylistReceipt(normalizeMusicPlaylist({ item_count: 2, items: [{ id: "song" }] })), { code: "music_playlist_incomplete" });
+const ready = normalizeMusicPlaylist({ item_count: 1, saved_item_count: 1, save_state: "ready", items: [{ id: "song" }] });
+assert.equal(requireMusicPlaylistReceipt(ready), ready); assert.equal(musicPlaylistStatus(ready), "1 首");
+const external = normalizeMusicPlaylist({ provider: "netease", item_count: 0, saved_item_count: 0, save_state: "external_metadata", external_url: "https://music.163.com/#/playlist?id=1" });
+assert.equal(requireMusicPlaylistReceipt(external), external); assert.equal(musicPlaylistStatus(external), "外部音乐链接");
+assert.match(musicPlaylistStatus(normalizeMusicPlaylist({ item_count: 3 })), /选择后核对/);
+console.log("Playlist integrity: partial counts, stale detail receipts, legacy server status and external metadata passed");

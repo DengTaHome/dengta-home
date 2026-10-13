@@ -1,0 +1,10 @@
+.fun-labs-feedback { padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, currentColor 5%, transparent); min-width: 0; }
+.fun-labs-feedback-row { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.fun-labs-feedback p { margin: 0; line-height: 1.5; min-width: 0; }
+.fun-labs-feedback p span { display: block; font-size: .85em; opacity: .76; }
+.fun-labs-feedback small { display: block; margin-top: 6px; line-height: 1.55; overflow-wrap: anywhere; }
+.fun-labs-feedback .fun-labs-retry { flex: 0 0 auto; min-height: 44px; padding: 8px 13px; border: 1px solid color-mix(in srgb, currentColor 16%, transparent); border-radius: 14px; background: transparent; color: inherit; cursor: pointer; }
+.fun-labs-feedback .fun-labs-retry:active { background: color-mix(in srgb, currentColor 9%, transparent); }
+.fun-labs-feedback .fun-labs-retry:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.fun-labs-feedback .chat-error-log-toggle { margin-top: 8px; }
+.fun-labs-section-title { margin: 10px 0 0; font-size: .95em; }

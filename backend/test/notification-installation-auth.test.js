@@ -105,6 +105,34 @@ async function main() {
     assert.equal(coWatchScope.userId, userId);
     assert.equal(coWatchScope.companionId, companionId);
 
+    for (const request of [
+        { path: "/api/v2/co-watch/sessions", method: "POST" },
+        {
+            path: "/api/v2/co-watch/sessions/2c90a3ba-5a90-4a21-9f3f-a24c84cc7a50",
+            method: "GET"
+        },
+        {
+            path: "/api/v2/co-watch/sessions/2c90a3ba-5a90-4a21-9f3f-a24c84cc7a50",
+            method: "PATCH"
+        },
+        {
+            path: "/api/v2/co-watch/sessions/2c90a3ba-5a90-4a21-9f3f-a24c84cc7a50/reply",
+            method: "POST"
+        },
+        {
+            path: "/api/v2/co-watch/sessions/2c90a3ba-5a90-4a21-9f3f-a24c84cc7a50/messages",
+            method: "GET"
+        }
+    ]) {
+        const sessionScope = await installationRequestScope({
+            adminSupabase: database,
+            token,
+            ...request,
+            now: () => new Date("2026-07-27T12:00:00.000Z")
+        });
+        assert.equal(sessionScope.companionId, companionId);
+    }
+
     await assert.rejects(
         installationRequestScope({
             adminSupabase: database,

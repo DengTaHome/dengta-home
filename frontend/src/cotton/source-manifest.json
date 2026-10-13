@@ -1,0 +1,31 @@
+{
+  "copiedOn": "2026-09-26",
+  "source": "xiaomianhua-app/character-lab",
+  "modelSha256": "c9f7182fdb4a510180674d2880bf8436268fa9a41e685c8fa41b0ec592479a0f",
+  "files": [
+    {
+      "source": "E:\\chatgpt\\xiaomianhua-app\\character-lab\\src\\b1857-character.js",
+      "relative": "src\\b1857-character.js",
+      "bytes": 8677,
+      "sha256": "7D3240F4E34B394E9DB0403FBCF553BA56844A0487F9A67EC76E98215CCC086D"
+    },
+    {
+      "source": "E:\\chatgpt\\xiaomianhua-app\\character-lab\\src\\interaction-controller.js",
+      "relative": "src\\interaction-controller.js",
+      "bytes": 4126,
+      "sha256": "FE8C94F7E3A6FA5A08702A7F79F5309EB57E9E6D159242218411FC585B7877E9"
+    },
+    {
+      "source": "E:\\chatgpt\\xiaomianhua-app\\character-lab\\src\\interaction-props.js",
+      "relative": "src\\interaction-props.js",
+      "bytes": 4916,
+      "sha256": "B24DA094C9C215788BA2B970ABA2E1A9CD806C4404BC94D9DB59089E6A38865E"
+    },
+    {
+      "source": "E:\\chatgpt\\xiaomianhua-app\\character-lab\\src\\assets\\b1857.json",
+      "relative": "src\\assets\\b1857.json",
+      "bytes": 6955777,
+      "sha256": "C9F7182FDB4A510180674D2880BF8436268FA9A41E685C8FA41B0EC592479A0F"
+    }
+  ]
+}

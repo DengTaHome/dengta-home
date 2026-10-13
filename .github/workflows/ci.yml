@@ -31,10 +31,14 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.component }}/package-lock.json
       - run: npm ci
+      - if: matrix.component == 'frontend'
+        name: Install sibling backend dependencies used by integration tests
+        run: npm ci --prefix ../backend
       - run: npm test
       - if: matrix.component == 'frontend'
         run: npm run build
       - if: matrix.component == 'frontend'
         run: npm run lint
+      - run: npm run typecheck
       - if: matrix.component == 'backend'
         run: npm run check

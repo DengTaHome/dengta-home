@@ -32,9 +32,10 @@ function typeLabel(type) {
   return labels[String(type || "").toLowerCase()] || type || "记忆";
 }
 
-export default function OmbreMemories() {
+export default function OmbreMemories({ onManageConnections }) {
   const [connection, setConnection] = useState(null);
   const [mcpConnection, setMcpConnection] = useState(null);
+  const [accountOmbreConnection, setAccountOmbreConnection] = useState(null);
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -78,16 +79,39 @@ export default function OmbreMemories() {
     async function loadConnection() {
       setLoading(true);
       try {
-        const config = await apiRequest("/api/ombre/config");
+        const [config, accountConnections] = await Promise.all([
+          apiRequest("/api/ombre/config"),
+          apiRequest("/api/external-memory/connections").catch(() => ({
+            connections: [],
+          })),
+        ]);
         if (cancelled) return;
-        const mcpStatus = await apiRequest("/api/ombre/mcp/status").catch(
-          (mcpError) => ({
-            ...(config.mcp || {}),
-            available: false,
-            message: mcpError.message,
-            tools: [],
-          }),
+        const accountOmbre = (accountConnections.connections || []).find(
+          (item) =>
+            String(item.connection_type || item.type || "") ===
+            "ombre_brain_mcp",
         );
+        setAccountOmbreConnection(accountOmbre || null);
+        const mcpStatus = accountOmbre
+          ? {
+              configured: true,
+              available: accountOmbre.last_status === "connected",
+              auth_configured: accountOmbre.credential_configured === true,
+              message:
+                accountOmbre.last_error ||
+                (accountOmbre.last_status === "connected"
+                  ? "当前账号的 Ombre Brain 已接入聊天记忆"
+                  : "当前账号的 Ombre Brain 已保存，等待连接测试"),
+              tools: accountOmbre.tools || [],
+            }
+          : await apiRequest("/api/ombre/mcp/status").catch(
+              (mcpError) => ({
+                ...(config.mcp || {}),
+                available: false,
+                message: mcpError.message,
+                tools: [],
+              }),
+            );
         if (cancelled) return;
         setMcpConnection({ ...(config.mcp || {}), ...mcpStatus });
         if (!config.configured) {
@@ -172,6 +196,31 @@ export default function OmbreMemories() {
     ? mcpConnection.tools.slice(0, 6)
     : [];
 
+  if (connection && !connection.configured && !accountOmbreConnection) {
+    return (
+      <section
+        className="ombre-optional-entry"
+        aria-labelledby="external-memory-optional-title"
+      >
+        <div>
+          <span className="eyebrow">DENGTA MEMORY</span>
+          <strong id="external-memory-optional-title">
+            DengTa 主记忆库已启用
+          </strong>
+          <p>
+            新账号默认使用 DengTa 的 Supabase
+            保存长期记忆，不需要填写任何外部数据库，聊天和记忆功能都可正常使用。
+          </p>
+        </div>
+        {typeof onManageConnections === "function" && (
+          <button type="button" onClick={onManageConnections}>
+            连接自己的外部记忆库（可选）
+          </button>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section className="ombre-memory-section" aria-labelledby="ombre-title">
       <div className="memory-source-heading">
@@ -203,13 +252,39 @@ export default function OmbreMemories() {
                   : "正在检查 MCP 客户端…"}
           </small>
         </div>
+        {typeof onManageConnections === "function" && (
+          <button type="button" onClick={onManageConnections}>
+            管理我的连接
+          </button>
+        )}
       </div>
 
       {!connection?.configured ? (
         <div className="ombre-empty-state">
-          <strong>服务器接口已经准备好</strong>
-          <p>购买任意 Ombre 服务器后即可连接，现有功能不受影响。</p>
-          <code>OMBRE_BRAIN_URL</code>
+          <strong>
+            {accountOmbreConnection
+              ? "Ombre Brain 已接入当前账号"
+              : "还没有可读取的外部记忆"}
+          </strong>
+          {accountOmbreConnection ? (
+            <p>
+              MCP
+              只读工具已提供给当前账号的聊天运行时；本页档案列表只显示已显式导入
+              DengTa 的摘要，不会把 Ombre 数据自动复制或双向同步。
+            </p>
+          ) : (
+            <p>
+              可以连接当前账号自己的 Ombre Brain MCP，或从自己的 Supabase
+              专用只读表预览并显式导入；这不会替换 DengTa 的登录数据库。
+            </p>
+          )}
+          {typeof onManageConnections === "function" ? (
+            <button type="button" onClick={onManageConnections}>
+              设置外部记忆连接
+            </button>
+          ) : (
+            <code>OMBRE_BRAIN_URL</code>
+          )}
         </div>
       ) : !connection?.available ? (
         <div className="ombre-empty-state error-state">

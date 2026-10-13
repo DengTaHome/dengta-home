@@ -1,40 +1,24 @@
+import { CHAT_ERROR_MESSAGES } from "./chat-error-feedback.js";
 const CHAT_ERROR_FALLBACK = "模型服务暂时无法完成这次回复，请稍后重试。";
 const COMMITTED_CHAT_ERROR_FALLBACK =
   "AI 回复没有完成，但你的消息已经保存，可以稍后重试。";
 const MAX_PUBLIC_ERROR_LENGTH = 220;
-const DEFAULT_MAX_PROVIDER_PROBE_LENGTH = 4096;
-const HTML_DOCUMENT_SIGNATURES = ["<!doctype html", "<html", "<head", "<body"];
-const ERROR_ENVELOPE_KEYS = new Set([
-  "code",
-  "detail",
-  "details",
-  "error",
-  "errors",
-  "message",
-  "param",
-  "request_id",
-  "requestid",
-  "status",
-  "status_code",
-  "statuscode",
-  "type",
-]);
-const ERROR_DETAIL_KEYS = new Set([
-  "code",
-  "detail",
-  "details",
-  "message",
-  "param",
-  "status",
-  "status_code",
-  "statuscode",
-  "type",
-]);
-const ERROR_CODE_PATTERN =
-  /(?:error|denied|forbidden|unauth|invalid|policy|rate|limit|fail|timeout|quota|^4\d\d$|^5\d\d$)/i;
 
 const PUBLIC_ERROR_BY_CODE = Object.freeze({
+  reply_body_missing: "本轮未收到可分离的正文，可能只生成了心声或格式未闭合；本轮回复未保存 / No separable reply body was received; this reply was not saved.",
+  provider_stream_incomplete: "上游模型流没有正常结束，本轮回复未保存 / The upstream model stream did not complete; this reply was not saved.",
+  companion_gender_schema_required: "伴侣性别功能正在等待服务器数据库更新，本次设置未保存 / Companion gender requires a database update; these settings were not saved.",
+  context_budget_exceeded: "本轮上下文超过模型的估算容量，请选择更大窗口模型或减少本轮附件；预算检查不会改写人设或记忆 / This turn exceeds the estimated model context capacity. Choose a larger-context model or fewer attachments. Budget checks do not rewrite personalization or memories.",
   CHAT_GENERATION_IN_PROGRESS: "这条消息已经保存，AI 仍在服务器处理中。",
+  MODEL_NOT_AVAILABLE:
+    "请求的模型不在当前接口可用列表中 / The requested model is not available from the current API.",
+  data_inspection_failed:
+    "输入内容未通过模型接口的内容检查 / The input did not pass the model provider's content inspection.",
+  provider_error_document:
+    "模型接口返回了错误文档，本轮回复未保存 / The model API returned an error document; this reply was not saved.",
+  provider_boundary_residue:
+    "模型回复被识别为拒答残留，拒答正文未保存 / The model response was identified as refusal residue; the refusal text was not saved.",
+  ...CHAT_ERROR_MESSAGES,
 });
 
 const MARKUP_OR_DOCUMENT_PATTERN =
@@ -43,6 +27,18 @@ const STACK_OR_CODE_PATTERN =
   /(?:^|\s)(?:traceback|syntaxerror|typeerror|referenceerror|stack(?:trace)?\s*[:=]|at\s+[\w$.<>]+\s*\([^\n]*:\d+:\d+\)|node_modules[\\/]|webpack:\/\/|```|econnrefused|enotfound|fetch failed|sqlstate|permission denied|relation\s+.+\s+does not exist)/i;
 const SECRET_PATTERN =
   /(?:authorization\s*[:=]|bearer\s+[a-z0-9._-]{12,}|api[_ -]?key\s*[:=]|cookie\s*[:=]|sk-[a-z0-9_-]{12,}|sb_secret_[a-z0-9_-]+)/i;
+const GENERIC_UPSTREAM_ERROR_PATTERN =
+  /^(?:upstream (?:request )?failed|bad gateway|gateway timeout|service unavailable|internal server error)$/i;
+const UPSTREAM_PROTOCOL_ERROR_PATTERN =
+  /^upstream stream ended (?:without|before) (?:a )?terminal response event$/i;
+const CONTENT_INSPECTION_ERROR_PATTERN =
+  /(?:data_inspection_failed|input text data may contain inappropriate content)/i;
+const SAFE_PROVIDER_CODE_PATTERN = /^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/;
+const PUBLIC_ERROR_SOURCES = new Set([
+  "dengta_stream_parser",
+  "upstream_provider_or_gateway",
+  "dengta_output_guard",
+]);
 
 function errorCandidate(source) {
   if (typeof source === "string") return source;
@@ -58,171 +54,103 @@ function stripControlCharacters(value) {
     .join("");
 }
 
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+function publicDiagnosticCode(source) {
+  const code = String(source?.provider_code || source?.providerCode || "").trim();
+  return SAFE_PROVIDER_CODE_PATTERN.test(code) ? code : "";
 }
 
-function normalizedKeys(value) {
-  return Object.keys(value || {}).map((key) => key.toLowerCase());
+function publicDiagnosticSource(source) {
+  const value = String(source?.error_source || source?.errorSource || "").trim();
+  return PUBLIC_ERROR_SOURCES.has(value) ? value : "";
 }
 
-function keysBelongTo(value, allowed) {
-  const keys = normalizedKeys(value);
-  return keys.length > 0 && keys.every((key) => allowed.has(key));
+function publicErrorLocation(source) {
+  const location = String(source?.error_location || "").trim();
+  return /^[A-Za-z0-9_./-]+:\d+:\d+$/.test(location) ? location : "";
 }
 
-function statusLooksLikeError(value) {
-  const numeric = Number(value);
-  if (Number.isFinite(numeric)) return numeric >= 400;
-  return ERROR_CODE_PATTERN.test(String(value || ""));
-}
-
-function isProviderErrorEnvelope(value) {
-  if (!isPlainObject(value) || !keysBelongTo(value, ERROR_ENVELOPE_KEYS)) {
-    return false;
-  }
-
-  if (Object.hasOwn(value, "error")) {
-    if (typeof value.error === "string") return value.error.trim().length > 0;
-    if (
-      isPlainObject(value.error) &&
-      keysBelongTo(value.error, ERROR_DETAIL_KEYS) &&
-      normalizedKeys(value.error).some((key) =>
-        ["code", "detail", "details", "message", "status", "type"].includes(
-          key,
-        ),
-      )
-    ) {
-      return true;
-    }
-  }
-
-  const status = value.status ?? value.status_code ?? value.statusCode;
-  if (statusLooksLikeError(status) && (value.message || value.detail)) {
-    return true;
-  }
-  return Boolean(value.message) && ERROR_CODE_PATTERN.test(String(value.code || ""));
-}
-
-function htmlDocumentVerdict(text, final) {
-  const lower = text.toLowerCase();
-  for (const signature of HTML_DOCUMENT_SIGNATURES) {
-    if (lower.length < signature.length && signature.startsWith(lower)) {
-      return final ? "safe" : "pending";
-    }
-    if (!lower.startsWith(signature)) continue;
-
-    const boundary = lower[signature.length];
-    if (signature === "<!doctype html") {
-      return boundary === undefined && !final ? "pending" : "blocked";
-    }
-    if (boundary === undefined) return final ? "blocked" : "pending";
-    return /[\s>]/.test(boundary) ? "blocked" : "safe";
-  }
-  return "safe";
-}
-
-function providerTextVerdict(
-  value,
-  { final = false, maxProbeLength = DEFAULT_MAX_PROVIDER_PROBE_LENGTH } = {},
-) {
-  const source = String(value || "").replace(/^\uFEFF/, "");
-  const text = source.trimStart();
-  if (!text) return final || source.length >= 64 ? "safe" : "pending";
-
-  if (text.startsWith("<")) return htmlDocumentVerdict(text, final);
-  if (!text.startsWith("{")) return "safe";
-  if (text.length > maxProbeLength) return "safe";
-
-  try {
-    return isProviderErrorEnvelope(JSON.parse(text)) ? "blocked" : "safe";
-  } catch {
-    return final ? "safe" : "pending";
-  }
+function withDiagnostic(message, source) {
+  if (source?.code === "CHAT_GENERATION_IN_PROGRESS") return message;
+  const providerCode = publicDiagnosticCode(source);
+  const errorSource = publicDiagnosticSource(source);
+  const location = publicErrorLocation(source);
+  const hasMetadata = Boolean(
+    PUBLIC_ERROR_BY_CODE[source?.code] || providerCode ||
+      errorSource ||
+      source?.provider_phase ||
+      source?.upstream_status !== undefined ||
+      location,
+  );
+  if (!hasMetadata) return message;
+  const localCode = String(source?.code || "").trim();
+  const visibleCode = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(localCode) ? localCode : providerCode || "request_failed";
+  const providerText = providerCode && providerCode !== visibleCode ? `；上游代码 / Provider code: ${providerCode}` : "";
+  const status = Number(source?.upstream_status);
+  const statusText = Number.isInteger(status) && status >= 100 && status <= 599
+    ? `；HTTP / HTTP: ${status}`
+    : "";
+  const locationText = location ? `；位置 / At: ${location}` : "";
+  const logText = source?.error_log_id ? "；日志已记录 / Logged" : "";
+  return `${message}（错误代码 / Code: ${visibleCode}；来源 / Source: ${errorSource || "dengta"}${providerText}${statusText}${locationText}${logText}）`;
 }
 
 export function isProviderErrorDocument(value) {
-  return providerTextVerdict(value, { final: true }) === "blocked";
+  void value;
+  return false;
 }
 
 export function createProviderTextGuard(options = {}) {
-  let state = "pending";
-  let buffer = "";
-
-  function result(content = "") {
-    return {
-      content,
-      blocked: state === "blocked",
-      pending: state === "pending",
-    };
-  }
-
-  function settle(final) {
-    const verdict = providerTextVerdict(buffer, { ...options, final });
-    if (verdict === "pending") return result();
-    state = verdict;
-    if (state === "blocked") {
-      buffer = "";
-      return result();
-    }
-    const content = buffer;
-    buffer = "";
-    return result(content);
-  }
-
+  void options;
   return {
     push(value) {
-      const content = String(value || "");
-      if (!content || state === "blocked") return result();
-      if (state === "safe") return result(content);
-      buffer += content;
-      return settle(false);
+      return { content: String(value || ""), blocked: false, pending: false };
     },
     finish() {
-      if (state !== "pending") return result();
-      return settle(true);
+      return { content: "", blocked: false, pending: false };
     },
-    get blocked() {
-      return state === "blocked";
-    },
+    get blocked() { return false; },
   };
 }
 
 export function sanitizeStoredChatMessage(message = {}) {
-  if (
-    message?.role !== "assistant" ||
-    !isProviderErrorDocument(message?.content)
-  ) {
-    return message;
-  }
-  return {
-    ...message,
-    content: COMMITTED_CHAT_ERROR_FALLBACK,
-    chatError: true,
-    generationInProgress: false,
-    isStreaming: false,
-    retryAvailable: true,
-  };
+  return message;
 }
 
 export function publicChatErrorMessage(source, fallback = CHAT_ERROR_FALLBACK) {
   const code = String(source?.code || "");
-  const safeFallback = PUBLIC_ERROR_BY_CODE[code] || fallback;
+  const committed = source?.user_message_committed === true || source?.userMessageCommitted === true || fallback === COMMITTED_CHAT_ERROR_FALLBACK;
+  const safeFallback = PUBLIC_ERROR_BY_CODE[code]
+    ? PUBLIC_ERROR_BY_CODE[code] + (committed && code !== "CHAT_GENERATION_IN_PROGRESS" ? " 你的消息已经保存，AI 回复尚未完成。" : "")
+    : fallback;
+  if (code && code !== "CHAT_GENERATION_IN_PROGRESS" && PUBLIC_ERROR_BY_CODE[code]) {
+    return withDiagnostic(safeFallback, source);
+  }
 
   const candidate = stripControlCharacters(errorCandidate(source))
+    .replace(/（错误代码\s*\/\s*Code:[^）]*）/g, "")
     .replace(/\s+/g, " ")
     .trim();
   if (!candidate) return safeFallback;
-  if (candidate.length > MAX_PUBLIC_ERROR_LENGTH) return safeFallback;
-  if (/^[{[]/.test(candidate) && /[}\]]$/.test(candidate)) return safeFallback;
+  if (UPSTREAM_PROTOCOL_ERROR_PATTERN.test(candidate)) {
+    return withDiagnostic(
+      "上游模型流没有正常结束，请重试或检查接口兼容性 / The upstream model stream ended without a terminal response event. Retry or check API compatibility.",
+      source,
+    );
+  }
+  if (CONTENT_INSPECTION_ERROR_PATTERN.test(candidate)) {
+    return withDiagnostic(PUBLIC_ERROR_BY_CODE.data_inspection_failed, source);
+  }
+  if (candidate.length > MAX_PUBLIC_ERROR_LENGTH) return withDiagnostic(safeFallback, source);
+  if (/^[{[]/.test(candidate) && /[}\]]$/.test(candidate)) return withDiagnostic(safeFallback, source);
   if (
     MARKUP_OR_DOCUMENT_PATTERN.test(candidate) ||
     STACK_OR_CODE_PATTERN.test(candidate) ||
-    SECRET_PATTERN.test(candidate)
+    SECRET_PATTERN.test(candidate) ||
+    GENERIC_UPSTREAM_ERROR_PATTERN.test(candidate)
   ) {
-    return safeFallback;
+    return withDiagnostic(safeFallback, source);
   }
-  return candidate;
+  return withDiagnostic(candidate, source);
 }
 
 export function sanitizeChatErrorEvent(event = {}) {
@@ -240,6 +168,13 @@ export function dismissChatErrorMessage(messages, messageId) {
   return (Array.isArray(messages) ? messages : []).filter(
     (item) => !(item?.id === messageId && item?.chatError === true),
   );
+}
+
+export function temporaryReplyOnFailure(message, error) {
+  const code = String(error?.code || "");
+  // A failure is never a normal assistant message or a source for memory/TTS.
+  if (!["chat_stream_interrupted", "provider_stream_incomplete", "MODEL_STREAM_IDLE_TIMEOUT"].includes(code)) return "";
+  return String(message?.partialContent || (message?.chatError ? "" : message?.content) || "");
 }
 
 export {

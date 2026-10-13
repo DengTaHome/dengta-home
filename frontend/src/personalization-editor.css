@@ -1,0 +1,104 @@
+.personalization-editor {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.personalization-editor-toolbar,
+.personalization-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.personalization-editor-toolbar {
+  justify-content: space-between;
+}
+
+.personalization-editor-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.personalization-editor button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.personalization-editor button:hover:not(:disabled) {
+  border-color: var(--rose);
+}
+
+.personalization-editor button:focus-visible {
+  outline: 2px solid var(--rose);
+  outline-offset: 3px;
+}
+
+.personalization-editor button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.prompt-layer .personalization-editor textarea {
+  width: 100%;
+  min-height: 190px;
+  max-height: 420px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  resize: vertical;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.prompt-layer .personalization-editor.is-expanded textarea {
+  height: min(65dvh, 760px);
+  min-height: min(380px, 60dvh);
+  max-height: 80dvh;
+}
+
+.personalization-editor-hint,
+.personalization-editor-feedback {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.personalization-editor-feedback {
+  color: var(--ink);
+}
+
+.personalization-editor-feedback.is-error {
+  color: var(--rose-deep);
+}
+
+@media (max-width: 480px) {
+  .personalization-editor button {
+    min-height: 42px;
+  }
+
+  .prompt-layer .personalization-editor textarea {
+    font-size: 16px;
+  }
+}

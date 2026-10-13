@@ -1,0 +1,35 @@
+const assert = require("node:assert/strict");
+const { validateDirectMediaUrl } = require("../services/direct-media-url");
+const { buildCoWatchRuntimeContext } = require("../services/co-watch-runtime-context");
+const { createReceiverService } = require("../services/cast-receiver");
+const { receiverPosition, receiverToken } = require("../routes/cast-receiver");
+
+(async () => {
+    await assert.rejects(() => validateDirectMediaUrl("https://localhost/a", { resolver: { lookup: async () => [{ address: "127.0.0.1" }] } }));
+    await assert.rejects(() => validateDirectMediaUrl("https://media.example/a#secret", { resolver: { lookup: async () => [{ address: "93.184.216.34" }] } }));
+    await assert.rejects(() => validateDirectMediaUrl("https://media.example/a", { resolver: { lookup: async () => [{ address: "10.0.0.2" }] } }));
+    const receiver = createReceiverService({ env: { CAST_PAIRING_SECRET: "pairing", CAST_MEDIA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") }, now: () => 1700000000000 });
+    const encrypted = receiver.encryptMediaUrl("https://media.example/audio.mp4");
+    assert.doesNotMatch(encrypted, /media\.example|audio/);
+    assert.equal(receiver.decryptMediaUrl(encrypted), "https://media.example/audio.mp4");
+    assert.equal(receiver.pairingExpiresAt(), "2023-11-14T22:15:00.000Z");
+    assert.match(receiver.pairingCode("11111111-1111-4111-8111-111111111111"), /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
+    const token = receiver.createToken();
+    assert.equal(token.token.length >= 43, true);
+    assert.notEqual(token.token, token.tokenHash);
+    assert.equal(receiverToken({ headers: { authorization: "Bearer current-token", "x-dengta-receiver-token": "legacy-token" } }), "current-token");
+    assert.equal(receiverToken({ headers: { "x-dengta-receiver-token": "legacy-token" } }), "legacy-token");
+    assert.equal(receiverPosition({ playback_state: "paused", media_position_seconds: 8, updated_at: "2023-11-14T22:13:10.000Z" }, 1700000000000), 8);
+    assert.equal(receiverPosition({ playback_state: "playing", media_position_seconds: 8, updated_at: "2023-11-14T22:13:10.000Z" }, 1700000000000), 18);
+    const routeSource = require("node:fs").readFileSync(require("node:path").join(__dirname, "../routes/cast-receiver.js"), "utf8");
+    assert.match(routeSource, /body\.position_seconds \?\? body\.media_position_seconds/);
+    assert.match(routeSource, /body\.state \?\? body\.playback_state/);
+    assert.doesNotMatch(routeSource, /monotonicPosition|Math\.max\(Number\(current\.data\.receiver_position_seconds/);
+    assert.match(routeSource, /sequence <= previousSequence/);
+    assert.match(routeSource, /media_url: receiver\.decryptMediaUrl/);
+    assert.doesNotMatch(routeSource, /res\.json\(\{ receiver_token:[^\n]*media:/);
+    const runtime = buildCoWatchRuntimeContext({ session: { status: "active", session_mode: "direct_media", title: "adult title", playback_state: "playing", media_position_seconds: 4, receiver_state: "ready", media_url: "https://secret", receiver_token: token.token, pairing_code: "AAAA-BBBB" } });
+    assert.match(runtime, /adult title/);
+    assert.doesNotMatch(runtime, /secret|receiver_token|pairing_code|AAAA-BBBB/);
+    console.log("secure cast receiver tests passed");
+})().catch((error) => { console.error(error); process.exitCode = 1; });

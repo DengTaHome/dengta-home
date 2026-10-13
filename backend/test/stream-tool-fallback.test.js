@@ -1,9 +1,6 @@
 const assert = require("node:assert/strict");
 const http = require("node:http");
 
-const previousCustomApiKey = process.env.CUSTOM_API_KEY;
-process.env.CUSTOM_API_KEY = "local-test-key";
-
 const { generateReplyStream } = require("../services/ai-service");
 
 function sendEvent(response, event) {
@@ -152,6 +149,7 @@ async function main() {
                 provider: "custom",
                 api_url: `http://127.0.0.1:${address.port}/v1`,
                 model: "mock-model",
+                runtime_api_key: "local-test-key",
                 system_prompt: "你是本地测试助手。",
                 personality: "可靠",
                 temperature: 0.2,
@@ -225,6 +223,7 @@ async function main() {
                 provider: "custom",
                 api_url: `http://127.0.0.1:${address.port}/v1`,
                 model: "mock-model",
+                runtime_api_key: "local-test-key",
                 system_prompt: "你是本地测试助手。",
                 personality: "可靠",
                 temperature: 0.2,
@@ -266,11 +265,6 @@ async function main() {
         );
     } finally {
         await new Promise((resolve) => server.close(resolve));
-        if (previousCustomApiKey === undefined) {
-            delete process.env.CUSTOM_API_KEY;
-        } else {
-            process.env.CUSTOM_API_KEY = previousCustomApiKey;
-        }
     }
 }
 

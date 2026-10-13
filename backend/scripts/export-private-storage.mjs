@@ -67,17 +67,6 @@ const output = path.resolve(argument("--output"));
 if (!argument("--output")) {
     throw new Error("--output is required.");
 }
-const repositoryRoot = path.resolve(import.meta.dirname, "..", "..");
-const outputRelativeToRepository = path.relative(repositoryRoot, output);
-if (
-    outputRelativeToRepository === "" ||
-    (!outputRelativeToRepository.startsWith("..") &&
-        !path.isAbsolute(outputRelativeToRepository))
-) {
-    throw new Error(
-        "--output must be outside the repository because the archive contains private media."
-    );
-}
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SECRET_KEY;
 if (!supabaseUrl || !serviceKey) {
