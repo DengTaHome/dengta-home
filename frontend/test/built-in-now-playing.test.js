@@ -106,6 +106,7 @@ test("a stalled candidate times out without stopping the old Audio or accepting 
     await player.start(); const first = f.output.at(-1); next = true;
     const work = player.control("next", first); await settle(); t.mock.timers.tick(15000); await work;
     assert.equal(f.audios[0].paused, false); assert.equal(f.audios[1].released, true); assert.equal(f.output.at(-1), first);
+    assert.equal(f.feedback.at(-1), "下一首等待播放超时，已保留当前歌曲。你可以重试下一首。");
     pending.resolve(); await settle(); assert.equal(f.audios[1].paused, true); assert.equal(f.output.at(-1), first);
   } finally { player.dispose(); }
 });
@@ -164,5 +165,43 @@ test("post-start Audio error pauses truthfully and permits an explicit retry", a
     assert.equal(f.feedback.at(-1), "歌曲播放中断，已暂停。你可以点播放重试。");
     await player.control("play", f.output.at(-1)); assert.equal(audio.loads, 1); assert.equal(f.output.at(-1).isPlaying, true);
     assert.ok(!JSON.stringify(f.feedback).includes("private"));
+  } finally { player.dispose(); }
+});
+
+test("a stalled resume stays paused after its deadline and late playback", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const f = fixture(), player = createBuiltInNowPlaying(f.options), pending = deferred();
+  try {
+    await player.start();
+    const audio = f.audios[0];
+    await player.control("pause", f.output.at(-1));
+    audio.playResult = pending.promise;
+    const work = player.control("play", f.output.at(-1));
+    await settle(); t.mock.timers.tick(15000); await work;
+    assert.equal(f.busy.at(-1), false);
+    assert.equal(f.feedback.at(-1), "播放器响应超时，已保持暂停。点播放重试。");
+    assert.equal(audio.paused, true);
+    pending.resolve(); await settle();
+    assert.equal(audio.paused, true, "a timed-out resume must not start playback later");
+    assert.equal(f.output.at(-1).isPlaying, false);
+  } finally { player.dispose(); }
+});
+
+test("a late timed-out resume cannot pause a newer confirmed play", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const f = fixture(), player = createBuiltInNowPlaying(f.options), pending = deferred();
+  try {
+    await player.start();
+    const audio = f.audios[0];
+    await player.control("pause", f.output.at(-1));
+    audio.playResult = pending.promise;
+    const old = player.control("play", f.output.at(-1));
+    await settle(); t.mock.timers.tick(15000); await old;
+    audio.playResult = undefined;
+    await player.control("play", f.output.at(-1));
+    assert.equal(audio.paused, false);
+    pending.resolve(); await settle();
+    assert.equal(audio.paused, false);
+    assert.equal(f.output.at(-1).isPlaying, true);
   } finally { player.dispose(); }
 });

@@ -1,7 +1,7 @@
 {
   "name": "dengta-home-react",
   "private": true,
-  "version": "2.10.69",
+  "version": "2.10.70",
   "type": "module",
   "scripts": {
     "test:workspace": "node test/workspace-cache.test.js && node test/workspace-manager.test.js && node --test test/workspace-lifecycle.test.js test/workspace-cache-lifecycle.test.js",
@@ -83,10 +83,10 @@
     "node": "24.x"
   },
   "dependencies": {
-    "@capacitor/android": "^8.4.2",
+    "@capacitor/android": "8.4.3",
     "@capacitor/app": "^8.1.1",
     "@capacitor/clipboard": "^8.0.1",
-    "@capacitor/core": "^8.4.2",
+    "@capacitor/core": "8.4.3",
     "@capacitor/local-notifications": "^8.0.0",
     "@capacitor/preferences": "^8.0.1",
     "@noble/hashes": "2.4.0",
@@ -98,8 +98,7 @@
     "three": "0.186.0"
   },
   "devDependencies": {
-    "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.4.2",
+    "@capacitor/cli": "8.4.3",
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -110,6 +109,7 @@
     "fake-indexeddb": "6.2.5",
     "globals": "^17.7.0",
     "react-test-renderer": "^19.2.7",
+    "sharp": "0.35.5",
     "vite": "^8.1.1"
   }
 }
