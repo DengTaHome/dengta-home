@@ -9,11 +9,12 @@ const repositoryRoot = path.resolve(
 const source = await readFile(
   path.join(repositoryRoot, "public", "app-icon-master.png"),
 );
+const pngOptions = { compressionLevel: 9, adaptiveFiltering: true };
 
 async function renderIcon(relativePath, size) {
   await sharp(source)
     .resize(size, size)
-    .png()
+    .png(pngOptions)
     .toFile(path.join(repositoryRoot, relativePath));
 }
 
@@ -42,36 +43,32 @@ for (const [density, size] of Object.entries(densities)) {
   );
   await sharp(source)
     .resize(size, size)
-    .png()
+    .png(pngOptions)
     .toFile(path.join(base, "ic_launcher.png"));
   await sharp(source)
     .resize(size, size)
-    .png()
+    .png(pngOptions)
     .toFile(path.join(base, "ic_launcher_round.png"));
 
   const adaptiveSize = Math.round(size * 2.25);
   const foregroundSize = Math.round(adaptiveSize * 2 / 3);
   const inset = Math.floor((adaptiveSize - foregroundSize) / 2);
-  await sharp(source)
+  const extendedArtwork = await sharp(source)
+    .resize(adaptiveSize, adaptiveSize)
+    .blur(Math.max(0.3, adaptiveSize * 0.02))
+    .png(pngOptions)
+    .toBuffer();
+  const foregroundArtwork = await sharp(source)
     .resize(foregroundSize, foregroundSize)
-    .extend({
-      top: inset,
-      left: inset,
-      bottom: adaptiveSize - foregroundSize - inset,
-      right: adaptiveSize - foregroundSize - inset,
-      background: "#074c5b",
-    })
-    .png()
+    .png(pngOptions)
+    .toBuffer();
+  // Keep the complete portrait in Android's 72/108 viewport; motion reveals matching artwork.
+  await sharp(extendedArtwork)
+    .composite([{ input: foregroundArtwork, top: inset, left: inset }])
+    .png(pngOptions)
     .toFile(path.join(base, "ic_launcher_foreground.png"));
-  await sharp({
-    create: {
-      width: adaptiveSize,
-      height: adaptiveSize,
-      channels: 4,
-      background: "#074c5b",
-    },
-  })
-    .png()
+  await sharp(extendedArtwork)
+    .png(pngOptions)
     .toFile(path.join(base, "ic_launcher_background.png"));
 }
 

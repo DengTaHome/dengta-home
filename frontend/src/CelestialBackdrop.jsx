@@ -2,6 +2,7 @@ import { createVisualLoop } from "./visual-loop.js";
 import { useEffect, useMemo, useRef } from "react";
 import { getSunGlassSky, weatherModeFromAmbient, rainIntensityFromAmbient } from "./sun-glass-sky.js";
 import useReducedVisualMotion from "./use-reduced-visual-motion.js";
+import CoastVideoBackdrop from "./CoastVideoBackdrop.jsx";
 
 function clamp(value, minimum = 0, maximum = 1) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -57,6 +58,7 @@ function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, ra
     const cloudContext = cloudCanvas.getContext("2d");
     const weatherContext = weatherCanvas.getContext("2d");
     if (!starsContext || !cloudContext || !weatherContext) return undefined;
+    const wetWeather = mode === "rain" || mode === "storm";
     let starPoints = [];
     let galaxyPoints = [];
     let cloudPoints = [];
@@ -199,12 +201,12 @@ function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, ra
 
       const cloudWidth = cloudCanvas.width / cloudRatio;
       const cloudHeight = cloudCanvas.height / cloudRatio;
-      const cloudStrength = mode === "cloudy" || mode === "rain" ? 1 : 0;
+      const cloudStrength = mode === "cloudy" || wetWeather ? 1 : 0;
       cloudContext.setTransform(cloudRatio, 0, 0, cloudRatio, 0, 0);
       cloudContext.clearRect(0, 0, cloudWidth, cloudHeight);
       if (cloudStrength) {
         const darkness = clamp(
-          (1 - currentSky.daylight) * 0.45 + (mode === "rain" ? 0.5 : 0),
+          (1 - currentSky.daylight) * 0.45 + (wetWeather ? 0.5 : 0),
         );
         for (const cloud of cloudPoints) {
           const travel = (now * 0.0000032 * cloud.speed) % 1.4;
@@ -215,7 +217,7 @@ function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, ra
             x,
             cloud.y * cloudHeight,
             Math.max(0.72, cloudWidth / 780) * cloud.scale,
-            cloud.depth * (mode === "rain" ? 0.7 : 0.4),
+            cloud.depth * (wetWeather ? 0.7 : 0.4),
             darkness,
           );
         }
@@ -225,7 +227,7 @@ function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, ra
       const weatherHeight = weatherCanvas.height / cloudRatio;
       weatherContext.setTransform(cloudRatio, 0, 0, cloudRatio, 0, 0);
       weatherContext.clearRect(0, 0, weatherWidth, weatherHeight);
-      if (mode === "rain") {
+      if (wetWeather) {
         weatherContext.lineCap = "round";
         weatherContext.strokeStyle = "rgba(230,244,255,.18)";
         for (const drop of rainDrops) {
@@ -266,7 +268,7 @@ function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, ra
         }
       }
       ripples = ripples.filter(
-        (ripple) => now - ripple.born < 1450 && mode === "rain",
+        (ripple) => now - ripple.born < 1450 && wetWeather,
       );
       for (const ripple of ripples) {
         const progress = (now - ripple.born) / 1450;
@@ -383,6 +385,7 @@ export default function CelestialBackdrop({
       data-solar-minute={Math.round(sky.solarMinute)}
       style={style}
     >
+      <CoastVideoBackdrop sky={sky} weatherMode={weatherMode} reducedMotion={reduceMotion} />
       <canvas className="celestial-stars-canvas" ref={starsRef} />
       <div className="celestial-milky-way" />
       <div className="celestial-chromatic-light" />

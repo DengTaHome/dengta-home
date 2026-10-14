@@ -1,0 +1,51 @@
+.celestial-prototype-sky .coast-video-backdrop {
+  position: absolute;
+  inset: 9% 0 -9%;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+  contain: paint;
+  mask-image: linear-gradient(180deg, transparent 0 61%, #000 69%), radial-gradient(ellipse 20% 26% at 90% 60%, #000 56%, transparent 92%), radial-gradient(ellipse 49% 6% at 48% 55%, rgb(0 0 0 / .5) 25%, transparent 96%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0 61%, #000 69%), radial-gradient(ellipse 20% 26% at 90% 60%, #000 56%, transparent 92%), radial-gradient(ellipse 49% 6% at 48% 55%, rgb(0 0 0 / .5) 25%, transparent 96%);
+  mask-composite: add;
+  -webkit-mask-composite: source-over;
+}
+
+.coast-video-poster,
+.coast-video-loop,
+.coast-video-weather-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.coast-video-poster,
+.coast-video-loop {
+  object-fit: cover;
+  object-position: right bottom;
+}
+
+.coast-video-loop {
+  opacity: 0;
+  transition: none;
+}
+
+.coast-video-backdrop[data-playback="playing"] .coast-video-loop { opacity: 1; transition: opacity 900ms ease; }
+.coast-video-backdrop[data-weather="cloudy"] .coast-video-weather-shade { background: rgb(33 46 67 / .2); }
+.coast-video-backdrop[data-weather="rain"] .coast-video-weather-shade { background: rgb(22 37 61 / .35); }
+.coast-video-backdrop[data-weather="storm"] .coast-video-weather-shade { background: rgb(11 22 45 / .52); }
+.app-shell:has(.private-chat-background) .coast-video-backdrop { visibility: hidden; }
+:root[data-dengta-reduced-motion="true"] .coast-video-loop { transition: none; }
+@media (prefers-reduced-motion: reduce) { .coast-video-loop { transition: none; } }
+@media (min-aspect-ratio: 4/3) {
+  .celestial-prototype-sky .coast-video-backdrop {
+    left: auto;
+    width: 56.25vh;
+    mask-image: linear-gradient(90deg, transparent, #000 35%), linear-gradient(180deg, transparent 0 61%, #000 69%), radial-gradient(ellipse 20% 26% at 90% 60%, #000 56%, transparent 92%), radial-gradient(ellipse 49% 6% at 48% 55%, rgb(0 0 0 / .5) 25%, transparent 96%);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 35%), linear-gradient(180deg, transparent 0 61%, #000 69%), radial-gradient(ellipse 20% 26% at 90% 60%, #000 56%, transparent 92%), radial-gradient(ellipse 49% 6% at 48% 55%, rgb(0 0 0 / .5) 25%, transparent 96%);
+    mask-composite: intersect, add, add;
+    -webkit-mask-composite: source-in, source-over, source-over;
+  }
+}
