@@ -1,4 +1,4 @@
-const CACHE_NAME = "dengta-home-v15-modern-icon";
+const CACHE_NAME = "dengta-home-v16-coast-keeper-icon";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
