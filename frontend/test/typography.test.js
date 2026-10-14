@@ -112,7 +112,7 @@ test("the web shell preloads the versioned font and rotates the PWA cache", () =
   assert.match(html, /document\.documentElement\.dataset\.dengtaFontMode = mode/);
   assert.match(html, /mode !== "system"/);
   assert.match(html, /preload\.href = "\/fonts\/DengTaSans-cjk-v2\.woff2"/);
-  assert.match(sw, /dengta-home-v15-modern-icon/);
+  assert.match(sw, /dengta-home-v16-coast-keeper-icon/);
   assert.ok(
     fs.statSync(bundledFontPath).size > 7_000_000,
     "the standard font must include the complete CJK coverage instead of the old UI subset",

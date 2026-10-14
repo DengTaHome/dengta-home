@@ -32,7 +32,7 @@ assert.doesNotMatch(diary, /现实核验|不能虚构|真实记忆/);
 assert.match(css, /\.companion-diary-page/);
 assert.match(css, /\.diary-entry-list/);
 assert.doesNotMatch(serviceWorker, /secret-crush-diary\.html/);
-assert.match(serviceWorker, /dengta-home-v15-modern-icon/);
+assert.match(serviceWorker, /dengta-home-v16-coast-keeper-icon/);
 assert.match(app, /<FeatureAtmosphere kind="moments"\s*\/>/);
 assert.match(app, /<FeatureAtmosphere kind="memory"\s*\/>/);
 assert.match(diary, /<FeatureAtmosphere kind="diary"\s*\/>/);
