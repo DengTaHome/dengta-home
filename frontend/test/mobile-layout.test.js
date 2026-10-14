@@ -761,7 +761,7 @@ assert.match(
 );
 assert.match(
   celestialBackdrop,
-  /getSunGlassSky\(minute\)/,
+  /getSunGlassSky\(minute, snapshot\)/,
   "the production background must use the accepted sky engine without rewriting time",
 );
 assert.match(

@@ -280,7 +280,7 @@ test("a confirmed archive restores without making a model call or changing its o
 
 test("unknown upstream messages and credential-looking codes never enter the visible failure notice", async () => {
   const h = await harness(); try {
-    await h.startTwice(); await h.respond(0, { code: "sb_secret_your_fixture_key_5", message: "FICTIONAL_PRIVATE_UPSTREAM_MESSAGE", error_log_id: "FICTIONAL_INVALID_LOG" }, 500);
+    await h.startTwice(); await h.respond(0, { code: "sb_secret_your_fixture_key_0", message: "FICTIONAL_PRIVATE_UPSTREAM_MESSAGE", error_log_id: "FICTIONAL_INVALID_LOG" }, 500);
     assert.match(h.text(), /错误代码：unknown/); assert.match(h.text(), /HTTP 500/);
     assert.doesNotMatch(h.text(), /FICTIONAL_PRIVATE|FICTIONAL_INVALID_LOG/); assert.ok(h.button("重试这一招"));
   } finally { await h.close(); }

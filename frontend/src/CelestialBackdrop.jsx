@@ -1,6 +1,6 @@
 import { createVisualLoop } from "./visual-loop.js";
 import { useEffect, useMemo, useRef } from "react";
-import { getSunGlassSky, weatherModeFromAmbient } from "./sun-glass-sky.js";
+import { getSunGlassSky, weatherModeFromAmbient, rainIntensityFromAmbient } from "./sun-glass-sky.js";
 import useReducedVisualMotion from "./use-reduced-visual-motion.js";
 
 function clamp(value, minimum = 0, maximum = 1) {
@@ -37,7 +37,7 @@ function drawCloudShape(context, x, y, size, alpha, darkness) {
   context.restore();
 }
 
-function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, reduceMotion }) {
+function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, rainIntensity = 1, reduceMotion }) {
   const skyRef = useRef(sky);
   const loopRef = useRef(null);
   const starsVisible = sky.night > 0.08;
@@ -99,11 +99,11 @@ function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, re
         speed: 0.65 + (index % 5) * 0.16,
         depth: 0.56 + (index % 3) * 0.18,
       }));
-      rainDrops = Array.from({ length: 94 }, (_, index) => ({
+      rainDrops = Array.from({ length: Math.round(94 * rainIntensity) }, (_, index) => ({
         x: ((index * 83) % 991) / 991,
         y: ((index * 131) % 977) / 977,
-        speed: 0.52 + (index % 11) / 14,
-        length: 11 + (index % 9) * 2.2,
+        speed: (0.52 + (index % 11) / 14) * Math.sqrt(rainIntensity),
+        length: (11 + (index % 9) * 2.2) * Math.sqrt(rainIntensity),
       }));
       glassDrops = Array.from({ length: 38 }, (_, index) => ({
         x: ((index * 97 + 23) % 991) / 991,
@@ -320,7 +320,7 @@ function usePrototypeAtmosphere({ starsRef, cloudsRef, weatherRef, sky, mode, re
       loopRef.current = null;
       window.removeEventListener("resize", handleResize);
     };
-  }, [cloudsRef, mode, starsRef, starsVisible, weatherRef, reduceMotion]);
+  }, [cloudsRef, mode, rainIntensity, starsRef, starsVisible, weatherRef, reduceMotion]);
 }
 
 export default function CelestialBackdrop({
@@ -335,18 +335,22 @@ export default function CelestialBackdrop({
   const minute = Number.isFinite(snapshot.minute)
     ? snapshot.minute
     : snapshot.hour * 60;
-  const sky = useMemo(() => getSunGlassSky(minute), [minute]);
+  const sky = useMemo(() => getSunGlassSky(minute, snapshot), [minute, snapshot]);
   const weatherMode = ["clear", "cloudy", "rain", "storm"].includes(
     weatherModeOverride,
   )
     ? weatherModeOverride
     : weatherModeFromAmbient(weather);
+  const rainIntensity = weatherModeOverride
+    ? weatherMode === "storm" ? 1.6 : 1
+    : rainIntensityFromAmbient(weather);
   usePrototypeAtmosphere({
     starsRef,
     cloudsRef,
     weatherRef,
     sky,
     mode: weatherMode,
+    rainIntensity,
     reduceMotion,
   });
 
@@ -376,6 +380,7 @@ export default function CelestialBackdrop({
       aria-hidden="true"
       data-weather={weatherMode}
       data-minute={Math.round(sky.minute)}
+      data-solar-minute={Math.round(sky.solarMinute)}
       style={style}
     >
       <canvas className="celestial-stars-canvas" ref={starsRef} />

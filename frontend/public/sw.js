@@ -1,8 +1,7 @@
-const CACHE_NAME = "dengta-home-v14-fonts";
+const CACHE_NAME = "dengta-home-v15-modern-icon";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
-  "/app-icon.svg",
   "/app-icon-192.png",
   "/app-icon-512.png",
   "/apple-touch-icon.png",

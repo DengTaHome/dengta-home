@@ -18,7 +18,7 @@ function ConfigurationScreen() {
     <main className="auth-page auth-configuration-page">
       <section className="auth-message-panel" role="alert">
         <img
-          src="/app-icon.svg"
+          src="/app-icon-192.png"
           alt="DengTa"
         />
         <span className="auth-kicker">登录服务尚未接通</span>
@@ -172,7 +172,7 @@ export function AuthScreen({
       <section className="auth-panel" aria-label="DengTa Home 账号">
         <div className="auth-brand">
           <img
-            src="/app-icon.svg"
+            src="/app-icon-192.png"
             alt=""
           />
           <div>

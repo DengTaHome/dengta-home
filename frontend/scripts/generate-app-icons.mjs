@@ -7,7 +7,7 @@ const repositoryRoot = path.resolve(
   "..",
 );
 const source = await readFile(
-  path.join(repositoryRoot, "public", "app-icon.svg"),
+  path.join(repositoryRoot, "public", "app-icon-master.png"),
 );
 
 async function renderIcon(relativePath, size) {
@@ -22,6 +22,7 @@ await renderIcon("public/app-icon-512.png", 512);
 await renderIcon("public/apple-touch-icon.png", 180);
 
 const densities = {
+  ldpi: 36,
   mdpi: 48,
   hdpi: 72,
   xhdpi: 96,
@@ -49,8 +50,17 @@ for (const [density, size] of Object.entries(densities)) {
     .toFile(path.join(base, "ic_launcher_round.png"));
 
   const adaptiveSize = Math.round(size * 2.25);
+  const foregroundSize = Math.round(adaptiveSize * 2 / 3);
+  const inset = Math.floor((adaptiveSize - foregroundSize) / 2);
   await sharp(source)
-    .resize(adaptiveSize, adaptiveSize)
+    .resize(foregroundSize, foregroundSize)
+    .extend({
+      top: inset,
+      left: inset,
+      bottom: adaptiveSize - foregroundSize - inset,
+      right: adaptiveSize - foregroundSize - inset,
+      background: "#074c5b",
+    })
     .png()
     .toFile(path.join(base, "ic_launcher_foreground.png"));
   await sharp({
@@ -58,11 +68,11 @@ for (const [density, size] of Object.entries(densities)) {
       width: adaptiveSize,
       height: adaptiveSize,
       channels: 4,
-      background: "#ffffff",
+      background: "#074c5b",
     },
   })
     .png()
     .toFile(path.join(base, "ic_launcher_background.png"));
 }
 
-console.log("DengTa icon assets generated from public/app-icon.svg");
+console.log("DengTa icon assets generated from public/app-icon-master.png");

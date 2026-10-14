@@ -1,13 +1,15 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AMBIENT_WEATHER_REFRESH_CHECK_MS,
+  ambientCacheStorage,
   buildAmbientContext,
   clearCachedCoordinates,
   clearCachedWeather,
   describeGeolocationError,
   formatShanghaiClock,
   normalizeWeather,
-  readAmbientPreferences,
+  normalizeCoordinates,
+  readEnabledAmbientCache,
   readCachedCoordinates,
   readCachedWeather,
   resolveAmbientStartupAction,
@@ -27,25 +29,7 @@ function browserIsOnline() {
 }
 
 function readInitialAmbientState(accountScope = "") {
-  const preferenceResult = readAmbientPreferences(undefined, accountScope);
-  const coordinateResult = readCachedCoordinates();
-  const weatherResult = readCachedWeather();
-  let preferences = preferenceResult.preferences;
-
-  // Existing installations already have coordinates from a successful grant.
-  if (
-    preferenceResult.state === "missing" &&
-    ["fresh", "stale"].includes(coordinateResult.state)
-  ) {
-    preferences = { ...preferences, enabled: true };
-    storeAmbientPreferences(preferences, undefined, accountScope);
-  }
-
-  return {
-    preferences,
-    coordinates: coordinateResult,
-    weather: weatherResult,
-  };
+  return readEnabledAmbientCache(undefined, accountScope);
 }
 
 function AmbientContextBadge({
@@ -57,6 +41,7 @@ function AmbientContextBadge({
   className = "",
 }) {
   const [initialState] = useState(() => readInitialAmbientState(accountScope));
+  const cacheStorage = useMemo(() => ambientCacheStorage(undefined, accountScope), [accountScope]);
   const [now, setNow] = useState(() => new Date());
   const [online, setOnline] = useState(browserIsOnline);
   const [locationEnabled, setLocationEnabled] = useState(
@@ -146,7 +131,7 @@ function AmbientContextBadge({
     () => () => {
       operationRef.current += 1;
     },
-    [],
+    [cacheStorage],
   );
 
   const loadWeather = useCallback(async (coordinates, operation) => {
@@ -184,7 +169,7 @@ function AmbientContextBadge({
       }
       weatherRef.current = normalized;
       setWeather(normalized);
-      storeCachedWeather(normalized);
+      storeCachedWeather(normalized, cacheStorage);
       setStatus({ state: "ready", message: "天气已更新" });
     } catch (error) {
       if (operation !== operationRef.current) return;
@@ -195,7 +180,7 @@ function AmbientContextBadge({
           : "当前没有网络，暂时无法更新天气。",
       });
     }
-  }, [onLoadWeather]);
+  }, [onLoadWeather, cacheStorage]);
 
   const requestCurrentPosition = useCallback((operation, cacheState) => {
     const geolocation = globalThis.navigator?.geolocation;
@@ -217,13 +202,23 @@ function AmbientContextBadge({
     geolocation.getCurrentPosition(
       (position) => {
         if (operation !== operationRef.current) return;
-        const coordinates = {
+        const coordinates = normalizeCoordinates({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
-        };
-        storeCachedCoordinates(coordinates);
-        setCoordinates(readCachedCoordinates().coordinates);
+        });
+        if (!coordinates) {
+          setStatus({ state: "unavailable", message: "定位未返回有效坐标，请重试。" });
+          return;
+        }
+        const previous = readCachedCoordinates(cacheStorage).coordinates;
+        if (!previous || previous.latitude !== coordinates.latitude || previous.longitude !== coordinates.longitude) {
+          clearCachedWeather(cacheStorage);
+          weatherRef.current = null;
+          setWeather(null);
+        }
+        storeCachedCoordinates(coordinates, cacheStorage);
+        setCoordinates(readCachedCoordinates(cacheStorage).coordinates);
         persistPreferences({ enabled: true, permissionDenied: false });
         setLocationEnabled(true);
         void loadWeather(coordinates, operation);
@@ -231,8 +226,11 @@ function AmbientContextBadge({
       (error) => {
         if (operation !== operationRef.current) return;
         if (error?.code === 1) {
-          persistPreferences({ permissionDenied: true });
-          if (!preferencesRef.current.enabled) setLocationEnabled(false);
+          persistPreferences({ enabled: false, permissionDenied: true });
+          setLocationEnabled(false);
+          setCoordinates(null);
+          weatherRef.current = null;
+          setWeather(null);
         }
         setStatus(describeGeolocationError(error));
       },
@@ -242,12 +240,12 @@ function AmbientContextBadge({
         maximumAge: 5 * 60 * 1000,
       },
     );
-  }, [loadWeather, persistPreferences]);
+  }, [loadWeather, persistPreferences, cacheStorage]);
 
   const resumeWeather = useCallback(() => {
     const preferences = preferencesRef.current;
-    const cachedWeather = readCachedWeather();
-    const cachedCoordinates = readCachedCoordinates();
+    const cachedWeather = readCachedWeather(cacheStorage);
+    const cachedCoordinates = readCachedCoordinates(cacheStorage);
     const action = resolveAmbientStartupAction({
       preferences,
       weatherState: cachedWeather.state,
@@ -291,6 +289,7 @@ function AmbientContextBadge({
     }
     requestCurrentPosition(operation, cachedCoordinates.state);
   }, [
+    cacheStorage,
     loadWeather,
     onLoadWeather,
     requestCurrentPosition,
@@ -343,7 +342,7 @@ function AmbientContextBadge({
       return;
     }
 
-    const cached = readCachedCoordinates();
+    const cached = readCachedCoordinates(cacheStorage);
     if (cached.state === "fresh" && !permissionWasDenied) {
       persistPreferences({ enabled: true, permissionDenied: false });
       void loadWeather(cached.coordinates, operation);
@@ -354,8 +353,8 @@ function AmbientContextBadge({
 
   function disableWeather() {
     operationRef.current += 1;
-    clearCachedCoordinates();
-    clearCachedWeather();
+    clearCachedCoordinates(cacheStorage);
+    clearCachedWeather(cacheStorage);
     persistPreferences({ enabled: false, permissionDenied: false });
     setLocationEnabled(false);
     setCoordinates(null);

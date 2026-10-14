@@ -33,7 +33,9 @@ export default function FeatureAtmosphere({ kind }) {
         <strong>{copy.title}</strong>
         <em>{copy.script}</em>
       </div>
-      <div className="feature-atmosphere-art" aria-hidden="true">
+      {kind === "diary" || kind === "memory" ? (
+        <img className="feature-atmosphere-coast" src="/assets/journal-coast.webp" alt="" decoding="async" aria-hidden="true" />
+      ) : <div className="feature-atmosphere-art" aria-hidden="true">
         <i className="feature-cloud cloud-back" />
         <i className="feature-cloud cloud-anchor">
           <i className="feature-anchor-object" />
@@ -49,7 +51,7 @@ export default function FeatureAtmosphere({ kind }) {
             <i />
           </i>
         </i>
-      </div>
+      </div>}
     </section>
   );
 }

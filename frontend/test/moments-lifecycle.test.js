@@ -124,8 +124,7 @@ after(async () => {
   await vite.close();
   assert.equal(dirname(resolve(cacheDir)), resolve(tmpdir()));
   assert.ok(basename(cacheDir).startsWith("dengta-moments-lifecycle-"));
-  // Optimizer cache writes can briefly overlap close; keep retries inside this verified temp directory.
-  await rm(cacheDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  await rm(cacheDir, { recursive: true, force: true });
   globalThis.window = oldWindow; globalThis.fetch = oldFetch; delete globalThis.__momentsLifecycleFixture;
 });
 
@@ -278,9 +277,9 @@ test("a failed like rolls back and exposes safe reason, action and code", async 
   assertSafeFailure(read().notice); assert.equal(read().moments[0].user_liked, false); assert.equal(Boolean(read().pendingMomentLikes["moment-a"]), false);
 });
 test("invalid upstream codes normalize to unknown without displaying their raw values", async () => {
-  await mount(); fixture.transport = () => json({ code: "sk-provider-secret-123456789-fixture-7", message: "FICTIONAL_RAW_DYNAMIC_BODY_DO_NOT_DISPLAY" }, 500);
+  await mount(); fixture.transport = () => json({ code: "sk-provider-secret-123456789-fixture-1", message: "FICTIONAL_RAW_DYNAMIC_BODY_DO_NOT_DISPLAY" }, 500);
   await act(async () => { await fixture.api.loadMoments(); });
-  assert.doesNotMatch(snapshot(), /FICTIONAL_RAW_DYNAMIC_BODY_DO_NOT_DISPLAY|sk-provider-secret-123456789-fixture-7/); assert.match(read().momentsLoadError, /错误代码：unknown/);
+  assert.doesNotMatch(snapshot(), /FICTIONAL_RAW_DYNAMIC_BODY_DO_NOT_DISPLAY|sk-provider-secret-123456789-fixture-1/); assert.match(read().momentsLoadError, /错误代码：unknown/);
 });
 test("image preparation failures use fixed guidance without raw browser errors", async () => {
   await mount(); fixture.imageReader = async () => { throw new Error("FICTIONAL_RAW_DYNAMIC_BODY_DO_NOT_DISPLAY"); };

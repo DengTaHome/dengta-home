@@ -76,7 +76,7 @@ function CookieReadFeedback({ kind, read, busy, onRetry, readyMessage = "" }) {
   return <div className="music-provider-feedback"><p role={read.phase === "error" ? "alert" : "status"}>{message}</p>{["error", "cancelled"].includes(read.phase) && <button type="button" disabled={busy} onClick={onRetry}>{COOKIE_READ_FEEDBACK[kind][2]}</button>}</div>;
 }
 
-export default function TogetherMusic({ session, busy = false, onStart, onEnd, onPlaybackChange, onLocalPlaybackChange, onPositionChange, onUnderstandingSaved, request = null, accountScope = "", companionScope = "" }) {
+export default function TogetherMusic({ session, busy = false, onStart, onEnd, onPlaybackChange, onLocalPlaybackChange, onPositionChange, onUnderstandingSaved, onOpenMcpDeviceCenter, request = null, accountScope = "", companionScope = "" }) {
   const musicScope = useMusicScope(accountScope, companionScope);
   const audioRef = useRef(null);
   const attachAudio = useCallback((node) => {
@@ -151,6 +151,18 @@ export default function TogetherMusic({ session, busy = false, onStart, onEnd, o
   const [cookieGeneration, setCookieGeneration] = useState(0);
   const cookieIdentityRef = useRef({ generation: 0, connected: false, changing: false, resetResults: false });
   const [importOpen, setImportOpen] = useState(false);
+  const pendingMcpNavigation = useRef(null);
+  useEffect(() => {
+    if (importOpen || !pendingMcpNavigation.current) return;
+    const destination = pendingMcpNavigation.current;
+    pendingMcpNavigation.current = null;
+    if (mountedRef.current) destination();
+  }, [importOpen]);
+  const openMcpFromImport = () => {
+    if (!mountedRef.current || importBusyRef.current || typeof onOpenMcpDeviceCenter !== "function") return;
+    pendingMcpNavigation.current = onOpenMcpDeviceCenter;
+    setImportOpen(false);
+  };
   const [importBusy, setImportBusy] = useState(false);
   const importBusyRef = useRef(false);
   const updateImportBusy = useCallback((value) => {
@@ -907,7 +919,7 @@ export default function TogetherMusic({ session, busy = false, onStart, onEnd, o
 
   return <div className="together-setup together-music-setup" aria-busy={loading || queueBusy}>
     {!active && <section className="music-import-entry"><div><strong>把想听的歌带进来</strong><p>粘贴分享链接、选择歌单文件或导入本机音频，保存后直接选中。</p></div><button type="button" className="together-primary" aria-haspopup="dialog" aria-expanded={importOpen} onClick={() => { if (importBusyRef.current || importOpen) return; updateImportBusy(false); setImportOpen(true); }}><ListPlus aria-hidden="true" />导入歌曲</button></section>}
-    {!active && importOpen && <MusicImportDialog busy={importBusy} onClose={() => { if (importBusyRef.current) return; updateImportBusy(false); setImportOpen(false); }}><MusicSettings accountScope={accountScope} companionScope={companionScope} compact onBusyChange={updateImportBusy} onImported={acceptImportedPlaylist} /></MusicImportDialog>}
+    {!active && importOpen && <MusicImportDialog busy={importBusy} onClose={() => { if (importBusyRef.current) return; updateImportBusy(false); setImportOpen(false); }}><MusicSettings accountScope={accountScope} companionScope={companionScope} compact onBusyChange={updateImportBusy} onImported={acceptImportedPlaylist} onOpenMcpDeviceCenter={openMcpFromImport} /></MusicImportDialog>}
     {!active && (
       <label className="music-random-play-toggle">
         <input

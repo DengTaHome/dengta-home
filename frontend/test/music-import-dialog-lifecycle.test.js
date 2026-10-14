@@ -112,6 +112,28 @@ test.after(async () => {
   }
 });
 
+test("MCP setup closes the actual import dialog before navigating and keeps newer focus", async () => {
+  const navigations = [];
+  const settingsFocus = control("new-settings-focus");
+  await act(async () => { tree = TestRenderer.create(React.createElement(Music, {
+    onOpenMcpDeviceCenter: () => {
+      navigations.push(tree.root.findAllByProps({ className: "music-import-dialog" }).length);
+      doc.activeElement = settingsFocus;
+    },
+  }), { createNodeMock: nodeMock() }); });
+  await act(async () => button("导入歌曲").props.onClick());
+  const go = button("去 MCP 设备中心");
+  assert.equal(typeof go.props.onClick, "function", "the real import sheet must bind its MCP destination");
+  const oldAction = go.props.onClick;
+  await act(async () => oldAction());
+  assert.deepEqual(navigations, [0], "the import overlay must be removed before settings opens");
+  assert.equal(doc.body.style.overflow, "auto");
+  assert.equal(doc.activeElement, settingsFocus, "closing import must not steal the destination's focus");
+  await act(async () => tree.unmount()); tree = null;
+  await act(async () => oldAction());
+  assert.deepEqual(navigations, [0], "an unmounted import cannot reopen another scope's settings");
+});
+
 test("successful import clears parent busy before closing and reopening focuses the enabled close button", async () => {
   await act(async () => { tree = TestRenderer.create(React.createElement(Music), { createNodeMock: nodeMock() }); });
   await act(async () => button("导入歌曲").props.onClick());

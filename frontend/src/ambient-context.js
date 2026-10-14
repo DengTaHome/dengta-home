@@ -323,6 +323,27 @@ export function readCachedWeather(
   }
 }
 
+export function ambientCacheStorage(storage, accountScope = "") {
+  const target = getStorage(storage);
+  if (!target || !accountScope) return target;
+  return {
+    getItem: (key) => target.getItem(accountStorageKey(key, accountScope)),
+    setItem: (key, value) => target.setItem(accountStorageKey(key, accountScope), value),
+    removeItem: (key) => target.removeItem(accountStorageKey(key, accountScope)),
+  };
+}
+
+export function readEnabledAmbientCache(storage, accountScope = "") {
+  const { preferences } = readAmbientPreferences(storage, accountScope);
+  const allowed = preferences.enabled && !preferences.permissionDenied;
+  const cache = ambientCacheStorage(storage, accountScope);
+  return {
+    preferences,
+    coordinates: allowed ? readCachedCoordinates(cache) : { state: "off", coordinates: null },
+    weather: allowed ? readCachedWeather(cache) : { state: "off", weather: null },
+  };
+}
+
 export function formatShanghaiClock(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -441,7 +462,7 @@ export function buildAmbientContext({ clock, weather, locationEnabled }) {
     localTime: clock.time,
     localDate: clock.date,
     locationEnabled: Boolean(locationEnabled),
-    weather: weather
+    weather: locationEnabled && weather
       ? Object.freeze({
           temperatureC: weather.temperatureC,
           description: weather.description,

@@ -95,7 +95,7 @@ test("the accepted sky keeps the real preview minute and exposes weather control
   assert.match(deck, /实时\$\{displayedWeatherLabel\}/);
   assert.match(deck, /onWeatherMode\?\.\(null\)/);
   assert.doesNotMatch(backdrop, /snapshot\.resolvedAppearance === "night"/);
-  assert.match(backdrop, /getSunGlassSky\(minute\)/);
+  assert.match(backdrop, /getSunGlassSky\(minute, snapshot\)/);
   const sunRule = styles.match(
     /\.celestial-prototype-sky > \.celestial-sun\s*\{[\s\S]*?\n\}/,
   )?.[0];

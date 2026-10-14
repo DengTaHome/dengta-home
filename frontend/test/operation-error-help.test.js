@@ -17,7 +17,7 @@ for (const code of ["diary_receipt_invalid", "nursery_response_invalid"]) {
 assert.match(describeOperationError({ code: "nursery_response_invalid" }).action, /核对操作是否已生效/);
 assert.match(describeOperationError({ code: "unknown", message: "secret private upstream body" }).reason, /尚未指出具体原因/);
 assert.equal(JSON.stringify(describeOperationError({ code: "unknown", message: "secret private upstream body" })).includes("secret"), false);
-assert.equal(describeOperationError({ code: "sb_secret_your_fixture_key_8" }).code, "unknown");
+assert.equal(describeOperationError({ code: "sb_secret_your_fixture_key_2" }).code, "unknown");
 for (const code of ["constructor", "__proto__", "toString"]) {
   assert.match(describeOperationError({ code }).reason, /尚未指出具体原因/);
   assert.match(describeOperationError({ code }).action, /展开技术详情/);

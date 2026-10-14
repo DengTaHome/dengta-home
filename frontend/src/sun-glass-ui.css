@@ -1299,6 +1299,35 @@ body,
   background: linear-gradient(122deg, rgb(255 255 255 / .1), transparent 22%, transparent 73%, rgb(255 255 255 / .055));
 }
 
+/* The moving image is a direct circular crop of the supplied reference video. */
+.rainbow-agent-mark {
+  position: relative;
+  display: block;
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 4px 10px rgb(25 38 55 / .18);
+  isolation: isolate;
+}
+
+.rainbow-agent-mark::before,
+.rainbow-agent-mark::after {
+  display: none;
+}
+
+.rainbow-agent-mark-reference {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  user-select: none;
+  pointer-events: none;
+}
+
 .rainbow-agent-mark-glint {
   position: absolute;
   inset: 1px 8px auto;

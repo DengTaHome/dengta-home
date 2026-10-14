@@ -205,7 +205,7 @@ test("a failed file read keeps its old account cache read-only and supports cach
   assert.doesNotMatch(body(), /fictional raw storage failure/);
 });
 test("unknown credential-looking envelope code is reduced to unknown without raw details", async () => {
-  await ready(); await newDraft(); await click(button("保存")); await respond(writes()[0], { ok: false, code: "sk-provider-secret-123456789-fixture-10", error: "raw fictional message" });
+  await ready(); await newDraft(); await click(button("保存")); await respond(writes()[0], { ok: false, code: "sk-provider-secret-123456789-fixture-3", error: "raw fictional message" });
   assert.match(body(), /错误代码：unknown/); assert.doesNotMatch(body(), /sk-fictional|raw fictional message/);
 });
 test("acknowledged overwrite sends one explicit confirmation and caches the submitted exact text", async () => {

@@ -148,7 +148,7 @@ export default function CompanionDiary({
         className="diary-generation-state state-watching"
         role="status"
       >
-        <img src="/app-icon.svg" alt="" />
+        <img src="/app-icon-192.png" alt="" />
         <div>
           <strong>记忆手记自动更新</strong>
           <span>

@@ -172,6 +172,10 @@ export default function SettingsFlowField() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
+    const documentObject = globalThis.document;
+    const isHidden = () => documentObject?.hidden === true;
+    let effectDisposed = false;
+    let initializationPending = false;
 
     const showFallback = () => {
       canvas.parentElement?.classList.remove("settings-flow-field--ready");
@@ -181,6 +185,14 @@ export default function SettingsFlowField() {
     let disposeRenderer = () => {};
 
     const startRenderer = () => {
+      if (effectDisposed) return;
+      if (isHidden()) {
+        initializationPending = true;
+        documentObject?.addEventListener?.("visibilitychange", resumeInitialization);
+        return;
+      }
+      initializationPending = false;
+      documentObject?.removeEventListener?.("visibilitychange", resumeInitialization);
       let gl, program, buffer;
       let animationFrame = 0;
       let disposed = false;
@@ -242,8 +254,6 @@ export default function SettingsFlowField() {
         let scrolling = settingsSheet?.classList.contains("is-scrolling") ?? false;
         let resizeDirty = true;
         let pausedAt = null;
-        const documentObject = globalThis.document;
-        const isHidden = () => documentObject?.hidden === true;
         canvas.parentElement?.classList.remove("settings-flow-field--fallback");
 
         const resize = () => {
@@ -369,11 +379,18 @@ export default function SettingsFlowField() {
       }
     };
 
+    const resumeInitialization = () => {
+      if (initializationPending && !isHidden()) startRenderer();
+    };
+
     // Wait until the jelly sheet has fully settled so WebGL does not resize
     // through every animation frame on Android WebView.
     const warmupTimer = window.setTimeout(startRenderer, 720);
     return () => {
+      effectDisposed = true;
+      initializationPending = false;
       window.clearTimeout(warmupTimer);
+      documentObject?.removeEventListener?.("visibilitychange", resumeInitialization);
       disposeRenderer();
       canvas.parentElement?.classList.remove("settings-flow-field--fallback");
     };

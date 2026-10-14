@@ -255,12 +255,17 @@ test("actual App dataset publisher restores the previous owner on preference cle
   }
 });
 
-async function settingsFixture({ reduceMotion = false, systemReduced = false } = {}) {
+async function settingsFixture({ reduceMotion = false, systemReduced = false, hidden = false } = {}) {
   const source = fs.readFileSync(new URL("../src/SettingsFlowField.jsx", import.meta.url), "utf8");
-  const timers = new Map(), frames = new Map(), observers = [], canvasListeners = new Map(), mediaListeners = new Set();
+  const timers = new Map(), frames = new Map(), observers = [], canvasListeners = new Map(), mediaListeners = new Set(), documentListeners = new Set(), timerDelays = new Map();
   const calls = { allocations: 0, draws: 0, phases: [], bufferDeletes: 0, programDeletes: 0 };
   let next = 0;
   const motion = { value: reduceMotion };
+  const documentObject = {
+    hidden,
+    addEventListener(name, callback) { assert.equal(name, "visibilitychange"); documentListeners.add(callback); },
+    removeEventListener(name, callback) { assert.equal(name, "visibilitychange"); documentListeners.delete(callback); },
+  };
   const media = {
     matches: systemReduced,
     addEventListener(name, callback) { mediaListeners.add(callback); },
@@ -286,9 +291,10 @@ async function settingsFixture({ reduceMotion = false, systemReduced = false } =
   };
   const Component = await compileComponent(source, "SettingsFlowField", {
     useReducedVisualMotion: () => motion.value,
+    document: documentObject,
     window: {
       matchMedia: (query) => query.includes("reduced-motion") ? media : { matches: true },
-      setTimeout(callback) { timers.set(++next, callback); return next; },
+      setTimeout(callback, delay) { timers.set(++next, callback); timerDelays.set(next, delay); return next; },
       clearTimeout(id) { timers.delete(id); },
     },
     performance: { now: () => 100 },
@@ -298,7 +304,8 @@ async function settingsFixture({ reduceMotion = false, systemReduced = false } =
     ResizeObserver: class { constructor(callback) { this.kind = "resize"; this.callback = callback; observers.push(this); } observe() {} disconnect() { this.disconnected = true; } },
   });
   const flush = (queue) => { const pending = [...queue.values()]; queue.clear(); pending.forEach((callback) => callback(200)); };
-  return { Component, motion, canvas, frames, timers, observers, canvasListeners, mediaListeners, calls, flags, viewport, flush };
+  const visibility = (nextHidden) => { documentObject.hidden = nextHidden; [...documentListeners].forEach((callback) => callback()); };
+  return { Component, motion, canvas, frames, timers, observers, canvasListeners, mediaListeners, documentListeners, timerDelays, calls, flags, viewport, flush, visibility };
 }
 
 test("actual settings renderer keeps a static colorful frame for app or system reduction", async () => {
@@ -412,6 +419,143 @@ test("actual settings unmount cancels warmup before any WebGL allocation", async
     assert.equal(f.frames.size + f.timers.size, 0);
     f.flush(f.timers);
     assert.equal(f.calls.allocations, 0);
+  } finally { if (tree) await act(async () => tree.unmount()); }
+});
+
+test("actual settings hidden warmup defers all WebGL allocation until one foreground initialization", async () => {
+  for (const reduceMotion of [false, true]) {
+    const f = await settingsFixture({ hidden: true, reduceMotion });
+    let tree;
+    try {
+      await act(async () => { tree = TestRenderer.create(React.createElement(f.Component), { createNodeMock: (element) => element.type === "canvas" ? f.canvas : null }); });
+      await act(async () => f.flush(f.timers));
+      assert.equal(f.calls.allocations, 0, "a hidden warmup must not request a WebGL context");
+      assert.equal(f.calls.draws + f.frames.size + f.timers.size + f.observers.length, 0);
+      await act(async () => { f.visibility(false); f.flush(f.frames); });
+      assert.equal(f.calls.allocations, 1);
+      assert.equal(f.calls.draws, 1);
+      assert.equal(f.frames.size, reduceMotion ? 0 : 1);
+      await act(async () => f.visibility(false));
+      assert.equal(f.calls.allocations, 1, "a repeated visibility receipt cannot allocate a second renderer");
+      assert.equal(f.frames.size, reduceMotion ? 0 : 1);
+      await act(async () => tree.unmount()); tree = null;
+      assert.equal(f.calls.bufferDeletes, 1); assert.equal(f.calls.programDeletes, 1);
+      assert.equal(f.frames.size + f.timers.size + f.documentListeners.size + f.canvasListeners.size + f.mediaListeners.size, 0);
+      assert.ok(f.observers.every((observer) => observer.disconnected));
+    } finally { if (tree) await act(async () => tree.unmount()); }
+  }
+});
+
+test("actual settings foreground before warmup cannot bypass the visible 720ms delay", async () => {
+  const f = await settingsFixture({ hidden: true });
+  let tree;
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(f.Component), { createNodeMock: (element) => element.type === "canvas" ? f.canvas : null }); });
+    assert.deepEqual([...f.timerDelays.values()], [720]);
+    const timer = [...f.timers.keys()][0];
+    await act(async () => { f.visibility(false); f.visibility(false); });
+    assert.equal(f.calls.allocations, 0);
+    assert.equal(f.timers.has(timer), true);
+    assert.equal(f.frames.size, 0);
+    await act(async () => { f.flush(f.timers); f.flush(f.frames); });
+    assert.equal(f.calls.allocations, 1);
+    assert.equal(f.calls.draws, 1);
+    await act(async () => tree.unmount()); tree = null;
+    assert.equal(f.documentListeners.size + f.frames.size + f.timers.size, 0);
+  } finally { if (tree) await act(async () => tree.unmount()); }
+});
+
+test("actual settings deferred initialization is cancelled on unmount even for a stale visibility callback", async () => {
+  const f = await settingsFixture({ hidden: true });
+  let tree;
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(f.Component), { createNodeMock: (element) => element.type === "canvas" ? f.canvas : null }); });
+    await act(async () => f.flush(f.timers));
+    const staleVisibility = [...f.documentListeners][0];
+    assert.equal(f.calls.allocations, 0);
+    assert.equal(typeof staleVisibility, "function");
+    await act(async () => tree.unmount()); tree = null;
+    await act(async () => { f.visibility(false); staleVisibility(); f.flush(f.frames); });
+    assert.equal(f.calls.allocations + f.calls.draws + f.frames.size + f.timers.size + f.documentListeners.size + f.observers.length, 0);
+  } finally { if (tree) await act(async () => tree.unmount()); }
+});
+
+test("actual settings deferred initialization cannot survive a reduced-motion preference replacement", async () => {
+  const f = await settingsFixture({ hidden: true });
+  let tree;
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(f.Component), { createNodeMock: (element) => element.type === "canvas" ? f.canvas : null }); });
+    await act(async () => f.flush(f.timers));
+    const staleVisibility = [...f.documentListeners][0];
+    assert.equal(f.calls.allocations, 0);
+    f.motion.value = true;
+    await act(async () => tree.update(React.createElement(f.Component)));
+    assert.equal(f.documentListeners.size, 0);
+    assert.equal(f.timers.size, 1);
+    await act(async () => { f.visibility(false); staleVisibility(); });
+    assert.equal(f.calls.allocations, 0, "the replacement must complete its own warmup");
+    await act(async () => f.flush(f.timers));
+    assert.equal(f.calls.allocations, 1);
+    assert.equal(f.calls.draws, 1);
+    assert.deepEqual(f.calls.phases, [0.64]);
+    assert.equal(f.frames.size, 0);
+    await act(async () => tree.unmount()); tree = null;
+    assert.equal(f.documentListeners.size + f.frames.size + f.timers.size, 0);
+  } finally { if (tree) await act(async () => tree.unmount()); }
+});
+
+test("actual settings background context restoration defers the new generation and never deletes lost handles", async () => {
+  const f = await settingsFixture();
+  let tree;
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(f.Component), { createNodeMock: (element) => element.type === "canvas" ? f.canvas : null }); });
+    await act(async () => { f.flush(f.timers); f.flush(f.frames); f.visibility(true); });
+    let prevented = false;
+    await act(async () => { f.canvasListeners.get("webglcontextlost")({ preventDefault() { prevented = true; } }); f.canvasListeners.get("webglcontextrestored")(); });
+    assert.equal(prevented, true);
+    assert.equal(f.calls.allocations, 1, "hidden restoration must not request another context");
+    assert.equal(f.calls.bufferDeletes + f.calls.programDeletes + f.frames.size + f.timers.size, 0);
+    assert.equal(f.canvasListeners.size + f.mediaListeners.size, 0, "the lost renderer must release its subscriptions");
+    await act(async () => { f.visibility(false); f.flush(f.frames); });
+    assert.equal(f.calls.allocations, 2);
+    assert.equal(f.calls.draws, 2);
+    assert.equal(f.frames.size, 1);
+    await act(async () => f.visibility(false));
+    assert.equal(f.calls.allocations, 2);
+    assert.equal(f.frames.size, 1);
+    await act(async () => tree.unmount()); tree = null;
+    assert.equal(f.calls.bufferDeletes, 1); assert.equal(f.calls.programDeletes, 1);
+    assert.equal(f.documentListeners.size + f.canvasListeners.size + f.mediaListeners.size + f.frames.size + f.timers.size, 0);
+    assert.ok(f.observers.every((observer) => observer.disconnected));
+  } finally { if (tree) await act(async () => tree.unmount()); }
+});
+
+test("actual settings background restoration cannot restart after unmount", async () => {
+  const f = await settingsFixture();
+  let tree;
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(f.Component), { createNodeMock: (element) => element.type === "canvas" ? f.canvas : null }); });
+    await act(async () => { f.flush(f.timers); f.flush(f.frames); f.visibility(true); });
+    const staleRestore = f.canvasListeners.get("webglcontextrestored");
+    await act(async () => { f.canvasListeners.get("webglcontextlost")({ preventDefault() {} }); staleRestore(); });
+    assert.equal(f.calls.allocations, 1);
+    const staleVisibility = [...f.documentListeners][0];
+    await act(async () => tree.unmount()); tree = null;
+    await act(async () => { f.visibility(false); staleVisibility(); staleRestore(); f.flush(f.frames); });
+    assert.equal(f.calls.allocations, 1);
+    assert.equal(f.calls.bufferDeletes + f.calls.programDeletes + f.frames.size + f.timers.size + f.documentListeners.size + f.canvasListeners.size + f.mediaListeners.size, 0);
+  } finally { if (tree) await act(async () => tree.unmount()); }
+});
+
+test("actual settings hidden cancelled warmup cannot allocate from an already queued stale callback", async () => {
+  const f = await settingsFixture({ hidden: true });
+  let tree;
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(f.Component), { createNodeMock: (element) => element.type === "canvas" ? f.canvas : null }); });
+    const staleWarmup = [...f.timers.values()][0];
+    await act(async () => tree.unmount()); tree = null;
+    await act(async () => { f.visibility(false); staleWarmup(); f.flush(f.frames); });
+    assert.equal(f.calls.allocations + f.calls.draws + f.frames.size + f.timers.size + f.documentListeners.size + f.canvasListeners.size + f.mediaListeners.size + f.observers.length, 0);
   } finally { if (tree) await act(async () => tree.unmount()); }
 });
 

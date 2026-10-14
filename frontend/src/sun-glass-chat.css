@@ -1742,7 +1742,7 @@
 .main-panel.view-chat
   .companion-status.sun-glass-floating-status-shell.expanded
   > .sun-glass-liquid-action-stage {
-  display: none;
+  display: grid;
 }
 
 .main-panel.view-chat.status-panel-open .message-list,

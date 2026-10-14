@@ -38,7 +38,26 @@ function triangle(minute, center, radius) {
   return clamp(1 - Math.abs(minute - center) / radius);
 }
 
-export function getSunGlassSky(minute) {
+export function solarSkyMinute(minute, snapshot) {
+  const current = ((Number(minute) % 1440) + 1440) % 1440;
+  const rise = Date.parse(snapshot?.sunrise);
+  const set = Date.parse(snapshot?.sunset);
+  if (!Number.isFinite(current) || !Number.isFinite(rise) || !Number.isFinite(set)) return minute;
+  const duration = (set - rise) / 60000;
+  if (duration <= 0 || duration >= 1440) return minute;
+  // The application clock and solar labels use China Standard Time.
+  const riseMinute = ((rise / 60000 + 480) % 1440 + 1440) % 1440;
+  const elapsed = (current - riseMinute + 1440) % 1440;
+  return elapsed <= duration
+    ? 450 + (elapsed / duration) * 720
+    : (1170 + ((elapsed - duration) / (1440 - duration)) * 720) % 1440;
+}
+
+export function getSunGlassSky(minute, snapshot) {
+  const actualMinute = Number(minute);
+  const solarDuration = Date.parse(snapshot?.sunset) - Date.parse(snapshot?.sunrise);
+  const hasSolarSchedule = Number.isFinite(solarDuration) && solarDuration > 0 && solarDuration < 86400000;
+  minute = solarSkyMinute(minute, snapshot);
   const input = Number(minute);
   const normalized = Number.isFinite(input) ? ((input % 1440) + 1440) % 1440 : 0;
   const rightIndex = DAY_KEYS.findIndex((key) => key.minute >= normalized);
@@ -68,7 +87,8 @@ export function getSunGlassSky(minute) {
   const transitionLight = Math.max(sunrise, sunset, blueHour);
 
   return {
-    minute: normalized,
+    minute: Number.isFinite(actualMinute) ? ((actualMinute % 1440) + 1440) % 1440 : 0,
+    solarMinute: normalized,
     colors,
     daylight,
     sunrise,
@@ -78,7 +98,9 @@ export function getSunGlassSky(minute) {
     progress,
     sunX: 7 + progress * 86,
     sunY: 76 - Math.sin(progress * Math.PI) * 58,
-    sunOpacity: daylight,
+    sunOpacity: hasSolarSchedule
+      ? clamp(Math.min((normalized - 450) / 30, (1170 - normalized) / 30))
+      : daylight,
     moonX: 7 + moonProgress * 86,
     moonY: 76 - Math.sin(moonProgress * Math.PI) * 56,
     moonOpacity: clamp((night - 0.18) * 1.18),
@@ -118,4 +140,12 @@ export function weatherModeFromAmbient(weather) {
     return "cloudy";
   }
   return "clear";
+}
+
+export function rainIntensityFromAmbient(weather) {
+  const code = Number(weather?.weatherCode);
+  const description = String(weather?.description || "").toLowerCase();
+  if ([65, 67, 82, 95, 96, 99].includes(code) || /暴雨|大雨|heavy rain|downpour|torrential/.test(description)) return 1.6;
+  if ([51, 53, 61, 80].includes(code) || /小雨|毛毛雨|light rain|drizzle/.test(description)) return 0.5;
+  return 1;
 }

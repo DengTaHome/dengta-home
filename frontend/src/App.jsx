@@ -12,6 +12,7 @@ import { resizeComposerInput } from "./composer-size.js";
 import { useMemoryUiRequest as useScopedUiRequest } from "./memory-ui-feedback.js";
 import { MAX_SESSION_TITLE, readSessionDelete, readSessionRename, sessionDialogFailure } from "./session-dialog-feedback.js";
 import SessionDialog from "./SessionDialog.jsx";
+import ImageViewer from "./ImageViewer.jsx";
 import { createCoWatchLifecycle } from "./co-watch-lifecycle.js";
 import { createScreenGlanceLifecycle } from "./screen-glance-lifecycle.js";
 import { createMusicPlaybackSync } from "./music-playback-sync.js";
@@ -209,8 +210,7 @@ import {
 import { readReplySuggestions } from "./chat-reply-suggestions";
 import DlnaDiscoveryFeedback from "./DlnaDiscoveryFeedback.jsx";
 import {
-  readCachedCoordinates,
-  readCachedWeather,
+  readEnabledAmbientCache,
   SHANGHAI_TIME_ZONE,
 } from "./ambient-context";
 import {
@@ -1094,10 +1094,10 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   );
   const [composerHint, setComposerHint] = useState("");
   const [celestialCoordinates, setCelestialCoordinates] = useState(
-    () => readCachedCoordinates().coordinates,
+    () => readEnabledAmbientCache(undefined, accountStorageScope).coordinates.coordinates,
   );
   const [ambientWeather, setAmbientWeather] = useState(
-    () => readCachedWeather().weather,
+    () => readEnabledAmbientCache(undefined, accountStorageScope).weather.weather,
   );
   const [weatherPreviewMode, setWeatherPreviewMode] = useState(null);
   const {
@@ -1988,8 +1988,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   }, [applyScreenGlanceState, flushPendingScreenGlanceTurn, refreshScreenGlanceState]);
 
   const handleImagePreview = useCallback((url, alt) => {
-    setImageViewer({ url, alt });
-  }, []);
+    setImageViewer({ url, alt, scopeKey: privateMediaScope });
+  }, [privateMediaScope]);
 
   const handleCompanionInteraction = useCallback(
     (zoneId) => companionInteractionHandlerRef.current?.(zoneId),
@@ -7370,7 +7370,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                   {item.author === "assistant" ? (
                     <img
                       className="moment-avatar"
-                      src="/app-icon.svg"
+                      src="/app-icon-192.png"
                       alt="DengTa"
                     />
                   ) : (
@@ -7403,9 +7403,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                         src={url}
                         alt={`动态图片 ${index + 1}`}
                         buttonClassName="moment-image-button"
-                        onPreview={(previewUrl, alt) =>
-                          setImageViewer({ url: previewUrl, alt })
-                        }
+                        onPreview={handleImagePreview}
                         key={`${url}-${index}`}
                       />
                     ))}
@@ -8017,6 +8015,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           accountScope={accountStorageScope}
           companionScope={companionScope}
           watchRequest={activityRequestInScope(watchActivityRequest, accountStorageScope, companionScope)}
+          onOpenMcpDeviceCenter={() => { openProviderRecovery(); setSettingsFocusTarget("mcp-device-center"); }}
           session={coWatchSession}
           receipt={coWatchReceipt}
           screenState={screenGlanceState}
@@ -9850,27 +9849,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       )}
 
       {imageViewer && (
-        <div
-          className="image-viewer"
-          role="dialog"
-          aria-modal="true"
-          aria-label="动态图片预览"
-          onMouseDown={() => setImageViewer(null)}
-        >
-          <button
-            type="button"
-            className="image-viewer-close"
-            aria-label="关闭图片预览"
-            onClick={() => setImageViewer(null)}
-          >
-            ×
-          </button>
-          <img
-            src={imageViewer.url}
-            alt={imageViewer.alt}
-            onMouseDown={(event) => event.stopPropagation()}
-          />
-        </div>
+        <ImageViewer image={imageViewer} scopeKey={privateMediaScope}
+          onClose={() => setImageViewer(null)} />
       )}
     </div>
   );

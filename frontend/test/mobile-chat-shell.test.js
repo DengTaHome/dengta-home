@@ -79,7 +79,7 @@ test("time and weather controls live inside the plus menu and coalesce scrubbing
   assert.match(deck, /data-time-scrubbing/);
   assert.match(deck, /document\.documentElement\.dataset\.timeScrubbing/);
   assert.match(deck, /aria-label="跟随实时天气"/);
-  assert.match(app, /readCachedWeather\(\)\.weather/);
+  assert.match(app, /readEnabledAmbientCache\(undefined, accountStorageScope\)\.weather\.weather/);
 });
 
 test("mobile message bubbles expand toward the screen edges", () => {

@@ -103,6 +103,7 @@ export default function Together({
   onMusicPlaybackChange,
   onLocalPlaybackChange,
   onMusicUnderstandingSaved,
+  onOpenMcpDeviceCenter,
   onPlaybackChange,
   onRefresh,
   castPairing,
@@ -854,6 +855,7 @@ export default function Together({
               onPlaybackChange={onMusicPlaybackChange}
               onLocalPlaybackChange={onLocalPlaybackChange}
               onUnderstandingSaved={onMusicUnderstandingSaved}
+              onOpenMcpDeviceCenter={onOpenMcpDeviceCenter}
               onPositionChange={setMusicPositionSeconds}
             />
           ) : selectedMode === "web" ? (
