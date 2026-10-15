@@ -140,6 +140,8 @@ export function createAuthSessionManager({
   let initialization = null;
   let authSubscription = null;
   let session = null;
+  let sessionRevision = 0;
+  let scopeRevision = 0;
   let passwordRecovery = false;
   let callbackInitializationChecked = false;
   let snapshot = Object.freeze({
@@ -152,13 +154,16 @@ export function createAuthSessionManager({
   });
 
   function publish(next) {
+    const previous = snapshot;
     snapshot = Object.freeze({ ...snapshot, ...next });
+    if (previous.user?.id !== snapshot.user?.id || previous.activeCompanionId !== snapshot.activeCompanionId) scopeRevision += 1;
     listeners.forEach((listener) => listener(snapshot));
     return snapshot;
   }
 
   function applySession(nextSession, status) {
     session = nextSession || null;
+    sessionRevision += 1;
     const user = publicUser(session);
     return publish({
       status:
@@ -173,6 +178,7 @@ export function createAuthSessionManager({
   function applyRecoverySession(nextSession) {
     passwordRecovery = true;
     session = nextSession || null;
+    sessionRevision += 1;
     const user = publicUser(session);
     return publish({
       status: AUTH_STATUS.recovery,
@@ -416,7 +422,14 @@ export function createAuthSessionManager({
 
   async function getRequestContext() {
     if (!configured(normalizedUrl, normalizedKey)) return {};
+    const startingScope = snapshot.user?.id ? scopeRevision : null;
     await initialize();
+    const requestScope = startingScope ?? scopeRevision;
+    function assertRequestScope() {
+      if (requestScope === scopeRevision && session?.user?.id === snapshot.user?.id) return;
+      throw new AuthSessionError("账号或伴侣已切换，本次请求已取消。", { code: "settings_scope_changed" });
+    }
+    assertRequestScope();
     if (!session?.access_token) return {};
     // 缺陷 5 修复：主动检查 token 是否临近/已过期，避免仅依赖后台定时器刷新。
     // 后台标签页定时器可能被节流，回前台时携带过期 token 导致 401 强制登出。
@@ -429,10 +442,14 @@ export function createAuthSessionManager({
       const now = Date.now();
       // 剩余有效期不足 30 秒时主动刷新一次
       if (expiresAt - now < 30_000) {
+        const refreshRevision = sessionRevision;
+        const refreshUserId = session.user?.id;
         try {
           const refreshed = await client.auth.refreshSession();
-          if (refreshed?.data?.session) {
+          // SDK events can publish a newer session before this promise settles.
+          if (requestScope === scopeRevision && refreshRevision === sessionRevision && refreshed?.data?.session?.user?.id === refreshUserId && refreshed.data.session.access_token) {
             session = refreshed.data.session;
+            sessionRevision += 1;
             publish({ status: AUTH_STATUS.authenticated });
           }
         } catch {
@@ -440,12 +457,10 @@ export function createAuthSessionManager({
         }
       }
     }
+    assertRequestScope();
     return {
       accessToken: session.access_token,
-      companionId: readCompanionId(
-        persistentStorage,
-        session.user?.id,
-      ),
+      companionId: snapshot.activeCompanionId,
     };
   }
 
@@ -485,6 +500,7 @@ export function createAuthSessionManager({
     }
     passwordRecovery = false;
     session = null;
+    sessionRevision += 1;
     publish({
       status: AUTH_STATUS.expired,
       user: null,

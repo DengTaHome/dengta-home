@@ -9,7 +9,7 @@ An AI companion app for adults, built around continuous conversation, personal c
 ## 下载与体验
 
 - [网页体验](https://www.dengtahome.com/)
-- [Android 2.10.72 测试版及更新说明](https://github.com/DengTaHome/dengta-home/releases/tag/v2.10.72)
+- [Android 2.10.73 测试版及更新说明](https://github.com/DengTaHome/dengta-home/releases/tag/v2.10.73)
 - [项目简介](docs/PROJECT-INTRODUCTION.md) · [自行部署](docs/DEPLOYMENT.md)
 
 Android 下载版连接灯塔的现有服务；公开源码采用自托管配置，部分装饰标识使用独立绘制资源，需要填写自己的服务地址。此版本是测试发布，真机与生产全流程仍需验收。请先阅读 Release 中的签名、升级和验证说明。

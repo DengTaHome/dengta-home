@@ -82,7 +82,7 @@ export function useMemoryUiRequest(scopeKey) {
     const snapshot = authSession.getSnapshot();
     return Boolean(lifecycle.current?.scopeKey === scopeKey && !lifecycle.current.controller.signal.aborted && snapshot.user?.id && snapshot.activeCompanionId && settingsSaveScope(snapshot) === scopeKey);
   }, [scopeKey]);
-  const request = useCallback(async (path, { body, timeoutMs = 15_000, responseReader, ...options } = {}) => {
+  const request = useCallback(async (path, { body, rawBody = false, timeoutMs = 15_000, responseReader, ...options } = {}) => {
     if (!isCurrent()) {
       const error = new Error("账号或伴侣范围已变化。");
       error.code = "settings_scope_changed";
@@ -105,9 +105,10 @@ export function useMemoryUiRequest(scopeKey) {
     // The shared API deadline ends after headers; this also bounds a stalled JSON body.
     const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
     try {
-      const requestOptions = { timeoutMs, ...options, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal, authSession: createScopedSettingsSession(authSession, scopeKey, controller.signal), retry: false };
+      // This hook owns the complete deadline and keeps one signal through the response body.
+      const requestOptions = { timeoutMs: 0, ...options, body: rawBody ? body : body === undefined ? undefined : JSON.stringify(body), signal: controller.signal, authSession: createScopedSettingsSession(authSession, scopeKey, controller.signal), retry: false };
       const result = responseReader
-        ? apiFetch(path, { ...requestOptions, headers: { "Content-Type": "application/json", ...(options.headers || {}) } }).then(responseReader)
+        ? apiFetch(path, { ...requestOptions, headers: { ...(rawBody ? {} : { "Content-Type": "application/json" }), ...(options.headers || {}) } }).then(responseReader)
         : apiRequest(path, requestOptions);
       return await Promise.race([result, aborted]);
     } finally {

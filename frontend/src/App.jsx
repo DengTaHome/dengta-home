@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { resizeComposerInput } from "./composer-size.js";
-import { useMemoryUiRequest as useScopedUiRequest } from "./memory-ui-feedback.js";
+import { invalidMemoryReceipt, memoryCount, memoryUiFailure, useMemoryUiRequest as useScopedUiRequest } from "./memory-ui-feedback.js";
 import { MAX_SESSION_TITLE, readSessionDelete, readSessionRename, sessionDialogFailure } from "./session-dialog-feedback.js";
 import SessionDialog from "./SessionDialog.jsx";
 import ImageViewer from "./ImageViewer.jsx";
@@ -72,6 +72,7 @@ import { isTextFile } from "./large-text-file.js";
 import { readLargeTextSample } from "./large-text-reader.js";
 import AmbientContextBadge from "./AmbientContextBadge";
 import ChatTranscript from "./ChatTranscript.jsx";
+import ChatHistoryFeedback from "./ChatHistoryFeedback.jsx";
 import { awaitChatPreparation, CHAT_SEND_PREPARATION_LABELS } from "./chat-send-preparation.js";
 import ChatActivities from "./ChatActivities.jsx";
 import ActivityReturnBar from "./ActivityReturnBar.jsx";
@@ -566,65 +567,62 @@ function ErrorLogsPanel({ accountScope, companionScope, onOpenSettings }) {
   );
 }
 
-function MemoryImportCard() {
+function MemoryImportCard({ scopeKey }) {
   const [file, setFile] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [historyBusy, setHistoryBusy] = useState(false);
+  const [busy, setBusy] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [diagnostic, setDiagnostic] = useState(null);
+  const operationRef = useRef(null);
+  const { request, isCurrent } = useScopedUiRequest(scopeKey);
+  useLayoutEffect(() => {
+    operationRef.current = null;
+    return () => { operationRef.current = null; };
+  }, [scopeKey]);
 
-  async function runImport() {
-    if (!file || busy) return;
-    setBusy(true);
-    setError('');
-    setResult(null);
-    setDiagnostic(null);
-    try {
-      if (file.size > 20 * 1024 * 1024) throw new Error('旧记忆直传最大 20MB；大文本请打开设置中的「数据导入」，可分段处理至 1GB。');
-      const form = new FormData();
-      form.append('file', file);
-      const response = await apiFetch('/api/v2/memory/import-file', {
-        method: 'POST',
-        body: form,
-        retry: false,
-        timeoutMs: 90000,
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.ok !== true) {
-        throw Object.assign(new Error(data?.message || '导入未完成，请先核对记忆库再重试，避免重复保存。'), { status: response.status, code: data?.code, logId: data?.error_log_id, source: data?.error_source, upstreamStatus: data?.upstream_status });
-      }
-      setResult(data);
-    } catch (importError) {
-      setError(importError?.message || '导入失败，请稍后重试。');
-      setDiagnostic({error_code:importError.code,error_log_id:importError.logId,error_source:importError.source,upstream_status:importError.upstreamStatus});
-    } finally {
-      setBusy(false);
+  async function readImportResult(response) {
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw Object.assign(new Error('记忆导入未完成。'), { status: response.status, code: data?.code, logId: data?.error_log_id, source: ['dengta', 'external_memory_gateway'].includes(data?.error_source) ? data.error_source : undefined, upstreamStatus: data?.upstream_status });
     }
+    if (response.status !== 200 || data?.ok !== true || !memoryCount(data.imported) || ['skipped', 'total'].some(field => Object.hasOwn(data, field) && !memoryCount(data[field]))) throw invalidMemoryReceipt();
+    return data;
   }
 
-  async function runHistoryImport() {
-    if (historyBusy) return;
-    setHistoryBusy(true);
+  async function runImport(kind = 'file') {
+    if (operationRef.current || !isCurrent() || (kind === 'file' && !file)) return;
+    if (kind === 'file' && file.size > 20 * 1024 * 1024) {
+      setError('旧记忆直传最大 20MB；大文本请打开设置中的「数据导入」，可分段处理至 1GB。');
+      setResult(null); setDiagnostic(null);
+      return;
+    }
+    const operation = {};
+    operationRef.current = operation;
+    const current = () => isCurrent() && operationRef.current === operation;
+    setBusy(kind);
     setError('');
     setResult(null);
     setDiagnostic(null);
     try {
-      const response = await apiFetch('/api/v2/memory/import-history', {
-        method: 'POST',
-        retry: false,
-        timeoutMs: 300000,
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.ok !== true) {
-        throw Object.assign(new Error(data?.message || '导入历史未完成，请先检查记忆服务状态。'), { status: response.status, code: data?.code, logId: data?.error_log_id, source: data?.error_source, upstreamStatus: data?.upstream_status });
+      let body;
+      if (kind === 'file') {
+        body = new FormData();
+        body.append('file', file);
       }
-      setResult(data);
+      const data = await request('/api/v2/memory/' + (kind === 'file' ? 'import-file' : 'import-history'), {
+        method: 'POST', body, rawBody: true,
+        timeoutMs: kind === 'file' ? 90000 : 300000,
+        responseReader: readImportResult,
+      });
+      if (current()) setResult(data);
     } catch (importError) {
-      setError(importError?.message || '导入历史失败，请稍后重试。');
-      setDiagnostic({error_code:importError.code,error_log_id:importError.logId,error_source:importError.source,upstream_status:importError.upstreamStatus});
+      if (current()) {
+        setError(memoryUiFailure(importError, { mutation: true }));
+        const logId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(importError.logId || '') ? importError.logId : undefined;
+        setDiagnostic({ error_code: describeOperationError(importError).code, error_log_id: logId, error_source: importError.source, upstream_status: Number.isInteger(importError.upstreamStatus) && importError.upstreamStatus >= 100 && importError.upstreamStatus <= 599 ? importError.upstreamStatus : undefined });
+      }
     } finally {
-      setHistoryBusy(false);
+      if (current()) { operationRef.current = null; setBusy(''); }
     }
   }
 
@@ -641,28 +639,29 @@ function MemoryImportCard() {
         <input
           type="file"
           accept=".txt,.md,.json,.csv,.pdf,.docx,.xlsx,.zip"
-          disabled={busy}
+          disabled={Boolean(busy)}
           onChange={(event) => {
             setFile(event.target.files?.[0] || null);
             setResult(null);
             setError('');
+            setDiagnostic(null);
           }}
         />
         <button
           type="button"
           className="memory-import-run"
-          disabled={!file || busy}
+          disabled={!file || Boolean(busy)}
           onClick={() => void runImport()}
         >
-          {busy ? '导入中…' : '开始导入'}
+          {busy === 'file' ? '导入中…' : '开始导入'}
         </button>
         <button
           type="button"
           className="memory-import-history"
-          disabled={historyBusy}
-          onClick={() => void runHistoryImport()}
+          disabled={Boolean(busy)}
+          onClick={() => void runImport('history')}
         >
-          {historyBusy ? '整理中…' : '从灯塔历史导入（最多 5000 条、30 万字）'}
+          {busy === 'history' ? '整理中…' : '从灯塔历史导入（最多 5000 条、30 万字）'}
         </button>
       </div>
       {error && <p className="memory-import-error">{error}</p>}
@@ -677,11 +676,6 @@ function MemoryImportCard() {
           </span>
           {result.coverage_notice && <small>{result.coverage_notice}</small>}
         </div>
-      )}
-      {result && result.ok !== true && !error && (
-        <p className="memory-import-error">
-          {result?.message || result?.error || '导入失败'}
-        </p>
       )}
     </div>
   );
@@ -1050,6 +1044,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [historyLoadState, setHistoryLoadState] = useState(null);
+  const [historyRetryRevision, setHistoryRetryRevision] = useState(0);
+  const historyLoadPendingRef = useRef(false);
   const [message, setMessage, setSessionDraft, moveSessionDraft] = useChatDraft(accountStorageScope, companionScope, activeSessionId);
   const [messageReference, setMessageReference] = useState(null);
   const [turnContext, setTurnContext] = useState("");
@@ -1323,6 +1320,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   const [sessionDialogBusy, setSessionDialogBusy] = useState(false);
   const [sessionDialogFeedback, setSessionDialogFeedback] = useState("");
   const sessionDialogRequest = useScopedUiRequest(privateMediaScope);
+  const { request: requestSessionHistory, isCurrent: isHistoryScopeCurrent } = useScopedUiRequest(privateMediaScope);
   useLayoutEffect(() => { dialogRef.current = dialog; sessionsRef.current = sessions; }, [dialog, sessions]);
   useLayoutEffect(() => {
     sessionDialogPendingRef.current = null;
@@ -3108,6 +3106,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       if (!activeSessionId) {
         messagesSessionIdRef.current = null;
         messageLoadTokenRef.current += 1;
+        historyLoadPendingRef.current = false;
+        setHistoryLoadState(null);
         setMessages([]);
         return;
       }
@@ -3116,29 +3116,46 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         streamingSessionIdRef.current === activeSessionId &&
         messagesSessionIdRef.current === activeSessionId
       ) {
+        historyLoadPendingRef.current = false;
+        setHistoryLoadState(null);
         return;
       }
 
       const loadToken = messageLoadTokenRef.current + 1;
       messageLoadTokenRef.current = loadToken;
       messagesSessionIdRef.current = activeSessionId;
+      historyLoadPendingRef.current = true;
+      setHistoryLoadState({ sessionId: activeSessionId, status: "loading" });
       setMessages([]);
 
+      const isCurrent = () => !cancelled && isHistoryScopeCurrent() &&
+        messageLoadTokenRef.current === loadToken &&
+        activeSessionIdRef.current === activeSessionId;
+
       try {
-        const data = await apiRequest(
+        const data = await requestSessionHistory(
           `/api/v2/sessions/${activeSessionId}/messages`,
         );
-        if (
-          !cancelled &&
-          messageLoadTokenRef.current === loadToken &&
-          activeSessionIdRef.current === activeSessionId
-        ) {
+        if (!Array.isArray(data?.messages)) {
+          throw Object.assign(new Error("聊天历史回执不完整"), { code: "session_receipt_invalid" });
+        }
+        if (isCurrent()) {
           setMessages(
             hydrateSessionChatHistory(data.messages, activeSessionId),
           );
+          setHistoryLoadState(null);
         }
       } catch (error) {
-        if (!cancelled) setNotice(error.message);
+        if (isCurrent()) {
+          if (["session_receipt_invalid", "request_timeout"].includes(error?.code)) recordOperationFailure(privateMediaScope, "/api/v2/sessions", error);
+          const status = Number(error?.status);
+          setHistoryLoadState({ sessionId: activeSessionId, status: "error", error: {
+            ...describeOperationError(error),
+            status: Number.isInteger(status) && status >= 400 && status <= 599 ? status : null,
+          } });
+        }
+      } finally {
+        if (!cancelled) historyLoadPendingRef.current = false;
       }
     }
 
@@ -3146,7 +3163,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, historyRetryRevision, requestSessionHistory, isHistoryScopeCurrent, privateMediaScope]);
 
   const getMomentsRequestScope = useCallback(() => {
     const controller = settingsScopeControllerRef.current;
@@ -4005,11 +4022,20 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     }
   }
 
+  function retrySessionHistory() {
+    if (historyLoadPendingRef.current || isSendingRef.current || streamingSessionIdRef.current ||
+        historyLoadState?.status !== "error" || historyLoadState.sessionId !== activeSessionIdRef.current) return;
+    historyLoadPendingRef.current = true;
+    setHistoryRetryRevision(current => current + 1);
+  }
+
   function chooseSession(sessionId) {
     if (!canLeaveWorkspace("chat")) return;
     chatScrollControllerRef.current?.open();
     if (sessionId !== activeSessionIdRef.current) {
       abortChatRequest(chatRequestRef, "session-change");
+    } else {
+      retrySessionHistory();
     }
     closeComposerMenu();
     requestStatusPanelClose();
@@ -6852,6 +6878,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           {!isLoading && renderAchievementGuide()}
           {isLoading ? (
             <div className="empty-state">正在加载 DengTa home…</div>
+          ) : messages.length === 0 && historyLoadState?.sessionId === activeSessionId && !isSending ? (
+            <ChatHistoryFeedback state={historyLoadState} onRetry={retrySessionHistory} onInspect={() => { setSettingsCategory("logs"); setIsSettingsOpen(true); }} />
           ) : messages.length === 0 ? (
             <div className="empty-state">
               {settings.user_display_name || settings.ai_name !== "伴侣" ? (
@@ -8804,7 +8832,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                 </small>
               )}
             </div>
-            <MemoryImportCard />
+            <MemoryImportCard key={privateMediaScope} scopeKey={privateMediaScope} />
               </>
             )}
             {settingsCategory === "logs" && (

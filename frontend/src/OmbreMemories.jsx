@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
-import { apiRequest } from "./api";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { authSession } from "./auth-session.js";
+import { settingsSaveScope } from "./settings-save-scope.js";
+import { invalidMemoryReceipt, memoryUiFailure } from "./memory-ui-feedback.js";
+import { createOmbreMemoryReads } from "./ombre-memory-read.js";
 
 const FILTERS = [
   { key: "all", label: "全部" },
@@ -33,6 +36,14 @@ function typeLabel(type) {
 }
 
 export default function OmbreMemories({ onManageConnections }) {
+  const snapshot = useSyncExternalStore(authSession.subscribe, authSession.getSnapshot, authSession.getSnapshot);
+  const scopeKey = settingsSaveScope(snapshot);
+  return <ScopedOmbreMemories key={scopeKey} scopeKey={scopeKey} onManageConnections={onManageConnections} />;
+}
+
+function ScopedOmbreMemories({ scopeKey, onManageConnections }) {
+  const reads = useMemo(() => createOmbreMemoryReads(scopeKey), [scopeKey]);
+  useLayoutEffect(() => reads.mount(), [reads]);
   const [connection, setConnection] = useState(null);
   const [mcpConnection, setMcpConnection] = useState(null);
   const [accountOmbreConnection, setAccountOmbreConnection] = useState(null);
@@ -44,15 +55,20 @@ export default function OmbreMemories({ onManageConnections }) {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [connectionLoading, setConnectionLoading] = useState(true);
+  const [detailError, setDetailError] = useState("");
   const [error, setError] = useState("");
 
-  async function loadItems(nextFilter = filter, query = activeQuery) {
+  const loadItems = useCallback(async (nextFilter = "all", query = "") => {
+    const operation = reads.start("list");
+    if (!reads.current(operation)) return;
     setLoading(true);
+    setItems([]);
     setError("");
     try {
       let data;
       if (query) {
-        data = await apiRequest(
+        data = await reads.request(operation,
           `/api/ombre/search?q=${encodeURIComponent(query)}`,
         );
       } else {
@@ -62,22 +78,33 @@ export default function OmbreMemories({ onManageConnections }) {
         if (selectedFilter.type) params.set("type", selectedFilter.type);
         if (selectedFilter.state) params.set("state", selectedFilter.state);
         const suffix = params.toString() ? `?${params.toString()}` : "";
-        data = await apiRequest(`/api/ombre/buckets${suffix}`);
+        data = await reads.request(operation, `/api/ombre/buckets${suffix}`);
       }
-      setItems(data.items || []);
+      if (!reads.current(operation)) return;
+      if (!Array.isArray(data?.items)) throw invalidMemoryReceipt();
+      setItems(data.items);
       setSemanticSearch(data.semanticSearch || "");
     } catch (loadError) {
-      setItems([]);
-      setError(loadError.message);
+      if (!reads.current(operation)) return;
+      setError(memoryUiFailure(loadError));
     } finally {
-      setLoading(false);
+      if (reads.current(operation)) setLoading(false);
     }
-  }
+  }, [reads]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadConnection() {
+  const loadConnection = useCallback(async () => {
+      const operation = reads.start("connection");
+      const apiRequest = path => reads.request(operation, path);
+      reads.cancel("list");
+      reads.cancel("detail");
+      setSelected(null);
+      setFilter("all");
+      setSearch("");
+      setActiveQuery("");
+      setConnectionLoading(true);
       setLoading(true);
+      setError("");
+      if (!reads.current(operation)) { setConnectionLoading(false); setLoading(false); return; }
       try {
         const [config, accountConnections] = await Promise.all([
           apiRequest("/api/ombre/config"),
@@ -85,7 +112,8 @@ export default function OmbreMemories({ onManageConnections }) {
             connections: [],
           })),
         ]);
-        if (cancelled) return;
+        if (!reads.current(operation)) return;
+        if (typeof config?.configured !== "boolean") throw invalidMemoryReceipt();
         const accountOmbre = (accountConnections.connections || []).find(
           (item) =>
             String(item.connection_type || item.type || "") ===
@@ -98,7 +126,6 @@ export default function OmbreMemories({ onManageConnections }) {
               available: accountOmbre.last_status === "connected",
               auth_configured: accountOmbre.credential_configured === true,
               message:
-                accountOmbre.last_error ||
                 (accountOmbre.last_status === "connected"
                   ? "当前账号的 Ombre Brain 已接入聊天记忆"
                   : "当前账号的 Ombre Brain 已保存，等待连接测试"),
@@ -108,12 +135,12 @@ export default function OmbreMemories({ onManageConnections }) {
               (mcpError) => ({
                 ...(config.mcp || {}),
                 available: false,
-                message: mcpError.message,
+                message: memoryUiFailure(mcpError),
                 tools: [],
               }),
             );
-        if (cancelled) return;
-        setMcpConnection({ ...(config.mcp || {}), ...mcpStatus });
+        if (!reads.current(operation)) return;
+        setMcpConnection({ ...(config.mcp || {}), ...mcpStatus, message: mcpStatus.available ? "" : "服务器已填写，但握手暂时失败，请重新读取连接。" });
         if (!config.configured) {
           setConnection({
             ...config,
@@ -125,33 +152,42 @@ export default function OmbreMemories({ onManageConnections }) {
           return;
         }
         const status = await apiRequest("/api/ombre/status");
-        if (cancelled) return;
-        setConnection(status);
-        const memoryData = await apiRequest("/api/ombre/buckets");
-        if (cancelled) return;
-        setItems(memoryData.items || []);
-        setSemanticSearch(memoryData.semanticSearch || "");
-        setLoading(false);
+        if (!reads.current(operation)) return;
+        if (typeof status?.configured !== "boolean" || typeof status?.available !== "boolean") throw invalidMemoryReceipt();
+        setConnection({ ...status, message: status.available ? "" : "外部记忆服务暂时不可用，请重新读取连接。" });
+        setConnectionLoading(false);
+        if (status.available) await loadItems();
+        else setLoading(false);
       } catch (connectionError) {
-        if (!cancelled) {
+        if (reads.current(operation)) {
           setConnection((current) => ({
             ...(current || {}),
             configured: true,
             available: false,
             total: 0,
-            message: connectionError.message,
+            message: memoryUiFailure(connectionError),
           }));
           setLoading(false);
         }
+      } finally {
+        if (reads.current(operation)) {
+          setConnectionLoading(false);
+          reads.cancel("connection");
+        }
       }
-    }
-    loadConnection();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }, [loadItems, reads]);
+
+  useEffect(() => { loadConnection(); }, [loadConnection]);
+
+  function closeDetail() {
+    reads.cancel("detail");
+    setSelected(null);
+    setDetailLoading(false);
+    setDetailError("");
+  }
 
   async function selectFilter(nextFilter) {
+    closeDetail();
     setFilter(nextFilter);
     setSearch("");
     setActiveQuery("");
@@ -160,23 +196,29 @@ export default function OmbreMemories({ onManageConnections }) {
 
   async function submitSearch(event) {
     event.preventDefault();
+    closeDetail();
     const query = search.trim();
     setActiveQuery(query);
     if (connection?.available) await loadItems(filter, query);
   }
 
   async function openDetail(item) {
+    const operation = reads.start("detail");
+    if (!reads.current(operation)) return;
     setDetailLoading(true);
+    setDetailError("");
     setSelected(item);
     try {
-      const detail = await apiRequest(
+      const detail = await reads.request(operation,
         `/api/ombre/buckets/${encodeURIComponent(item.id)}`,
       );
+      if (!reads.current(operation)) return;
+      if (detail?.id !== item.id || typeof detail.name !== "string") throw invalidMemoryReceipt();
       setSelected(detail);
     } catch (detailError) {
-      setError(detailError.message);
+      if (reads.current(operation)) setDetailError(memoryUiFailure(detailError));
     } finally {
-      setDetailLoading(false);
+      if (reads.current(operation)) setDetailLoading(false);
     }
   }
 
@@ -196,7 +238,7 @@ export default function OmbreMemories({ onManageConnections }) {
     ? mcpConnection.tools.slice(0, 6)
     : [];
 
-  if (connection && !connection.configured && !accountOmbreConnection) {
+  if (!connectionLoading && connection && !connection.configured && !accountOmbreConnection) {
     return (
       <section
         className="ombre-optional-entry"
@@ -236,6 +278,7 @@ export default function OmbreMemories({ onManageConnections }) {
               ? "连接不可用"
               : "未连接服务器"}
         </div>
+        <button type="button" onClick={loadConnection}>重新读取连接</button>
       </div>
 
       <div className={`ombre-mcp-strip ${mcpStatusClass}`}>
@@ -259,7 +302,9 @@ export default function OmbreMemories({ onManageConnections }) {
         )}
       </div>
 
-      {!connection?.configured ? (
+      {connectionLoading ? (
+        <div className="ombre-list-placeholder" role="status">正在读取外部记忆连接…</div>
+      ) : !connection?.configured ? (
         <div className="ombre-empty-state">
           <strong>
             {accountOmbreConnection
@@ -301,6 +346,7 @@ export default function OmbreMemories({ onManageConnections }) {
               aria-label="搜索外部记忆"
             />
             <button type="submit">搜索</button>
+            <button type="button" onClick={() => loadItems(filter, activeQuery)}>重新读取记忆</button>
           </form>
           <div className="ombre-filters" aria-label="记忆筛选">
             {FILTERS.map((item) => (
@@ -326,6 +372,8 @@ export default function OmbreMemories({ onManageConnections }) {
           <div className="ombre-memory-list">
             {loading ? (
               <div className="ombre-list-placeholder">正在读取记忆…</div>
+            ) : error ? (
+              <div className="ombre-list-placeholder">本次读取未完成，请重新读取记忆。</div>
             ) : items.length === 0 ? (
               <div className="ombre-list-placeholder">这里还没有记忆。</div>
             ) : (
@@ -355,7 +403,7 @@ export default function OmbreMemories({ onManageConnections }) {
       )}
 
       {selected && (
-        <div className="ombre-detail-backdrop" onMouseDown={() => setSelected(null)}>
+        <div className="ombre-detail-backdrop" onMouseDown={closeDetail}>
           <article
             className="ombre-detail-sheet"
             role="dialog"
@@ -367,7 +415,7 @@ export default function OmbreMemories({ onManageConnections }) {
               type="button"
               className="ombre-detail-close"
               aria-label="关闭记忆详情"
-              onClick={() => setSelected(null)}
+              onClick={closeDetail}
             >
               ×
             </button>
@@ -375,6 +423,11 @@ export default function OmbreMemories({ onManageConnections }) {
             <h3 id="ombre-detail-title">{selected.name}</h3>
             {detailLoading ? (
               <p className="ombre-detail-loading">正在读取完整内容…</p>
+            ) : detailError ? (
+              <div role="alert">
+                <p>{detailError}</p>
+                <button type="button" onClick={() => openDetail(selected)}>重新读取详情</button>
+              </div>
             ) : (
               <>
                 <div className="ombre-detail-meta">

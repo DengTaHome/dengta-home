@@ -99,7 +99,7 @@ test("invalid detail receipt keeps local diagnostics and offers retry", async ()
 
 async function panelFixture(request) {
   const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
-  const start = app.indexOf("function ErrorLogsPanel("), end = app.indexOf("\nfunction MemoryImportCard()", start);
+  const start = app.indexOf("function ErrorLogsPanel("), end = app.indexOf("\nfunction MemoryImportCard(", start);
   assert.ok(start >= 0 && end > start);
   const { code } = await transformWithOxc(app.slice(start, end), "log-panel.jsx", { lang: "jsx", jsx: { runtime: "classic", pragma: "React.createElement", pragmaFrag: "React.Fragment" } });
   const scope = JSON.stringify(["fictional-account", "fictional-companion"]);

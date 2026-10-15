@@ -1,0 +1,7 @@
+.chat-history-feedback { display: grid; gap: 12px; max-width: 480px; margin: 24px auto; padding: 20px; color: var(--ink, #302a35); background: color-mix(in srgb, var(--paper, #fff) 94%, transparent); border: 1px solid color-mix(in srgb, currentColor 15%, transparent); border-radius: 22px; overflow-wrap: anywhere; }
+.chat-history-feedback p { margin: 0; line-height: 1.65; }
+.chat-history-feedback small { line-height: 1.5; }
+.chat-history-feedback > div { display: flex; flex-wrap: wrap; gap: 10px; }
+.chat-history-feedback button { min-height: 44px; padding: 10px 16px; border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 16px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
+.chat-history-feedback button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+:root[data-dengta-appearance="night"] .chat-history-feedback { color: #f2edf5; background: #24232c; }
