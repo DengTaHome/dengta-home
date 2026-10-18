@@ -1,0 +1,19 @@
+.text-impact-control { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+.text-impact-trigger { display: inline-flex; align-items: center; gap: 3px; min-height: 28px; min-width: 44px; }
+.text-impact-menu { position: fixed; z-index: 160; display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line, #eadfda); border-radius: 18px; background: var(--paper, #fffdfb); color: var(--ink, #3d3338); box-shadow: 0 8px 26px #261b241c; text-align: left; font: 13px/1.5 system-ui, sans-serif; }
+.text-impact-menu-heading { display: flex; align-items: center; justify-content: space-between; }
+.text-impact-menu-heading button { display: inline-grid; place-items: center; min-width: 28px; min-height: 28px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.text-impact-targets, .text-impact-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.text-impact-targets button, .text-impact-modes button { min-height: 38px; border: 1px solid var(--accent-border, #d7ced1); border-radius: 11px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.text-impact-targets button[aria-pressed="true"], .text-impact-modes button { background: var(--rose-soft, #f1dbe3); }
+.text-impact-targets button[aria-pressed="true"]::after { content: " ✓"; font-weight: 700; }
+.text-impact-menu small { color: inherit; opacity: .75; font-size: 11px; line-height: 1.5; }
+.text-impact-auto { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.text-impact-auto input { width: 16px; height: 16px; accent-color: var(--accent, #795565); }
+.text-impact-feedback { max-width: 100px; font-size: 10px; opacity: .7; }
+.text-impact-source-playing { opacity: .38; }
+.text-impact-canvas { contain: strict; }
+.text-impact-target-hit { animation: text-impact-target-nudge 220ms ease-out, text-impact-hit-ring 440ms ease-out; }
+@keyframes text-impact-target-nudge { 0%,100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(2px) rotate(-3deg); } 65% { transform: translateY(-1px) rotate(1deg); } }
+@keyframes text-impact-hit-ring { 0% { box-shadow: 0 0 0 0 #d189ad99; } 100% { box-shadow: 0 0 0 12px #d189ad00; } }
+@media (prefers-reduced-motion: reduce) { .text-impact-canvas { display: none; } .text-impact-source-playing { opacity: 1; } .text-impact-target-hit { animation: none; } }

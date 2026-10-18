@@ -1,0 +1,23 @@
+.takeout-login-panel .device-activity-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.takeout-login-panel .device-activity-actions button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.takeout-login-panel .takeout-login-state {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.takeout-login-panel .notification-feature-feedback {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.6;
+}

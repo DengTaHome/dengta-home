@@ -4,6 +4,7 @@ coverage/
 .cache/
 .vite/
 .gradle/
+/artifacts/
 **/build/
 
 .env

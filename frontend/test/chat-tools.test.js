@@ -594,7 +594,7 @@ assert.equal(
   );
   assert.equal(publicSummary, "先查看上下文。再整理本轮公开摘要。");
   assert.equal(
-    thinkingPanelVisible({ thinkingSummary: publicSummary }),
+    thinkingPanelVisible({ thinkingSummary: publicSummary, thinkingSummarySource: "provider_summary" }),
     true,
   );
   const historyMessage = attachThinkingTrace(
@@ -603,7 +603,7 @@ assert.equal(
       reasoning: "不应保留",
       tool_calls: { resolved_model: "gpt-test" },
     },
-    { statuses, summary: publicSummary },
+    { statuses, summary: publicSummary, lastReasoningSource: "provider_summary" },
   );
   assert.deepEqual(historyMessage.tool_calls, {
     resolved_model: "gpt-test",
@@ -611,6 +611,7 @@ assert.equal(
   assert.equal("reasoning" in historyMessage, false);
   assert.deepEqual(historyMessage.thinkingStatuses, statuses);
   assert.equal(historyMessage.thinkingSummary, publicSummary);
+  assert.equal(historyMessage.thinkingSummarySource, "provider_summary");
 
   const hydratedHistory = hydrateChatHistory([
     {
@@ -659,7 +660,7 @@ assert.equal(
       content: "最终内容",
       tool_calls: { response_mode: "custom" },
     },
-    { statuses, summary: publicSummary },
+    { statuses, summary: publicSummary, lastReasoningSource: "provider_summary" },
   );
   assert.deepEqual(mergedMessage.tool_calls, { response_mode: "custom" });
   assert.equal(mergedMessage.content, "最终内容");
@@ -677,6 +678,7 @@ assert.equal(
     client_time: "2026-07-21 12:00",
     timezone: "Asia/Shanghai",
     emotion_understanding_enabled: true,
+    public_reasoning_summary: true,
     attachment_instruction_mode: "system",
     companion_status: { mood: "平静" },
     environment_context: {
@@ -699,6 +701,7 @@ assert.equal(
   assert.equal(formData.get("message"), "请看看");
   assert.equal(formData.get("session_id"), "session-1");
   assert.equal(formData.get("emotion_understanding_enabled"), "true");
+  assert.equal(formData.get("public_reasoning_summary"), "true");
   assert.equal(formData.get("attachment_instruction_mode"), "system");
   assert.equal(formData.get("attachment_storage_mode"), "ephemeral");
   assert.deepEqual(JSON.parse(formData.get("companion_status")), {

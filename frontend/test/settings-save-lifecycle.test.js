@@ -28,7 +28,7 @@ const saveFunctions = app.slice(
   app.indexOf("  async function setDeviceActivityEnabled("),
 );
 const bootstrapFunction = app.slice(
-  app.indexOf("    async function loadInitialData() {"),
+  app.indexOf("    async function loadInitialData("),
   app.indexOf("    const reconnectController ="),
 );
 const unifiedPromptFunction = app.slice(
@@ -84,6 +84,7 @@ function harness() {
     },
     STARTUP_REQUEST_OPTIONS: {},
     startupRequestOptions: {},
+    startupController: new AbortController(),
     SETTINGS_SAVE_RETRY_DELAYS_MS: [1200, 3500, 8000],
     window: {
       setTimeout(callback, delay) {

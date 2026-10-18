@@ -20,8 +20,16 @@ function timestamp(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function assertActive(signal) {
+  if (signal?.aborted) throw signal.reason || new DOMException("心声同步等待已取消。", "AbortError");
+}
+
 export function isSynchronizedChatMessage(message = {}) {
-  return UUID_PATTERN.test(String(message?.id || ""));
+  const value = message?.id;
+  if (typeof value === "number" && !Number.isSafeInteger(value)) return false;
+  const id = String(value ?? "");
+  return UUID_PATTERN.test(id) ||
+    (/^[1-9][0-9]{0,18}$/.test(id) && BigInt(id) <= 9223372036854775807n);
 }
 
 export function findSynchronizedAssistantMessage(
@@ -81,6 +89,7 @@ export async function recoverSynchronizedAssistantMessage({
   attempts = DEFAULT_RECOVERY_ATTEMPTS,
   retryDelayMs = DEFAULT_RECOVERY_DELAY_MS,
   waitForRetry = wait,
+  signal,
 } = {}) {
   const pending = "回复同步中，请稍后再试。";
   if (!sessionId) return { message: null, messages: null, error: pending };
@@ -91,10 +100,13 @@ export async function recoverSynchronizedAssistantMessage({
     let messages = [];
     const maximumAttempts = Math.max(1, Number(attempts) || 1);
     for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
+      assertActive(signal);
       if (attempt > 1 && retryDelayMs > 0) {
         await waitForRetry(retryDelayMs);
       }
+      assertActive(signal);
       messages = await loadMessages(sessionId);
+      assertActive(signal);
       const recovered = findSynchronizedAssistantMessage(message, messages);
       if (recovered) {
         return { message: recovered, messages, error: "" };

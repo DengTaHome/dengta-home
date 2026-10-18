@@ -243,6 +243,7 @@ export function buildStreamChatFormData(
     turn_context: payload.turn_context,
     model: payload.model,
     client_message_id: payload.client_message_id,
+    public_reasoning_summary: payload.public_reasoning_summary === true ? "true" : "false",
   };
   if (
     payload.message_reference !== undefined &&

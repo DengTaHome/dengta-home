@@ -1,6 +1,6 @@
-import { Capacitor, registerPlugin } from "@capacitor/core";
-
-export const BrowserLauncher = registerPlugin("BrowserLauncher");
+import { Capacitor } from "@capacitor/core";
+import { BrowserLauncher, withBrowserAccount } from "./browser-account-binding.js";
+export { BrowserLauncher };
 
 export function browserLauncherAvailable(capacitor = Capacitor) {
   return (
@@ -21,7 +21,7 @@ export async function openBuiltInBrowser({
     return { ok: false, error: "内置浏览器仅 Android App 可用。" };
   }
   try {
-    const value = await BrowserLauncher.open({ url, title, site, mode, desktop });
+    const value = await withBrowserAccount(account => BrowserLauncher.open({ url, title, site, mode, desktop, ...account }));
     return { ok: true, ...(value || {}) };
   } catch (error) {
     return { ok: false, error: String(error?.message || "打开内置浏览器失败。") };
@@ -34,7 +34,7 @@ export async function readBrowserCookie(site) {
     return { cookie: "", url: "" };
   }
   try {
-    const value = await BrowserLauncher.getCookie({ site });
+    const value = await withBrowserAccount(account => BrowserLauncher.getCookie({ site, ...account }));
     return { cookie: String(value?.cookie || ""), url: String(value?.url || "") };
   } catch {
     return { cookie: "", url: "" };

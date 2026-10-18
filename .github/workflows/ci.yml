@@ -36,6 +36,9 @@ jobs:
         run: npm ci --prefix ../backend
       - run: npm test
       - if: matrix.component == 'frontend'
+        name: Verify frontend and backend integrations
+        run: npm run test:backend-integration
+      - if: matrix.component == 'frontend'
         run: npm run build
       - if: matrix.component == 'frontend'
         run: npm run lint

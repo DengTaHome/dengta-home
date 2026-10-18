@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { resizeComposerInput } from "./composer-size.js";
+import { createMonologueRequestOperation } from "./monologue-request-lifecycle.js";
 import { invalidMemoryReceipt, memoryCount, memoryUiFailure, useMemoryUiRequest as useScopedUiRequest } from "./memory-ui-feedback.js";
 import { MAX_SESSION_TITLE, readSessionDelete, readSessionRename, sessionDialogFailure } from "./session-dialog-feedback.js";
 import SessionDialog from "./SessionDialog.jsx";
@@ -84,6 +85,8 @@ import { describeOperationError } from "./operation-error-help.js";
 import SettingsHome from "./SettingsHome.jsx";
 import { useSettingsCategoryNavigation } from "./useSettingsCategoryNavigation.js";
 import { useSettingsSheetNavigation } from "./useSettingsSheetNavigation.js";
+import { useAppBackNavigation } from "./useAppBackNavigation.js";
+import { installBrowserAccountBinding } from "./browser-account-binding.js";
 import { copyDiscoveryLink, emptyDiscoveryState, refreshDiscovery, DISCOVERY_ERROR_FEEDBACK } from "./discovery-feed.js";
 import PersonalizationEditor from "./PersonalizationEditor.jsx";
 import { authSession } from "./auth-session.js";
@@ -162,7 +165,9 @@ import {
 import {
   attachThinkingTrace,
   appendThinkingStatus,
+  appendPublicProviderSummary,
   mergeStreamedAssistantMessage,
+  restartStreamedAssistantMessage,
 } from "./chat-thinking";
 import {
   VISIBLE_MONOLOGUE_SOURCE,
@@ -171,8 +176,11 @@ import {
   readInnerMonologues,
   reduceVisibleMonologueEvent,
   storeInnerMonologue,
+  removeStoredInnerMonologue,
   canRequestVisibleMonologue,
 } from "./inner-monologue";
+import { isSynchronizedChatMessage } from "./inner-monologue-sync.js";
+import { availableMonologueStorage, resolveMonologueRecoveryId, removeMonologueRecoveryId } from "./monologue-recovery-storage.js";
 import { hydrateChatHistory } from "./chat-history";
 import { createChatScrollController } from "./chat-scroll-controller";
 import { usePrivateMediaSource } from "./use-private-media";
@@ -230,7 +238,6 @@ import {
 } from "./device-activity";
 import { useNotificationAccess } from "./use-notification-access";
 import { playNeteaseSilent } from "./netease-playback";
-import { openBuiltInBrowser, readBrowserCookie } from "./browser-launcher.js";
 import {
   DEVICE_SIGNALS_REPORT_MS,
   ackDeviceInjects,
@@ -241,22 +248,14 @@ import {
   reportDeviceState,
 } from "./device-signals.js";
 import {
-  requestWhereaboutsPermissions,
   startWhereaboutsScheduler,
 } from "./whereabouts.js";
 import {
-  TAKEOUT_PLATFORMS,
-  openTakeoutLogin,
-  readTakeoutLoginState,
   startTakeoutRunner,
   takeoutPluginAvailable,
 } from "./takeout-executor.js";
-import {
-  logoutXhs,
-  readXhsLoginStatus,
-  readXhsMe,
-  startXhsLogin,
-} from "./xhs-login.js";
+import TakeoutLoginPanel from "./TakeoutLoginPanel.jsx";
+import XhsLoginPanel from "./XhsLoginPanel.jsx";
 import {
   SCREEN_GLANCE_DEFAULT_CONFIG,
   ScreenGlance,
@@ -293,7 +292,7 @@ import {
   DIRECT_MEDIA_SOURCE_APP,
   WEB_PAGE_SOURCE_APP,
 } from "./direct-media.js";
-import { installInnerHeightViewportFallback } from "./mobile-viewport";
+import { installVisualViewportController } from "./mobile-viewport";
 import { toggleMomentLikeOptimistically } from "./moment-like";
 import {
   BACKEND_WAKE_TIMEOUT_MS,
@@ -350,6 +349,9 @@ const CompanionCreativeSettings = lazy(
   () => import("./CompanionCreativeStudio"),
 );
 const CompanionArtStudio = lazy(() => import("./CompanionArtStudio.jsx"));
+const SurpriseMap = lazy(() => import("./SurpriseMap.jsx"));
+const AppUpdateCenter = lazy(() => import("./AppUpdateCenter.jsx"));
+const WhereaboutsConsentSettings = lazy(() => import("./WhereaboutsConsentSettings.jsx"));
 const CompanionDiary = lazy(() => import("./CompanionDiary"));
 const StoryChapters = lazy(() => import("./StoryChapters.jsx"));
 const CompanionProfile = lazy(() => import("./CompanionProfile"));
@@ -792,6 +794,7 @@ const navItems = [
   { id: "music", icon: "🎵", label: "听歌" },
   { id: "duel", icon: "⚔", label: "Duel" },
   { id: "memories", icon: "◇", label: "Memory" },
+  { id: "treasure", icon: "✉", label: "藏宝地图" },
   { id: "takeout", icon: "🛵", label: "外卖" },
   { id: "achievements", icon: "🏆", label: "成就" },
   { id: "workspace", icon: "📁", label: "工作区" },
@@ -1054,6 +1057,10 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   const [attachmentSafetyEnabled, setAttachmentSafetyEnabled] = useState(true);
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedChatModel, setSelectedChatModel] = useState("");
+  const [publicReasoningSummaryEnabled, setPublicReasoningSummaryEnabled] = useState(false);
+  useEffect(() => {
+    setPublicReasoningSummaryEnabled(false);
+  }, [accountStorageScope, companionScope, activeSessionId]);
   const [modelsLoadMessage, setModelsLoadMessage] = useState("");
   const [settings, setSettings] = useState(emptySettings);
   const [draftSettings, setDraftSettings] = useState(emptySettings);
@@ -1460,6 +1467,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   });
   const activeSessionIdRef = useRef(null);
   const innerMonologueRequestsRef = useRef(new Map());
+  const innerMonologueRecoveryAttemptsRef = useRef(new Map());
   const innerMonologueRequestScopeRef = useRef({ active: false, generation: 0 });
   useLayoutEffect(() => {
     const lifecycle = {
@@ -1470,12 +1478,14 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     setInnerMonologuePending({});
     setInnerMonologueErrors({});
     const requests = innerMonologueRequestsRef.current;
+    const recoveryAttempts = innerMonologueRecoveryAttemptsRef.current;
     return () => {
       lifecycle.active = false;
       for (const operation of requests.values()) {
         operation.controller.abort();
       }
       requests.clear();
+      recoveryAttempts.clear();
     };
   }, [privateMediaScope, activeSessionId]);
   const messagesSessionIdRef = useRef(null);
@@ -2324,8 +2334,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       };
     }
 
-    function applyInitialModelCatalog(data, fallbackModel = "") {
-      if (cancelled) return;
+    function applyInitialModelCatalog(data, fallbackModel = "", isCurrent = () => true) {
+      if (cancelled || !isCurrent()) return;
       const catalog = reconcileModelCatalog(data, {
         previous: readStoredSessionChatModel(activeSessionIdRef.current),
         fallback: fallbackModel,
@@ -2341,19 +2351,19 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       );
     }
 
-    async function loadInitialModels(fallbackModel = "") {
+    async function loadInitialModels(fallbackModel = "", requestOptions = startupRequestOptions, isCurrent = () => true) {
       const pendingSelection = chooseChatModel({
         models: [],
         stored: readStoredSessionChatModel(activeSessionIdRef.current),
         current: fallbackModel,
       });
-      if (!cancelled) setSelectedChatModel(pendingSelection);
+      if (!cancelled && isCurrent()) setSelectedChatModel(pendingSelection);
       try {
-        const data = await apiRequest("/models", startupRequestOptions);
-        applyInitialModelCatalog(data, fallbackModel);
-        if (!cancelled) setModelsLoadMessage("");
+        const data = await apiRequest("/models", requestOptions);
+        applyInitialModelCatalog(data, fallbackModel, isCurrent);
+        if (!cancelled && isCurrent()) setModelsLoadMessage("");
       } catch {
-        if (!cancelled) {
+        if (!cancelled && isCurrent()) {
           setModelsLoadMessage(
             fallbackModel
               ? "模型列表暂时无法读取，仍会使用当前已保存的模型。"
@@ -2363,17 +2373,32 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       }
     }
 
-    async function loadInitialData() {
+    async function loadInitialData({ signal = startupController.signal, isCurrent = () => true } = {}) {
+      const requestOptions = {
+        ...startupRequestOptions,
+        cache: "no-store",
+        signal,
+        authSession: createScopedSettingsSession(authSession, privateMediaScope, signal),
+      };
       const settingsRevisionAtRead = settingsWriteRevisionRef.current;
       const bootstrapData = await apiRequest(
         "/api/v2/bootstrap",
-        startupRequestOptions,
+        requestOptions,
       );
+      if (cancelled || !isCurrent()) return null;
+      if (!bootstrapData?.settings || typeof bootstrapData.settings !== "object" ||
+        Array.isArray(bootstrapData.settings) || !Array.isArray(bootstrapData.sessions) ||
+        bootstrapData.sessions.some(session => !session || typeof session !== "object" ||
+          !((typeof session.id === "string" && session.id.trim()) || Number.isSafeInteger(session.id)))) {
+        const error = new Error("后端返回的初始化数据不完整，请重新连接。现有草稿和设置未被替换。");
+        error.code = "startup_receipt_invalid";
+        throw error;
+      }
       const settingsData = { settings: bootstrapData.settings };
       const sessionsData = { sessions: bootstrapData.sessions };
       const runtimeData = { state: bootstrapData.state };
 
-      if (cancelled) return null;
+      if (cancelled || !isCurrent()) return null;
       const acceptReadSettings = settingsRevisionAtRead === settingsWriteRevisionRef.current &&
         !settingsSaveInFlightRef.current && !pendingSettingsSaveRef.current && !settingsSaveFailureRef.current;
       const nextSettings = acceptReadSettings ? normalizeSettingsDraft(settingsData.settings) : confirmedSettingsRef.current;
@@ -2471,7 +2496,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       setActiveSessionId(recovered.activeSessionId);
       hasLoadedSettingsRef.current = true;
       setIsLoading(false);
-      void loadInitialModels(nextSettings.model);
+      void loadInitialModels(nextSettings.model, requestOptions, isCurrent);
       void refreshServiceHealth();
       void refreshVoiceOutputStatus();
       void loadChatSkinPreferences();
@@ -2649,7 +2674,6 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     const stopWhereabouts = startWhereaboutsScheduler({
       apiRequest,
     });
-    void requestWhereaboutsPermissions();
     return stopWhereabouts;
   }, []);
 
@@ -3340,64 +3364,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   }, []);
 
   useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!viewport) return installInnerHeightViewportFallback();
-
-    const root = document.documentElement;
-    let fullHeight = Math.max(
-      window.innerHeight,
-      viewport.height + viewport.offsetTop,
-    );
-    let viewportWidth = viewport.width || window.innerWidth;
-
-    function editableElementIsFocused() {
-      const activeElement = document.activeElement;
-      return Boolean(
-        activeElement instanceof HTMLElement &&
-          (activeElement.matches("input, textarea, select") ||
-            activeElement.isContentEditable),
-      );
-    }
-
-    function fitViewport() {
-      const visibleBottom = viewport.height + viewport.offsetTop;
-      const nextViewportWidth = viewport.width || window.innerWidth;
-      if (Math.abs(nextViewportWidth - viewportWidth) > 48) {
-        viewportWidth = nextViewportWidth;
-        fullHeight = Math.max(window.innerHeight, visibleBottom);
-      }
-      const rawGap = Math.max(0, fullHeight - viewport.height);
-      const keyboardOpen = editableElementIsFocused() && rawGap > 100;
-
-      if (!keyboardOpen && rawGap <= 100) {
-        fullHeight = Math.max(fullHeight, visibleBottom, window.innerHeight);
-      }
-
-      root.dataset.keyboardOpen = keyboardOpen ? "true" : "false";
-      const height = keyboardOpen ? viewport.height : fullHeight;
-      root.style.setProperty(
-        "--app-height",
-        `${Math.round(height)}px`,
-      );
-      if (!keyboardOpen && window.scrollY) window.scrollTo(0, 0);
-    }
-
-    fitViewport();
-    viewport.addEventListener("resize", fitViewport);
-    viewport.addEventListener("scroll", fitViewport);
-    window.addEventListener("resize", fitViewport);
-    window.addEventListener("orientationchange", fitViewport);
-    document.addEventListener("focusin", fitViewport);
-    document.addEventListener("focusout", fitViewport);
-    return () => {
-      viewport.removeEventListener("resize", fitViewport);
-      viewport.removeEventListener("scroll", fitViewport);
-      window.removeEventListener("resize", fitViewport);
-      window.removeEventListener("orientationchange", fitViewport);
-      document.removeEventListener("focusin", fitViewport);
-      document.removeEventListener("focusout", fitViewport);
-      delete root.dataset.keyboardOpen;
-    };
+    return installVisualViewportController();
   }, []);
 
   useEffect(() => {
@@ -4196,16 +4163,20 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       !sourceId || !sessionId || sessionId !== activeSessionIdRef.current ||
       !lifecycle.active || settingsSaveScope(authSession.getSnapshot()) !== privateMediaScope ||
       innerMonologueRequestsRef.current.has(sourceId) ||
-      innerMonologueForMessage(innerMonologues, sourceId)
+      innerMonologueForMessage(innerMonologues, sourceId)?.state === "complete"
     ) return;
-    const operation = { controller: new AbortController() };
+    const operation = createMonologueRequestOperation();
     const requestIds = new Set([sourceId]);
     let messageId = sourceId;
+    const userAnchor = item.chatError === true;
+    let anchorId;
     innerMonologueRequestsRef.current.set(sourceId, operation);
-    const isCurrent = () =>
+    const isSameScope = () =>
       lifecycle.active && innerMonologueRequestScopeRef.current === lifecycle &&
-      !operation.controller.signal.aborted && sessionId === activeSessionIdRef.current &&
+      sessionId === activeSessionIdRef.current &&
       settingsSaveScope(authSession.getSnapshot()) === privateMediaScope;
+    const isCurrentScope = () => isSameScope() && innerMonologueRequestsRef.current.get(messageId) === operation;
+    const isCurrent = () => isCurrentScope() && !operation.controller.signal.aborted;
     const scopedSession = createScopedSettingsSession(authSession, privateMediaScope, operation.controller.signal);
     setInnerMonologuePending((current) => ({
       ...current,
@@ -4216,13 +4187,15 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       [sourceId]: "",
     }));
     try {
+      await operation.wait(async () => {
       const { recoverSynchronizedAssistantMessage } = await import(
         "./inner-monologue-sync.js"
       );
       if (!isCurrent()) return;
-      const synchronized = await recoverSynchronizedAssistantMessage({
+      const synchronized = userAnchor ? { message: item } : await recoverSynchronizedAssistantMessage({
         message: item,
         sessionId,
+        signal: operation.controller.signal,
         loadMessages: async () => {
           const history = await apiRequest(`/api/v2/sessions/${sessionId}/messages`, {
             authSession: scopedSession, signal: operation.controller.signal,
@@ -4233,9 +4206,18 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       if (!isCurrent()) return;
       const targetMessage = synchronized.message;
       if (!targetMessage) throw synchronized.cause || new Error(synchronized.error);
-      if (!canRequestVisibleMonologue(targetMessage)) return;
-      messageId = targetMessage.id;
-      if (innerMonologueForMessage(innerMonologues, messageId)) return;
+      if (!canRequestVisibleMonologue(targetMessage)) {
+        if (!userAnchor && String(targetMessage.id) !== sourceId) {
+          setMessages(current => current.map(row => String(row.id) === sourceId ? { ...targetMessage, monologueAutoOpen: true } : row));
+        }
+        return;
+      }
+      messageId = String(targetMessage.id);
+      anchorId = userAnchor ? item.monologueUserMessageId : targetMessage.id;
+      if (!isSynchronizedChatMessage({ id: anchorId })) {
+        throw new Error("本轮消息尚未同步，暂时无法补充心声，请先检查回复进度。");
+      }
+      if (innerMonologueForMessage(innerMonologues, messageId)?.state === "complete") return;
       const existing = innerMonologueRequestsRef.current.get(messageId);
       if (existing && existing !== operation) return;
       requestIds.add(messageId);
@@ -4249,47 +4231,88 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         throw new Error("最新个性化指令尚未保存成功，请恢复网络后重试。");
       }
       if (!isCurrent()) return;
+      const recoveryKey = JSON.stringify([privateMediaScope, sessionId, userAnchor, String(anchorId)]);
+      const model = readStoredSessionChatModel(sessionId) || selectedChatModel || settings.model || "";
+      const attempts = innerMonologueRecoveryAttemptsRef.current;
+      let recovery = attempts.get(recoveryKey);
+      if (!recovery || recovery.model !== model) {
+        const companionStatus = companionStatusForRequest(companionStatusRef.current);
+        const savedRecovery = await resolveMonologueRecoveryId({
+          scope: privateMediaScope, sessionId, userAnchor, anchorId, model, companionStatus,
+          createId: createCompanionInteractionEventId,
+        });
+        if (!isCurrent()) return;
+        recovery = {
+          requestId: savedRecovery.requestId, model, companionStatus,
+          persisted: savedRecovery.persisted,
+        };
+        if (attempts.size >= 128) attempts.delete(attempts.keys().next().value);
+        attempts.set(recoveryKey, recovery);
+      }
+      operation.recoveryRequestId = recovery.requestId;
+      operation.recoveryKey = recoveryKey;
+      operation.recoveryStorageWarning = recovery.persisted === false;
       const data = await apiRequest("/companion/inner-monologue", {
         authSession: scopedSession,
         signal: operation.controller.signal,
         method: "POST",
+        retry: false,
         body: JSON.stringify({
           session_id: sessionId,
-          message_id: messageId,
-          model:
-            readStoredSessionChatModel(sessionId) ||
-            selectedChatModel ||
-            settings.model ||
-            "",
-          companion_status: companionStatusForRequest(
-            companionStatusRef.current,
-          ),
+          ...(userAnchor ? { user_message_id: anchorId } : { message_id: anchorId }),
+          recovery_request_id: operation.recoveryRequestId,
+          model: recovery.model,
+          companion_status: recovery.companionStatus,
         }),
-        timeoutMs: 300 * 1000,
+        timeoutMs: 120 * 1000,
       });
       if (!isCurrent()) return;
       if (
         typeof data?.inner_monologue !== "string" || !data.inner_monologue.trim() ||
-        data.message_id !== messageId || data.session_id !== sessionId ||
-        (data.conversation_id && data.conversation_id !== sessionId)
+        String(userAnchor ? data.user_message_id : data.message_id) !== String(anchorId) ||
+        data.session_id !== sessionId ||
+        (data.conversation_id && data.conversation_id !== sessionId) ||
+        (data.recovery_request_id && data.recovery_request_id !== operation.recoveryRequestId) ||
+        (data.source && data.source !== VISIBLE_MONOLOGUE_SOURCE) ||
+        (data.anchor_id && String(data.anchor_id) !== String(anchorId)) ||
+        (data.anchor_type && data.anchor_type !== (userAnchor ? "user_message" : "assistant_message"))
       ) {
         const error = new Error("心声回复为空或与这条聊天不匹配，请重试；如重复出现，可查看日志核对接口。");
         error.code = "inner_monologue_receipt_invalid";
         throw error;
       }
+      let monologueSaved = true;
       const next = storeInnerMonologue(
         {
           messageId,
           text: data?.inner_monologue,
           createdAt: new Date().toISOString(),
+          source: VISIBLE_MONOLOGUE_SOURCE,
+          generated_with_reply: false,
+          state: "complete",
         },
-        globalThis.localStorage,
+        availableMonologueStorage(),
         accountStorageScope,
+        () => { monologueSaved = false; },
       );
-      setInnerMonologues(next);
+      setInnerMonologues(current => monologueSaved ? next : { ...current, ...next });
+      if (monologueSaved) removeMonologueRecoveryId({
+        scope: privateMediaScope, sessionId, userAnchor, anchorId, requestId: recovery.requestId,
+      });
+      else setInnerMonologueErrors(current => ({ ...current,
+        [messageId]: "[inner_monologue_storage_unavailable] 心声已生成，设备存储不可用或空间不足，目前仅在本次打开期间显示。请复制保存重要内容；重开后可能需要重新补充。",
+      }));
+      if (attempts.get(recoveryKey) === recovery) attempts.delete(recoveryKey);
+      setMessages((current) => current.map(row => String(row.id) === messageId ? {
+        ...row,
+        monologueAutoOpen: true,
+        visibleMonologue: next[messageId],
+        tool_calls: { ...(row.tool_calls || {}), visible_monologue: next[messageId] },
+      } : row));
+      });
     } catch (error) {
-      if (!isCurrent()) return;
-      if (error?.code === "inner_monologue_receipt_invalid") {
+      if (!isCurrentScope()) return;
+      if (["inner_monologue_receipt_invalid", "inner_monologue_timeout"].includes(error?.code)) {
         recordOperationFailure(privateMediaScope, "/companion/inner-monologue", error);
       }
       const codeText = error?.code ? '[' + error.code + '] ' : '';
@@ -4301,18 +4324,23 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         [messageId]:
           codeText +
           (error?.message || "这次心声没有生成成功，请稍后再试。") +
-          locationText,
+          locationText + (operation.recoveryStorageWarning ? "\n[inner_monologue_recovery_storage_unavailable] 设备未能保存恢复编号。当前页面重试仍会复用编号，重开后可能会重新生成。" : ""),
       }));
     } finally {
-      for (const id of requestIds) {
-        if (innerMonologueRequestsRef.current.get(id) === operation) innerMonologueRequestsRef.current.delete(id);
-      }
-      if (isCurrent()) setInnerMonologuePending((current) => {
+      const settledIds = [...requestIds].filter(id => innerMonologueRequestsRef.current.get(id) === operation);
+      const settle = isSameScope();
+      operation.finish();
+      for (const id of settledIds) innerMonologueRequestsRef.current.delete(id);
+      if (settle) setInnerMonologuePending((current) => {
         const next = { ...current };
-        for (const id of requestIds) next[id] = false;
+        for (const id of settledIds) next[id] = false;
         return next;
       });
     }
+  }
+
+  function cancelVisibleInnerMonologue(item) {
+    innerMonologueRequestsRef.current.get(String(item?.id || ""))?.cancel?.();
   }
 
   async function processCompanionInteractionQueue() {
@@ -4663,6 +4691,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   }
 
   async function sendMessage() {
+    const publicReasoningSummaryAtRequest = publicReasoningSummaryEnabled && settings.provider === "openai-responses";
     const options =
       arguments[0] && typeof arguments[0] === "object" ? arguments[0] : {};
     const preserveComposer = options?.preserveComposer === true;
@@ -4809,6 +4838,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         },
       );
       userMessageCommitted = clientMessage.userMessageCommitted === true;
+      completedUserMessageId = clientMessage.userMessageId || "";
       if (clientMessage.reused) {
         localUserId =
           clientMessage.userMessageId ||
@@ -4823,6 +4853,37 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         generationInProgress: false,
       };
       request.clientMessageId = clientMessage.clientMessageId;
+
+      const previousSupplement = innerMonologueRequestsRef.current.get(String(localAssistantId));
+      for (const [userAnchor, anchorId] of [[false, localAssistantId], [true, completedUserMessageId]]) {
+        if (anchorId) removeMonologueRecoveryId({ scope: privateMediaScope, sessionId, userAnchor, anchorId });
+      }
+      for (const key of innerMonologueRecoveryAttemptsRef.current.keys()) {
+        const [scope, conversationId, userAnchor, anchorId] = JSON.parse(key);
+        if (scope === privateMediaScope && conversationId === sessionId &&
+          anchorId === String(userAnchor ? completedUserMessageId : localAssistantId)) {
+          innerMonologueRecoveryAttemptsRef.current.delete(key);
+        }
+      }
+      if (previousSupplement) {
+        previousSupplement.controller.abort();
+        innerMonologueRecoveryAttemptsRef.current.delete(previousSupplement.recoveryKey);
+        const cancelledIds = [];
+        for (const [id, operation] of innerMonologueRequestsRef.current) {
+          if (operation !== previousSupplement) continue;
+          cancelledIds.push(id);
+          innerMonologueRequestsRef.current.delete(id);
+        }
+        setInnerMonologuePending((current) => ({ ...current, ...Object.fromEntries(cancelledIds.map(id => [id, false])) }));
+        setInnerMonologueErrors((current) => ({ ...current, ...Object.fromEntries(cancelledIds.map(id => [id, ""])) }));
+      }
+      removeStoredInnerMonologue(localAssistantId, availableMonologueStorage(), accountStorageScope);
+      setInnerMonologues((current) => {
+        if (!Object.hasOwn(current, localAssistantId)) return current;
+        const next = { ...current };
+        delete next[localAssistantId];
+        return next;
+      });
 
       streamingSessionIdRef.current = sessionId;
       messageLoadTokenRef.current += 1;
@@ -4878,10 +4939,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           (item) => item.id === localAssistantId,
         );
         if (assistantIndex >= 0) {
-          next[assistantIndex] = {
-            ...next[assistantIndex],
-            ...assistantDraft,
-          };
+          next[assistantIndex] = restartStreamedAssistantMessage(
+            next[assistantIndex], assistantDraft,
+          );
         } else {
           next.push(assistantDraft);
         }
@@ -4907,6 +4967,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           environment_context: environmentContextRef.current,
           turn_context: turnContextSnapshot,
           message_reference: messageReferenceAtRequest,
+          public_reasoning_summary: publicReasoningSummaryAtRequest,
           files: attachmentsToSend,
           client_message_id: request.clientMessageId,
         },
@@ -4945,6 +5006,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                   ? attachMessageReference(
                       {
                         ...event.user_message,
+                        renderKey: item.renderKey ?? item.id,
                         attachments:
                           event.user_message.attachments || item.attachments,
                         tool_calls: {
@@ -4972,6 +5034,16 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                   : item,
               ),
             );
+          }
+
+          if (event.type === "reasoning") {
+            const trace = appendPublicProviderSummary(streamThinkingRef.current, event);
+            if (trace !== streamThinkingRef.current) {
+              streamThinkingRef.current = trace;
+              setMessages((current) => current.map((item) => item.id === localAssistantId ? {
+                ...item, thinkingSummary: trace.summary, thinkingSummarySource: trace.lastReasoningSource,
+              } : item));
+            }
           }
 
           if (event.type === "monologue") {
@@ -5029,6 +5101,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                       partialContent: temporaryReplyOnFailure(item, event),
                       isStreaming: false,
                       chatError: true,
+                      monologueUserMessageId: completedUserMessageId,
                       generationInProgress: eventGenerationInProgress,
                       retryAvailable: true,
                       visibleMonologue: reduceVisibleMonologueEvent(
@@ -5072,11 +5145,11 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
             setMessages((current) =>
               current.map((item) =>
                 item.id === localAssistantId
-                  ? mergeStreamedAssistantMessage(
+                  ? { ...mergeStreamedAssistantMessage(
                       item,
                       event.assistant_message,
                       streamThinkingRef.current,
-                    )
+                    ), monologueAutoOpen: true }
                   : item,
               ),
             );
@@ -5283,6 +5356,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                     "连接暂时中断了，请检查后端后再试一次。",
                   isStreaming: false,
                   chatError: true,
+                  monologueUserMessageId: completedUserMessageId,
                   error_code: error?.code || 'CHAT_REQUEST_FAILED',
                   partialContent: temporaryReplyOnFailure(item, error),
                   error_location: error?.error_location || '',
@@ -5696,231 +5770,18 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     status: "idle",
     message: "",
   });
-  const [takeoutLoginState, setTakeoutLoginState] = useState({
-    checked: false,
-    loggedIn: false,
-    hasCookie: false,
-  });
-
-  // 读取本机外卖登录态（WebView CookieStore），登录成功后显示"已登录"。
-  async function refreshTakeoutLoginState() {
-    const state = await readTakeoutLoginState().catch(() => ({
-      loggedIn: false,
-      hasCookie: false,
-    }));
-    setTakeoutLoginState({ checked: true, ...state });
-    return state;
-  }
-
-  useEffect(() => {
-    void refreshTakeoutLoginState();
-    // 从内置浏览器返回后（可能刚登录完）自动刷新登录状态。
-    const onResume = () => void refreshTakeoutLoginState();
-    window.addEventListener("focus", onResume);
-    return () => window.removeEventListener("focus", onResume);
-  }, []);
-
   useEffect(() => {
     if (!takeoutPluginAvailable()) return undefined;
     setTakeoutLoginFeedback({ status: "idle", message: "" });
     return startTakeoutRunner({
       scope: diagnosticScopeKey(accountStorageScope, companionScope),
       onCommandDone: (_command, outcome) => setTakeoutLoginFeedback({
+        scope: diagnosticScopeKey(accountStorageScope, companionScope),
         status: outcome.ok && outcome.receipt_synced ? "success" : "error",
         message: outcome.message ? `${outcome.message}（代码：${outcome.code}）` : "外卖页面操作完成，结果已同步。请在外卖页面确认商品和支付。",
       }),
     });
   }, [accountStorageScope, companionScope]);
-  const [xhsState, setXhsState] = useState({
-    status: "idle",
-    qr: "",
-    session: "",
-    feedback: "",
-  });
-  const xhsPollTimerRef = useRef(null);
-
-  async function openTakeoutQrLogin(platformId = "eleme") {
-    setTakeoutLoginFeedback({ status: "busy", message: "正在打开外卖登录页…" });
-    const platform = TAKEOUT_PLATFORMS.find((item) => item.id === platformId) || TAKEOUT_PLATFORMS[0];
-    const outcome = await openTakeoutLogin({ url: platform.url });
-    if (outcome?.ok) {
-      setTakeoutLoginFeedback({
-        status: "success",
-        message: `已打开${platform.label}登录页。登录成功后即可让 AI 帮你点单(登录态只保存在本机)。`,
-      });
-    } else {
-      setTakeoutLoginFeedback({
-        status: "error",
-        message: outcome?.error || "暂时无法打开外卖登录页。",
-      });
-    }
-  }
-
-  async function startXhsQrLogin() {
-    clearInterval(xhsPollTimerRef.current);
-    setXhsState({
-      status: "busy",
-      qr: "",
-      session: "",
-      feedback: "正在生成登录二维码…",
-    });
-    try {
-      const data = await startXhsLogin();
-      const session = data?.login?.session || "";
-      const qr = data?.login?.qr || "";
-      if (!qr) {
-        setXhsState({
-          status: "error",
-          qr: "",
-          session: "",
-          feedback:
-            data?.login?.note || "小红书服务还没有部署，暂时无法登录。",
-        });
-        return;
-      }
-      setXhsState({
-        status: "pending",
-        qr,
-        session,
-        feedback: "请用小红书 App 扫码并确认登录",
-      });
-      xhsPollTimerRef.current = setInterval(async () => {
-        try {
-          const result = await readXhsLoginStatus(session);
-          const loginStatus = result?.status?.status;
-          if (loginStatus === "done") {
-            clearInterval(xhsPollTimerRef.current);
-            setXhsState((previous) => ({
-              ...previous,
-              status: "logged_in",
-              qr: "",
-              feedback: "小红书登录成功！AI 可以帮你刷帖、搜笔记了。",
-            }));
-          } else if (loginStatus === "expired") {
-            clearInterval(xhsPollTimerRef.current);
-            setXhsState((previous) => ({
-              ...previous,
-              status: "error",
-              qr: "",
-              feedback: "二维码已过期，请重新发起登录。",
-            }));
-          }
-        } catch {
-          // 轮询失败继续。
-        }
-      }, 3000);
-    } catch (error) {
-      setXhsState({
-        status: "error",
-        qr: "",
-        session: "",
-        feedback: error?.message || "无法发起小红书登录。",
-      });
-    }
-  }
-
-  // 内置浏览器登录小红书：登录态长住，登录后点「提取登录态」返回即可。
-  async function connectXhsWithBrowser() {
-    setXhsState({
-      status: "busy",
-      qr: "",
-      session: "",
-      feedback: "正在打开内置浏览器…",
-    });
-    try {
-      const opened = await openBuiltInBrowser({
-        url: "https://www.xiaohongshu.com/",
-        title: "小红书（内置浏览器）",
-        site: "xhs",
-      });
-      // 用系统返回键关闭也会走到这里：只要点过「提取登录态」，
-      // 登录态已保存在本机，必须继续读取，不能因为返回方式而丢失。
-      const saved = await readBrowserCookie("xhs");
-      if (!saved.cookie) {
-        setXhsState({
-          status: "error",
-          qr: "",
-          session: "",
-          feedback: opened.ok
-            ? "没有提取到登录态。请重新打开，在页面里登录后点「提取登录态」，再返回。"
-            : (opened.error || "无法打开内置浏览器。") +
-              " 且没有提取到登录态，请重试。",
-        });
-        return;
-      }
-      const imported = await apiRequest("/api/v2/xhs/login/cookie", {
-        method: "POST",
-        timeoutMs: 20000,
-        body: JSON.stringify({ cookie: saved.cookie }),
-      }).catch(() => null);
-      if (imported?.ok) {
-        setXhsState({
-          status: "logged_in",
-          qr: "",
-          session: "",
-          feedback:
-            imported.mode === "local"
-              ? "小红书登录态已保存到账号（服务部署后就绪即可使用）。"
-              : "小红书登录成功！AI 可以帮你刷帖、搜笔记了。",
-        });
-      } else {
-        setXhsState({
-          status: "error",
-          qr: "",
-          session: "",
-          feedback: imported?.message || "登录态已提取，但保存失败，请重试。",
-        });
-      }
-    } catch (error) {
-      setXhsState({
-        status: "error",
-        qr: "",
-        session: "",
-        feedback: error?.message || "无法发起小红书登录。",
-      });
-    }
-  }
-
-  async function logoutXhsAccount() {
-    try {
-      await logoutXhs();
-      setXhsState({
-        status: "idle",
-        qr: "",
-        session: "",
-        feedback: "已退出小红书登录。",
-      });
-    } catch {
-      setXhsState((previous) => ({
-        ...previous,
-        feedback: "退出失败，请稍后再试。",
-      }));
-    }
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    void readXhsMe()
-      .then(() => {
-        if (!cancelled) {
-          setXhsState((previous) => ({
-            ...previous,
-            status: "logged_in",
-            feedback: "小红书已登录。",
-          }));
-        }
-      })
-      .catch(() => {
-        // 未登录或服务未部署，保持默认。
-      });
-    return () => {
-      cancelled = true;
-      clearInterval(xhsPollTimerRef.current);
-    };
-
-  }, []);
-
-
   const funScope = JSON.stringify([accountStorageScope, companionScope]);
   const funToken = useMemo(() => ({ scope: funScope, requestId: 0 }), [funScope]);
   const funTokenRef = useRef(funToken);
@@ -6716,7 +6577,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   }
 
   function changeView(view) {
-    if (!canLeaveWorkspace(view)) return;
+    if (!canLeaveWorkspace(view)) return false;
     if (view !== activeViewRef.current && ["music", "together"].includes(activeViewRef.current)) {
       setActivityReturn(createActivityReturn(coWatchSessionRef.current, coWatchIdentityRef.current, activeViewRef.current));
     }
@@ -6736,6 +6597,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     setActiveView(view);
     setIsSidebarOpen(false);
     setIsMobileNavOpen(false);
+    return true;
   }
 
   function returnToActivity() {
@@ -6805,7 +6667,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   }
 
   function retryStartupConnection() {
-    void startupReconnectRef.current?.retryNow("manual");
+    void startupReconnectRef.current?.retryNow("manual", { replaceInFlight: true });
   }
 
   function handleSendButton() {
@@ -6891,6 +6753,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
             </div>
           ) : (
               <ChatTranscript
+                textImpactScope={privateMediaScope}
                 messages={messages}
                 preferences={chatSkinPreferences}
                 aiName={effectiveAiName}
@@ -6906,6 +6769,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                 innerMonologuePending={innerMonologuePending}
                 innerMonologueErrors={innerMonologueErrors}
                 onRequestInnerMonologue={requestVisibleInnerMonologue}
+                onCancelInnerMonologue={cancelVisibleInnerMonologue}
                 userAvatar={userAvatar}
                 companionAvatar={companionAvatar}
                 privateMediaCatalog={privateMediaCatalog}
@@ -7015,7 +6879,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
               </span>
             </label>
           )}
-          <div className="composer">
+          <div className="composer" data-text-impact-scope={privateMediaScope}>
             <textarea
               ref={messageInputRef}
               value={message}
@@ -7202,6 +7066,15 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                   ))}
                 </select>
               </label>
+              {settings.provider === "openai-responses" && (
+                <label className="chat-model-picker">
+                  <span>接口公开推理摘要（可选）</span>
+                  <input type="checkbox" checked={publicReasoningSummaryEnabled}
+                    disabled={isSending || isCompanionResponding || isVoiceInputBusy}
+                    onChange={(event) => setPublicReasoningSummaryEnabled(event.target.checked)} />
+                  <small>需所选接口和模型支持；若接口提示参数不支持，请关闭后重试。摘要与角色心声分别显示。</small>
+                </label>
+              )}
               <div className={`voice-controls voice-${voiceState}`}>
                 <button
                   className="voice-hold-button"
@@ -7620,7 +7493,6 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   }
 
   function renderTakeout() {
-    const available = takeoutPluginAvailable();
     return (
       <div className="fun-view">
         <header className="fun-view-header">
@@ -7635,52 +7507,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
             changeView("chat");
           }}
         />
-        <div className="notification-feature-panel device-activity-panel">
-          <div className="device-activity-heading">
-            <div>
-              <strong>登录外卖平台</strong>
-              <span>{available ? "Android · 本机执行" : "仅 Android App 可用"}</span>
-            </div>
-            <div className="device-activity-actions">
-              {takeoutLoginState.checked && (
-                <em
-                  className={
-                    takeoutLoginState.loggedIn
-                      ? "takeout-login-state is-logged-in"
-                      : "takeout-login-state"
-                  }
-                >
-                  {takeoutLoginState.loggedIn
-                    ? "检测到本机登录 Cookie"
-                    : takeoutLoginState.hasCookie
-                      ? "有 Cookie，登录状态待确认"
-                      : "未登录"}
-                </em>
-              )}
-            </div>
-          </div>
-          <p>
-            登录后，AI 可以在聊天里帮你找吃的（例如“帮我找家附近的烧烤，预算 30”）。平台登录态只保存在本机
-            WebView，不会上传服务器。
-          </p>
-          <p
-            className={`notification-feature-feedback ${takeoutLoginFeedback.status}`}
-            role="status"
-            aria-live="polite"
-          >
-            {takeoutLoginFeedback.message}
-          </p>
-          <div className="device-activity-actions">
-            <button type="button" onClick={() => void openTakeoutQrLogin()}>
-              扫码登录外卖
-            </button>
-          </div>
-          <small>
-            {available
-              ? "本机 Cookie 仅用于初步检测；平台可能要求重新登录或验证。AI 只在你主动要求点单时派发命令。"
-              : "外卖扫码登录与点单由手机本地执行，仅 Android App 可用；网页版请使用聊天里的其它玩法。"}
-          </small>
-        </div>
+        <TakeoutLoginPanel key={diagnosticScopeKey(accountStorageScope, companionScope)}
+          scope={diagnosticScopeKey(accountStorageScope, companionScope)} feedback={takeoutLoginFeedback} />
         <div className="notification-feature-panel device-activity-panel">
           <p>
             <strong>怎么用：</strong>
@@ -8194,13 +8022,16 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
               把外观、伴侣和日常陪伴调成你喜欢的样子。
             </p>
           </div>
-          <WebInstallButton
+          <div className="settings-app-actions"><WebInstallButton
             className="install-button"
             promptLabel="⤓ 安装到手机/电脑"
             guidanceLabel="⤓ 安装到手机/电脑"
             onFeedback={setNotice}
             showFeedback={false}
           />
+          <button type="button" className="install-button" onClick={() => window.dispatchEvent(new Event("dengta:check-app-updates"))}>检查应用更新</button>
+          <button type="button" className="install-button" onClick={() => window.dispatchEvent(new Event("dengta:app-update-preferences"))}>更新提醒设置</button>
+          </div>
         </div>
 
         <div hidden={Boolean(settingsCategory)}>
@@ -8841,6 +8672,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
 
             {settingsCategory === "devices" && (
               <>
+            <Suspense fallback={<DeferredFeature label="正在读取行踪授权…" />}><WhereaboutsConsentSettings key={privateMediaScope} scopeKey={privateMediaScope} /></Suspense>
             <div className="notification-feature-panel device-activity-panel">
               <div className="device-activity-heading">
                 <div>
@@ -9228,51 +9060,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
               </div>
               <p>点左侧的「🛵 外卖」和「🏆 成就」即可使用；这里保留小红书登录。</p>
             </div>
-            <div className="notification-feature-panel device-activity-panel">
-              <div className="device-activity-heading">
-                <div>
-                  <strong>小红书</strong>
-                  <span>
-                    {xhsState.status === "logged_in"
-                      ? "已登录 · AI 可帮你刷帖搜索"
-                      : "写操作前会先征求你的同意"}
-                  </span>
-                </div>
-                <div className="device-activity-actions">
-                  <button type="button" onClick={() => void connectXhsWithBrowser()}>
-                    内置浏览器登录
-                  </button>
-                  <button type="button" onClick={() => void startXhsQrLogin()}>
-                    扫码登录
-                  </button>
-                  <button type="button" onClick={() => void logoutXhsAccount()}>
-                    退出登录
-                  </button>
-                </div>
-              </div>
-              <p>
-                登录后 AI 可以用你的小红书账号搜索笔记、读评论、一起吐槽；点赞、发评论、关注属于写操作，AI
-                必须先征得你同意才会执行。
-              </p>
-              {xhsState.feedback ? (
-                <p
-                  className={`notification-feature-feedback ${
-                    xhsState.status === "error" ? "error" : "busy"
-                  }`}
-                  role="status"
-                  aria-live="polite"
-                >
-                  {xhsState.feedback}
-                </p>
-              ) : null}
-              {xhsState.qr ? (
-                <div className="xhs-qr-wrap">
-                  <img src={xhsState.qr} alt="小红书登录二维码" />
-                  <small>打开小红书 App → 扫一扫 → 确认登录</small>
-                </div>
-              ) : null}
-              <small>登录态只存在服务端，随时可在这里退出。</small>
-            </div>
+            <XhsLoginPanel scope={diagnosticScopeKey(accountStorageScope, companionScope)} />
               </>
             )}
 
@@ -9450,6 +9238,26 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     };
   }, [chatSkinPreferences.reduceMotion]);
 
+  useAppBackNavigation({
+    scope: privateMediaScope,
+    view: activeView,
+    layerKey: [Boolean(imageViewer), Boolean(dialog), distillState.modalOpen, isSettingsOpen, isStatusPanelExpanded, isComposerMenuOpen, isMobileNavOpen, isSidebarOpen].join(":"),
+    changeView,
+    showNotice: setNotice,
+    closeLayer: () => {
+      if (imageViewer) { setImageViewer(null); return true; }
+      if (dialog) { closeSessionDialog(); return true; }
+      if (distillState.modalOpen) { setDistillState(current => ({ ...current, modalOpen: false })); return true; }
+      if (isSettingsOpen) { closeSettingsPanel(); return true; }
+      if (isStatusPanelExpanded) { requestStatusPanelClose(); return true; }
+      if (isComposerMenuOpen) { closeComposerMenu(); return true; }
+      if (isMobileNavOpen) { setIsMobileNavOpen(false); return true; }
+      if (isSidebarOpen) { setIsSidebarOpen(false); return true; }
+      return false;
+    },
+  });
+  useEffect(() => installBrowserAccountBinding(), []);
+
   const viewTitle = activeView === "chat"
     ? activeSession?.title || "欢迎回家"
     : FEATURE_LABELS[activeView] || (activeView === "cast" ? "放映厅" : "灯塔");
@@ -9471,6 +9279,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       data-ornament-activity={chatSkinPreferences.ornamentActivity}
       data-chat-streaming={isSending ? "true" : "false"}
     >
+      <Suspense fallback={null}><AppUpdateCenter canPrompt={!isSending && !isSettingsOpen && !isStatusPanelExpanded && !isComposerMenuOpen && !isMobileNavOpen && !isSidebarOpen && !dialog && !imageViewer && !distillState.modalOpen} /></Suspense>
       <CelestialBackdrop
         snapshot={celestialSnapshot}
         weather={ambientWeather}
@@ -9758,13 +9567,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
               </span>
             </div>
             <div className="connection-recovery-actions">
-              {startupConnection.failureCount > 0 && (
-                <button type="button" onClick={openProviderRecovery}>
-                  修复聊天接口 / Fix chat API
-                </button>
-              )}
               <button type="button" onClick={retryStartupConnection}>
-                立即重试
+                {startupConnection.status === "connecting" ? "重新发起连接" : "重新连接"}
               </button>
             </div>
           </div>
@@ -9793,6 +9597,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           {activeView === "cast" && renderDlnaCastPlayer()}
           {activeView === "duel" && renderIntimateDuel()}
           {activeView === "memories" && renderMemories()}
+          {activeView === "treasure" && <Suspense fallback={<DeferredFeature label="正在寻找沿途来信…" />}><SurpriseMap key={privateMediaScope} scopeKey={privateMediaScope} aiName={effectiveAiName} /></Suspense>}
           {activeView === "takeout" && renderTakeout()}
           {activeView === "achievements" && renderAchievements()}
           {activeView === "workspace" && (

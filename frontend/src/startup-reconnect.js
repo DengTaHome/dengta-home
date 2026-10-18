@@ -42,6 +42,7 @@ export function createStartupReconnectController({
   documentTarget = globalThis.document,
   setTimeoutFn = globalThis.setTimeout,
   clearTimeoutFn = globalThis.clearTimeout,
+  timeoutMs = BACKEND_WAKE_TIMEOUT_MS,
 } = {}) {
   if (typeof attempt !== "function") {
     throw new TypeError("attempt must be a function");
@@ -58,6 +59,7 @@ export function createStartupReconnectController({
   let inFlight = null;
   let started = false;
   let stopped = false;
+  let currentAttempt = null;
 
   function publish(patch) {
     state = { ...state, ...patch };
@@ -89,17 +91,36 @@ export function createStartupReconnectController({
     }, delay);
   }
 
-  function retryNow(reason = "manual") {
+  function retryNow(reason = "manual", { replaceInFlight = false } = {}) {
     if (stopped) return Promise.resolve(null);
-    if (inFlight) return inFlight;
+    if (inFlight && !replaceInFlight) return inFlight;
+    currentAttempt?.abort();
+    const controller = new AbortController();
+    currentAttempt = controller;
+    const isCurrent = () => !stopped && currentAttempt === controller && !controller.signal.aborted;
 
     clearRetryTimer();
-    publish({ status: "connecting", nextRetryDelayMs: null, reason });
+    publish({ status: "connecting", nextRetryDelayMs: null, lastError: null, reason });
 
-    const execution = Promise.resolve()
-      .then(() => attempt({ reason, attemptNumber: state.failureCount + 1 }))
+    let deadline;
+    let onAbort;
+    const cancelled = new Promise((_, reject) => {
+      onAbort = () => reject(new DOMException("Connection attempt cancelled", "AbortError"));
+      controller.signal.addEventListener("abort", onAbort, { once: true });
+      deadline = setTimeoutFn(() => {
+        const error = new Error("后端连接超时，可重新连接；草稿和附件仍然保留。");
+        error.code = "startup_connection_timeout";
+        reject(error);
+        controller.abort();
+      }, timeoutMs);
+    });
+
+    const execution = Promise.race([
+      Promise.resolve().then(() => isCurrent() ? attempt({ reason, attemptNumber: state.failureCount + 1, signal: controller.signal, isCurrent }) : null),
+      cancelled,
+    ])
       .then((result) => {
-        if (stopped) return null;
+        if (!isCurrent()) return null;
         publish({
           status: "connected",
           failureCount: 0,
@@ -109,7 +130,7 @@ export function createStartupReconnectController({
         return result;
       })
       .catch((error) => {
-        if (stopped) return null;
+        if (stopped || currentAttempt !== controller || error?.name === "AbortError") return null;
         publish({
           failureCount: state.failureCount + 1,
           lastError: error instanceof Error ? error : new Error(String(error)),
@@ -118,6 +139,8 @@ export function createStartupReconnectController({
         return null;
       })
       .finally(() => {
+        clearTimeoutFn(deadline);
+        controller.signal.removeEventListener("abort", onAbort);
         if (inFlight === execution) inFlight = null;
       });
 
@@ -157,6 +180,7 @@ export function createStartupReconnectController({
 
   function stop() {
     stopped = true;
+    currentAttempt?.abort();
     clearRetryTimer();
     windowTarget?.removeEventListener?.("online", handleOnline);
     documentTarget?.removeEventListener?.(

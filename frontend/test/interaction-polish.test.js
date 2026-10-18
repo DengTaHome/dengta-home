@@ -42,7 +42,7 @@ assert.equal(readOperationFailures(scope).length, 50);
 clearOperationFailures(scope); assert.equal(readOperationFailures(scope).length, 0);
 recordOperationFailure(scope, "/unknown", { name: "AbortError" }); assert.equal(readOperationFailures(scope).length, 0);
 assert.notEqual(pickActivity("rain-bookshop", () => 0).id, "rain-bookshop");
-const expectedFeatures = ["chat", "moments", "diary", "art", "nursery", "cotton", "together", "music", "duel", "memories", "achievements", "discover", "takeout", "workspace"];
+const expectedFeatures = ["chat", "moments", "diary", "art", "nursery", "cotton", "together", "music", "duel", "memories", "achievements", "discover", "takeout", "workspace", "treasure"];
 assert.deepEqual(FEATURE_GROUPS.flatMap(group => group.ids).sort(), [...expectedFeatures].sort());
 assert.ok(QUICK_FEATURES.every(id => FEATURE_LABELS[id]));
 const searchItems = Object.keys(FEATURE_LABELS).map(id => ({ id, label: FEATURE_LABELS[id] }));

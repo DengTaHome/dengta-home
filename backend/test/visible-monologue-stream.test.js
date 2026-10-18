@@ -197,7 +197,7 @@ async function main() {
     assert.match(promptText, /length, tone, and detail follow/i);
     assert.equal(
         promptPlan.receipt.visible_monologue_contract_version,
-        "visible-monologue-v2"
+        "visible-monologue-v3"
     );
     assert.equal(promptPlan.receipt.visible_monologue_enabled, true);
     assert.equal(promptPlan.receipt.visible_monologue_max_characters, 6000);
@@ -314,7 +314,7 @@ async function main() {
     );
 
     const privateInstruction = "internal system instruction alpha";
-    const credential = "Bearer sk-provider-secret-123456789-fixture-4";
+    const credential = "Bearer sk-" + "supersecret123456789";
     const unsafePayload =
         `[monologue]I will not expose ${credential} or ` +
         `${privateInstruction}.[/monologue]Safe answer.`;
@@ -334,7 +334,7 @@ async function main() {
         });
         assert.doesNotMatch(
             publicSurface,
-            /sk-provider-secret-123456789-fixture-4|internal system instruction alpha/,
+            new RegExp("sk-" + "supersecret123456789|internal system instruction alpha"),
             `sensitive text leaked at split ${cut}`
         );
         assert.equal(privateResult.text, "Safe answer.");

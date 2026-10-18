@@ -193,7 +193,7 @@ function createWebExplorer({ fetchImpl = globalThis.fetch, env = process.env } =
         };
     }
 
-    async function biliVideo(bvid, cookie = "") {
+    async function biliVideo(bvid, cookie = "", { includeSubtitles = true } = {}) {
         const id = String(bvid || "").trim();
         if (!BVID_PATTERN.test(id)) throw requestError(400, "explorer_bvid_invalid", "视频编号格式不正确。");
         const headers = {
@@ -209,6 +209,7 @@ function createWebExplorer({ fetchImpl = globalThis.fetch, env = process.env } =
         if (!data.cid) throw requestError(404, "explorer_video_not_found", "没有找到这个视频。");
         let subtitles = [];
         try {
+            if (includeSubtitles) {
             // 字幕接口需要 WBI 签名,否则返回空(之前漏签导致字幕永远为空)。
             const mixinKey = await deriveWbiMixinKey(fetcher);
             const playerQuery = mixinKey
@@ -229,6 +230,7 @@ function createWebExplorer({ fetchImpl = globalThis.fetch, env = process.env } =
                     .slice(0, 80)
                     .map((line) => cleanText(line.content, 200))
                     .filter(Boolean);
+            }
             }
         } catch {
             // 字幕可选,失败不影响主信息。

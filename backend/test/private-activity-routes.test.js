@@ -57,7 +57,7 @@ async function main(){
   const dates=createSpecialDatesService({database}),dailies=createDailyShotsService({database}),achievements=createAchievementsService({database}),funLabs=createFunLabsService({database}),interestEngine=createInterestEngine({database});
   const app=express();app.use(express.json());app.use((req,_res,next)=>{if(req.headers.authorization==='Bearer fixture-a')req.scope=scope(userA,compA);if(req.headers.authorization==='Bearer fixture-b')req.scope=scope(userB,compB);if(req.headers.authorization==='Bearer fixture-c')req.scope=scope(userA,compB);next();});
   app.use('/dates',createSpecialDatesRouter({dates}));app.use('/fun',createFunLabsRouter({dailies,achievements,funLabs,interestEngine}));
-  const client={configured:()=>false,me:async()=>{throw Object.assign(new Error('Fictional expired cookie'),{status:401,code:'cookie_expired'});}};app.use('/xhs',createXhsRouter({database,client}));app.use('/xhs-unconfigured',createXhsRouter({client}));
+  const client={configured:()=>false,forScope:()=>({me:async()=>{throw Object.assign(new Error('Fictional expired cookie'),{status:401,code:'cookie_expired'});}})};app.use('/xhs',createXhsRouter({database,client}));app.use('/xhs-unconfigured',createXhsRouter({client}));
   app.use((error,_req,res,_next)=>res.status(error.status||500).json({code:error.code,message:error.message}));
   server=await new Promise(resolve=>{const instance=app.listen(0,'127.0.0.1',()=>resolve(instance));});const base=`http://127.0.0.1:${server.address().port}`;
   const request=(path,method='GET',body,account='a')=>fetch(base+path,{method,headers:{Authorization:`Bearer fixture-${account}`,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
@@ -113,7 +113,7 @@ async function main(){
   for(const mode of ['read','write']){fail=mode;const response=await request('/xhs/login/cookie','POST',{cookie:'fictional-cookie'});assert.equal(response.status,503);const error=await response.json();assert.equal(error.code,'xhs_storage_'+mode+'_failed');assert.doesNotMatch(JSON.stringify(error),/fictional-private-error|Bearer/);}fail='';
   noReceipt=true;const missing=await request('/xhs/login/cookie','POST',{cookie:'fictional-cookie'});assert.equal(missing.status,502);assert.equal((await missing.json()).code,'xhs_storage_receipt_invalid');noReceipt=false;
   fail='write';const expiredWrite=await request('/xhs/me');assert.equal(expiredWrite.status,503);assert.equal((await expiredWrite.json()).code,'xhs_storage_write_failed');fail='';
-  const expired=await request('/xhs/me');assert.equal(expired.status,401);assert.equal((await expired.json()).code,'cookie_expired');
+  const expired=await request('/xhs/me');assert.equal(expired.status,409);assert.equal((await expired.json()).code,'cookie_expired');
   const unavailable=await request('/xhs-unconfigured/login/cookie','POST',{cookie:'fictional-cookie'});assert.equal(unavailable.status,503);assert.equal((await unavailable.json()).code,'xhs_storage_unconfigured');
   assert.equal((await request('/dates/'+date.id,'DELETE')).status,200);assert.equal((await request('/fun/achievements/custom/'+award.id,'DELETE')).status,200);
   console.log('Private activity real SQL/services/routes: dates, photos, achievements, compatibility, interest history and encrypted XHS storage survive RLS; account/companion isolation, exact failure receipts and private error redaction passed (unrelated achievement metrics are fixture-zero)');

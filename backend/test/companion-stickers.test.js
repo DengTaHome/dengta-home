@@ -91,8 +91,9 @@ async function main() {
     assert.match(serverSource, /SELECT_COMPANION_STICKER_TOOL/);
     assert.match(
         serverSource,
-        /companionStickerToolCalls\(chatTools\.getStickerId\(\)\)/
+        /companionStickerToolCalls\(chatTools\)/
     );
+    assert.doesNotMatch(serverSource, /companionStickerToolCalls\(chatTools\.getStickerId\(\)\)/);
 
     console.log("companion sticker allowlist and public metadata tests passed");
 }

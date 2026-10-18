@@ -1,4 +1,6 @@
 const { readDiagnosticLog } = require("./services/diagnostic-log-reader");
+const { createSurpriseMapRouter } = require("./services/surprise-map");
+const { generateSurpriseMapDraft } = require("./services/surprise-map-draft");
 const { resolveCompressionThreshold } = require("./services/context-history");
 const { diagnosticRecord, publicDiagnosticLog, safeDiagnosticCode } = require("./services/diagnostic-errors");
 const express = require("express");
@@ -226,6 +228,10 @@ const { createXhsRouter } = require("./routes/v2/xhs");
 const { visionConfig, visionConfigured } = require("./services/vision-describe");
 const { createPrivateMediaRouter } = require("./routes/v2/private-media");
 const { knowledgeFileTexts, listActiveCustomStickers } = require("./services/private-media");
+const { createBilibiliStickerImportService } = require("./services/bilibili-sticker-import");
+const { createBilibiliStickerChatRuntime } = require("./services/bilibili-sticker-chat");
+const { createXhsStickerImportService } = require("./services/xhs-sticker-import");
+const { createXhsStickerChatRuntime } = require("./services/xhs-sticker-chat");
 const { createWorkspaceRouter } = require("./routes/v2/workspace");
 const { createNurseryRouter } = require("./routes/nursery");
 const { createIntimateDuelRouter } = require("./routes/intimate-duel");
@@ -771,7 +777,15 @@ app.use(
         })
     })
 );
-app.use("/api/v2/private-media", createPrivateMediaRouter({ storage: supabase.storage }));
+const stickerImports = createBilibiliStickerImportService({ storage: supabase.storage,
+    getCookie: scope => bilibiliQrLogin.cookieText(scope) });
+const xhsStickerClient = createXhsClient();
+const xhsStickerImports = createXhsStickerImportService({ storage: supabase.storage, xhsClient: xhsStickerClient });
+app.use("/api/v2/private-media", createPrivateMediaRouter({ storage: supabase.storage, stickerImports, xhsStickerImports, xhsClient: xhsStickerClient }));
+app.use("/api/v2/surprise-map", createSurpriseMapRouter({
+    publicationDatabase: supabase,
+    draftLetter: (scope, options) => generateSurpriseMapDraft(scope, options, { getSettings, generateReply })
+}));
 app.use(
     "/api/v2/workspace",
     createWorkspaceRouter({
@@ -1880,12 +1894,22 @@ function createChatToolExecutor(
     xhsClient = null,
     neteaseTools = null,
     webExplorer = null,
-    interestTools = null
+    interestTools = null,
+    stickerImportPermission = null
 ) {
     let momentCreated = false;
     let statusUpdated = false;
     let takeoutUsed = false;
+    const scopedXhsClient = scope && typeof xhsClient?.forScope === "function" ? xhsClient.forScope(scope) : null;
     const stickerSelector = createCompanionStickerSelector(customStickers);
+    const bilibiliStickerRuntime = stickerImportPermission?.bilibili_enabled
+        ? createBilibiliStickerChatRuntime({ service: stickerImports, scope,
+            turnId: clientMessageId, selector: stickerSelector, permission: stickerImportPermission })
+        : { tools: [], executeTool: call => stickerSelector.executeTool(call) };
+    const stickerImportRuntime = stickerImportPermission?.xhs_enabled && stickerImportPermission.xhs_schema_available
+        ? createXhsStickerChatRuntime({ service: xhsStickerImports, scope, turnId: clientMessageId,
+            selector: stickerSelector, permission: stickerImportPermission, next: bilibiliStickerRuntime })
+        : bilibiliStickerRuntime;
     const activities = createCompanionActivities({ scope, recommendations: (currentScope, limit) => bilibiliQrLogin.recommendations(currentScope, limit) });
     const stickerTool = createCompanionStickerTool(customStickers);
     const replySuggestionSelector = createReplySuggestionSelector();
@@ -1921,8 +1945,8 @@ function createChatToolExecutor(
             };
         }
 
-        if (toolCall?.name === SELECT_COMPANION_STICKER_TOOL.name) {
-            return stickerSelector.executeTool(toolCall);
+        if ([SELECT_COMPANION_STICKER_TOOL.name, "import_bilibili_sticker", "import_xhs_sticker"].includes(toolCall?.name)) {
+            return stickerImportRuntime.executeTool(toolCall);
         }
 
         if (toolCall?.name === SELECT_REPLY_SUGGESTIONS_TOOL.name) {
@@ -2300,11 +2324,11 @@ function createChatToolExecutor(
 
 
         if (toolCall?.name === XHS_ME_TOOL.name) {
-            if (!xhsClient?.configured()) {
+            if (!scopedXhsClient?.configured()) {
                 return { ok: false, error: "小红书服务还没有部署，暂时不能用。" };
             }
             try {
-                const me = await xhsClient.me();
+                const me = await scopedXhsClient.me();
                 return { ok: true, me };
             } catch (error) {
                 return { ok: false, error: String(error?.message || "查询失败。").slice(0, 300) };
@@ -2312,7 +2336,7 @@ function createChatToolExecutor(
         }
 
         if (toolCall?.name === XHS_SEARCH_TOOL.name) {
-            if (!xhsClient?.configured()) {
+            if (!scopedXhsClient?.configured()) {
                 return { ok: false, error: "小红书服务还没有部署，暂时不能用。" };
             }
             let args;
@@ -2322,7 +2346,7 @@ function createChatToolExecutor(
                 return { ok: false, error: "搜索参数不是有效的 JSON。" };
             }
             try {
-                const result = await xhsClient.search(
+                const result = await scopedXhsClient.search(
                     String(args?.keyword || ""),
                     Number(args?.page) || 1
                 );
@@ -2343,7 +2367,7 @@ function createChatToolExecutor(
             toolCall?.name === XHS_COMMENT_TOOL.name ||
             toolCall?.name === XHS_FOLLOW_TOOL.name
         ) {
-            if (!xhsClient?.configured()) {
+            if (!scopedXhsClient?.configured()) {
                 return { ok: false, error: "小红书服务还没有部署，暂时不能用。" };
             }
             let args;
@@ -2365,16 +2389,16 @@ function createChatToolExecutor(
             try {
                 if (toolCall?.name === XHS_LIKE_TOOL.name) {
                     const id = extractXhsId(String(args.note_url || ""), "note");
-                    const result = await xhsClient.like(id);
+                    const result = await scopedXhsClient.like(id);
                     return { ok: true, result };
                 }
                 if (toolCall?.name === XHS_COMMENT_TOOL.name) {
                     const id = extractXhsId(String(args.note_url || ""), "note");
-                    const result = await xhsClient.comment(id, String(args.content || "").slice(0, 200));
+                    const result = await scopedXhsClient.comment(id, String(args.content || "").slice(0, 200));
                     return { ok: true, result };
                 }
                 const uid = extractXhsId(String(args.user_url || ""), "user");
-                const result = await xhsClient.follow(uid);
+                const result = await scopedXhsClient.follow(uid);
                 return { ok: true, result };
             } catch (error) {
                 return { ok: false, error: String(error?.message || "执行失败。").slice(0, 300) };
@@ -2743,8 +2767,16 @@ function createChatToolExecutor(
         getStickerId() {
             return stickerSelector.getStickerId();
         },
+        getCustomStickerId() {
+            return stickerSelector.getCustomStickerId();
+        },
         getStickerTool() {
             return stickerTool;
+        },
+        getStickerImportTools() {
+            return [...stickerImportRuntime.tools,
+                ...(stickerImportRuntime.tools.some(tool => tool.name === "import_bilibili_sticker") ? [BILI_SEARCH_TOOL] : []),
+                ...(stickerImportRuntime.tools.some(tool => tool.name === "import_xhs_sticker") ? [XHS_SEARCH_TOOL] : [])];
         },
         getReplySuggestions() {
             return replySuggestionSelector.getSuggestions();
@@ -4625,6 +4657,11 @@ async function executeChatTurnOnce(
         const optionalContextPromise = loadOptionalChatContext({
             loaders: input.requestScope ? {
                 stickers: () => listActiveCustomStickers(input.requestScope),
+                stickerImportPermission: async () => {
+                    const [bili, xhs] = await Promise.all([stickerImports.preferences(input.requestScope), xhsStickerImports.preferences(input.requestScope)
+                        .catch(() => ({ xhs_enabled: false, schema_available: false }))]);
+                    return { ...bili, xhs_enabled: xhs.xhs_enabled, xhs_schema_available: xhs.schema_available };
+                },
                 specialDates: async () => specialDatesService.buildContext(await specialDatesService.upcoming(input.requestScope, 7)),
                 interests: async () => interestEngine.buildContext(await interestEngine.interests(input.requestScope)),
                 achievements: async () => funServices.achievements.buildContext(await funServices.achievements.check(input.requestScope)),
@@ -4713,7 +4750,8 @@ async function executeChatTurnOnce(
             createXhsClient(),
             neteaseQrLogin,
             createWebExplorer(),
-            interestEngine
+            interestEngine,
+            optionalContext.stickerImportPermission
         );
         if (input.clientMessageId) {
             leaseHeartbeat = createChatGenerationLeaseHeartbeat({
@@ -4819,6 +4857,7 @@ async function executeChatTurnOnce(
                 POST_MOMENT_TOOL,
                 SELECT_REPLY_SUGGESTIONS_TOOL,
                 chatTools.getStickerTool(),
+                ...chatTools.getStickerImportTools(),
                 TAKEOUT_TOOL,
                 SPECIAL_DATE_ADD_TOOL,
                 SPECIAL_DATE_LIST_TOOL,
@@ -4833,7 +4872,7 @@ async function executeChatTurnOnce(
                 ...mcpRuntime.tools,
                 // 低频工具后置（可被上游截断）
                 XHS_ME_TOOL,
-                XHS_SEARCH_TOOL,
+                ...(chatTools.getStickerImportTools().some(tool => tool.name === XHS_SEARCH_TOOL.name) ? [] : [XHS_SEARCH_TOOL]),
                 XHS_LIKE_TOOL,
                 XHS_COMMENT_TOOL,
                 XHS_FOLLOW_TOOL,
@@ -4842,7 +4881,7 @@ async function executeChatTurnOnce(
                 V2EX_HOT_TOOL,
                 V2EX_TOPIC_TOOL,
                 V2EX_NODE_TOOL,
-                BILI_SEARCH_TOOL,
+                ...(chatTools.getStickerImportTools().some(tool => tool.name === BILI_SEARCH_TOOL.name) ? [] : [BILI_SEARCH_TOOL]),
                 BILI_VIDEO_TOOL,
                 EXA_SEARCH_TOOL,
                 WEB_SEARCH_TOOL,
@@ -4877,6 +4916,7 @@ async function executeChatTurnOnce(
             generated = forwardModelEvent
                 ? await generateReplyStream({
                       ...generationInput,
+                      publicReasoningSummary: input.publicReasoningSummary === true,
                       onEvent: forwardModelEvent
                   })
                 : await generateReply(generationInput);
@@ -4922,7 +4962,7 @@ async function executeChatTurnOnce(
             ...(mcpRuntime.actions.length
                 ? { mcp_actions: mcpRuntime.actions }
                 : {}),
-            ...companionStickerToolCalls(chatTools.getStickerId()),
+            ...companionStickerToolCalls(chatTools),
             ...replySuggestionToolCalls(finalizedReplySuggestions),
             ...(chatTools.getActivityActions().length ? { activity_actions: chatTools.getActivityActions() } : {}),
             ...(input.clientMessageId
@@ -5149,9 +5189,10 @@ app.get("/health", async (req, res) => {
             stream_status_events: true,
             model_wait_progress: true,
             interactive_generation_latency_profiles: true,
-            public_reasoning_summary_stream: false,
+            public_reasoning_summary_stream: true,
+            public_reasoning_summary_opt_in: true,
             companion_progress_stream: false,
-            provider_reasoning_summary_only: false,
+            provider_reasoning_summary_only: true,
             visible_monologue_stream: true,
             visible_monologue_schema_version: 1,
             visible_monologue_storage: "message_metadata",
@@ -5903,16 +5944,42 @@ app.post("/companion/inner-monologue", async (req, res, next) => {
         const database = req.scope?.db || supabase;
         const result = await runVisibleInnerMonologue({
             body: req.body,
+            tenant: req.scope
+                ? { userId: req.scope.userId, companionId: req.scope.companionId }
+                : null,
             services: {
-                loadMessage: (conversationId, messageId) =>
-                    loadReferencedMessage({
-                        conversationId,
-                        messageId,
-                        database
-                    }),
+                loadMessage: async (conversationId, messageId) => {
+                    const { data, error } = await database
+                        .from("messages")
+                        .select("id, conversation_id, role, content, visible, created_at, tool_calls")
+                        .eq("id", messageId)
+                        .eq("conversation_id", conversationId)
+                        .maybeSingle();
+                    if (error) throw error;
+                    return data || null;
+                },
                 getSettings: () => getSettings(database),
-                loadChatContext: (conversationId, settings) =>
-                    loadChatContext(conversationId, settings, database),
+                loadChatContext: async (conversationId, settings, targetMessage) => {
+                    const context = await loadChatContext(conversationId, settings, database);
+                    const time = String(targetMessage.created_at || "");
+                    if (!/^\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:\d\d)$/.test(time) ||
+                        !Number.isFinite(Date.parse(time))) {
+                        throw Object.assign(new Error("心声目标消息的时间信息无效。"), { status: 502 });
+                    }
+                    let query = database.from("messages")
+                        .select("id, role, content, created_at, tool_calls")
+                        .eq("conversation_id", conversationId)
+                        .eq("visible", true)
+                        .eq("context_visible", true)
+                        .or(`created_at.lt.${time},and(created_at.eq.${time},id.lte.${targetMessage.id})`);
+                    if (settings.context_reset_at) query = query.gte("created_at", settings.context_reset_at);
+                    const { data, error } = await query
+                        .order("created_at", { ascending: false })
+                        .order("id", { ascending: false })
+                        .limit(12);
+                    if (error) throw error;
+                    return { ...context, messages: (data || []).reverse() };
+                },
                 resolveTurnModel,
                 generateReply
             }
@@ -6173,7 +6240,7 @@ app.post(
                 generated.text,
                 {
                     tool_calls: {
-                        ...companionStickerToolCalls(chatTools.getStickerId()),
+                        ...companionStickerToolCalls(chatTools),
                         ...replySuggestionToolCalls(finalizedReplySuggestions),
                         ...(chatTools.getActivityActions().length ? { activity_actions: chatTools.getActivityActions() } : {}),
                         ...(mcpRuntime.actions.length

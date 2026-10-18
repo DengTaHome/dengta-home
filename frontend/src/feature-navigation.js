@@ -1,9 +1,9 @@
 export const FEATURE_GROUPS = [
   { label: "日常陪伴", ids: ["chat", "cotton", "moments", "diary", "art"] },
   { label: "一起体验", ids: ["together", "music", "duel", "nursery"] },
-  { label: "记录与探索", ids: ["memories", "achievements", "discover", "takeout", "workspace"] },
+  { label: "记录与探索", ids: ["memories", "treasure", "achievements", "discover", "takeout", "workspace"] },
 ];
-export const FEATURE_LABELS = { chat: "聊天", moments: "动态", diary: "日记", art: "涂鸦画室", nursery: "家庭", cotton: "小棉花", together: "一起看", music: "听歌", duel: "互动挑战", memories: "记忆", achievements: "成就", discover: "发现", takeout: "外卖", workspace: "工作区" };
+export const FEATURE_LABELS = { chat: "聊天", moments: "动态", diary: "日记", art: "涂鸦画室", nursery: "家庭", cotton: "小棉花", together: "一起看", music: "听歌", duel: "互动挑战", memories: "记忆", treasure: "藏宝地图", achievements: "成就", discover: "发现", takeout: "外卖", workspace: "工作区" };
 export const QUICK_FEATURES = ["chat", "together", "cotton", "achievements"];
 
 export const FEATURE_DETAILS = {
@@ -17,6 +17,7 @@ export const FEATURE_DETAILS = {
   duel: { hint: "来一场互动挑战", keywords: "对决 比赛 游戏 duel" },
   nursery: { hint: "看看你们的小家庭", keywords: "养成 家人 孩子 宝宝 family" },
   memories: { hint: "查看和管理聊天记忆", keywords: "长期记忆 MCP Ombre ombrrbrain Kiwi 回忆" },
+  treasure: { hint: "走近一封信，发现沿途小惊喜", keywords: "地图 定位 藏宝 来信 公共 惊喜 letter map" },
   achievements: { hint: "看看入门路线和小纪念", keywords: "引导 新手 教程 任务 奖励 徽章" },
   discover: { hint: "找找新的兴趣和灵感", keywords: "推荐 兴趣 探索 小红书" },
   takeout: { hint: "查看外卖任务与进度", keywords: "点餐 订单 吃饭 配送" },

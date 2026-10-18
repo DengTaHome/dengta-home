@@ -61,6 +61,9 @@ const cssCascade = loadEntrypointCssCascade(
   mobileViewport,
 );
 const css = cssCascade.source;
+for (const selector of [".message-content", ".message-row:not(.user) .message-content"]) {
+  assert.equal(cssCascade.declarations(selector).animation?.value, "none", "restored chat text must not fade in again");
+}
 const narrowViewport = { width: 280, height: 653, reducedMotion: false };
 const narrowCssCascade = loadEntrypointCssCascade(
   new URL("../src/main.jsx", import.meta.url),
@@ -1004,11 +1007,11 @@ assert.equal("keyboardOpen" in innerHeightFallback.root.dataset, false);
 
 assert.match(
   app,
-  /if \(!viewport\) return installInnerHeightViewportFallback\(\);/,
-  "App must install the innerHeight keyboard fallback when visualViewport is unavailable",
+  /return installVisualViewportController\(\)/,
+  "App must install the controller with the innerHeight keyboard fallback",
 );
 assert.match(
-  app,
+  fs.readFileSync(new URL("../src/mobile-viewport.js", import.meta.url), "utf8"),
   /const rawGap = Math\.max\(0, fullHeight - viewport\.height\)/,
   "keyboard detection must not let visualViewport offsetTop cancel the height loss",
 );

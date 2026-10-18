@@ -44,6 +44,19 @@ export function appendThinkingSummary(current = "", value, limit = 6_000) {
   return `${previous}${chunk}`.slice(-limit);
 }
 
+export function appendPublicProviderSummary(trace = {}, event = {}) {
+  if (event?.type !== "reasoning" || event?.source !== "provider_summary" ||
+      event?.public !== true || typeof event?.content !== "string") return trace;
+  const chunk = removeControlCharacters(event.content);
+  if (!chunk) return trace;
+  const previous = trace?.lastReasoningSource === "provider_summary"
+    ? removeControlCharacters(trace.summary)
+    : "";
+  const summary = Array.from(`${previous}${chunk}`).slice(0, 6_000).join("");
+  if (summary === trace?.summary && trace?.lastReasoningSource === "provider_summary") return trace;
+  return { ...trace, summary, lastReasoningSource: "provider_summary" };
+}
+
 export function localizedThinkingStatus(value) {
   const text = cleanText(value, 120);
   if (!text) return "";
@@ -72,7 +85,8 @@ export function thinkingPanelVisible(message = {}) {
   return (
     (Array.isArray(message.thinkingStatuses) &&
       message.thinkingStatuses.length > 0) ||
-    cleanText(message.thinkingSummary, 6_000).length > 0
+    (message.thinkingSummarySource === "provider_summary" &&
+      cleanText(message.thinkingSummary, 6_000).length > 0)
   );
 }
 
@@ -90,6 +104,11 @@ function publicMessageFields(message = {}) {
   delete safeMessage.reasoning_content;
   delete safeMessage.thinking;
   delete safeMessage.thinking_content;
+  delete safeMessage.thinkingSummary;
+  delete safeMessage.thinking_summary;
+  delete safeMessage.thinkingSummarySource;
+  delete safeMessage.thinking_summary_source;
+  delete safeMessage.lastReasoningSource;
   if (
     safeMessage.tool_calls &&
     typeof safeMessage.tool_calls === "object" &&
@@ -102,6 +121,11 @@ function publicMessageFields(message = {}) {
     delete safeMessage.tool_calls.reasoning_content;
     delete safeMessage.tool_calls.thinking;
     delete safeMessage.tool_calls.thinking_content;
+    delete safeMessage.tool_calls.thinkingSummary;
+    delete safeMessage.tool_calls.thinking_summary;
+    delete safeMessage.tool_calls.thinkingSummarySource;
+    delete safeMessage.tool_calls.thinking_summary_source;
+    delete safeMessage.tool_calls.lastReasoningSource;
   }
   return safeMessage;
 }
@@ -141,11 +165,38 @@ export function hydrateStoredThinkingTrace(message = {}) {
 }
 
 export function attachThinkingTrace(message = {}, trace = {}) {
+  const publicSummary = trace.lastReasoningSource === "provider_summary";
   return {
     ...publicMessageFields(message),
     thinkingStatuses: Array.isArray(trace.statuses) ? trace.statuses : [],
-    thinkingSummary: cleanText(trace.summary, 6_000),
+    thinkingSummary: publicSummary
+      ? Array.from(removeControlCharacters(trace.summary)).slice(0, 6_000).join("")
+      : "",
+    ...(publicSummary ? { thinkingSummarySource: "provider_summary" } : {}),
   };
+}
+
+function clearChatFailureFields(message) {
+  const next = { ...message };
+  for (const field of [
+    "chatError", "partialContent", "error_code", "error_location", "error_log_id",
+    "error_source", "provider_code", "provider_phase", "upstream_status", "error_time",
+    "monologueAutoOpen", "monologueUserMessageId",
+  ]) delete next[field];
+  return next;
+}
+
+export function restartStreamedAssistantMessage(previous = {}, draft = {}) {
+  const next = clearChatFailureFields({ ...previous, ...draft });
+  delete next.visible_monologue;
+  delete next.thinkingSummary;
+  delete next.thinkingSummarySource;
+  if (!Object.hasOwn(draft, "visibleMonologue")) delete next.visibleMonologue;
+  if (next.tool_calls && typeof next.tool_calls === "object" && !Array.isArray(next.tool_calls)) {
+    next.tool_calls = { ...next.tool_calls };
+    delete next.tool_calls.visible_monologue;
+  }
+  return next;
 }
 
 export function mergeStreamedAssistantMessage(
@@ -157,16 +208,20 @@ export function mergeStreamedAssistantMessage(
     localMessage.visibleMonologue,
     serverMessage,
   );
+  const previous = restartStreamedAssistantMessage(localMessage, {
+    visibleMonologue: localMessage.visibleMonologue,
+  });
   return attachThinkingTrace(
-    {
-      ...localMessage,
+    clearChatFailureFields({
+      ...previous,
       ...serverMessage,
+      renderKey: localMessage.renderKey ?? localMessage.id ?? serverMessage.id,
       content: serverMessage?.content ?? localMessage?.content ?? "",
       isStreaming: false,
       generationInProgress: false,
       retryAvailable: false,
       visibleMonologue,
-    },
+    }),
     trace,
   );
 }

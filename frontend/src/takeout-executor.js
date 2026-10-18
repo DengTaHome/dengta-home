@@ -1,9 +1,14 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { apiRequest } from "./api.js";
 import { recordOperationFailure } from "./operation-diagnostics.js";
+import { withBrowserAccount } from "./browser-account-binding.js";
 
 export const OrderBrowser = registerPlugin("OrderBrowser");
 export const TAKEOUT_POLL_MS = 12 * 1000;
+
+function callAccountBrowser(plugin, method, options = {}) {
+  return plugin === OrderBrowser ? withBrowserAccount(account => plugin[method]({ ...options, ...account })) : plugin[method](options);
+}
 
 export function takeoutPluginAvailable(capacitor = Capacitor) {
   return (
@@ -18,32 +23,40 @@ export const TAKEOUT_PLATFORMS = [
   { id: "jd", label: "京东到家", url: "https://daojia.jd.com/" },
 ];
 
-export async function openTakeoutLogin({ plugin = OrderBrowser, url = "" } = {}) {
-  if (!takeoutPluginAvailable()) {
-    return { ok: false, error: "外卖执行器仅在 Android App 中可用。" };
+export async function openTakeoutLogin({ plugin = OrderBrowser, url = "", capacitor = Capacitor } = {}) {
+  if (!takeoutPluginAvailable(capacitor)) {
+    return { ok: false, code: "takeout_native_unavailable", error: "外卖执行器仅在 Android App 中可用。" };
   }
   try {
-    const value = await plugin.openLogin({ url });
+    const value = await callAccountBrowser(plugin, "openLogin", { url: String(url || "").trim() || TAKEOUT_PLATFORMS[0].url });
     return { ok: true, ...(value || {}) };
   } catch (error) {
-    return { ok: false, error: String(error?.message || "打开登录页失败。") };
+    const failure = nativePageFailure(error?.code);
+    return { ok: false, code: failure?.[0] || "takeout_login_open_failed", error: failure?.[1] || "无法打开外卖平台页面，请返回后重试。" };
   }
 }
 
 // 外卖平台登录状态（读 WebView 持久化的登录 Cookie）。
-export async function readTakeoutLoginState({ plugin = OrderBrowser } = {}) {
-  if (!takeoutPluginAvailable()) {
-    return { loggedIn: false, hasCookie: false };
+export async function readTakeoutLoginState({ plugin = OrderBrowser, capacitor = Capacitor, timeoutMs = 10_000 } = {}) {
+  if (!takeoutPluginAvailable(capacitor)) {
+    return { status: "unavailable", loggedIn: false, hasCookie: false };
   }
+  let timer;
   try {
-    const value = await plugin.getLoginState();
+    const value = await Promise.race([
+      callAccountBrowser(plugin, "getLoginState"),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error(), { code: "takeout_login_check_timeout" })), timeoutMs); }),
+    ]);
+    if (!value || typeof value.loggedIn !== "boolean" || typeof value.hasCookie !== "boolean") {
+      return takeoutLoginFailure("takeout_login_state_invalid");
+    }
     return {
+      status: "ready",
       loggedIn: value?.loggedIn === true,
       hasCookie: value?.hasCookie === true,
     };
-  } catch {
-    return { loggedIn: false, hasCookie: false };
-  }
+  } catch (error) { return takeoutLoginFailure(error?.code); }
+  finally { clearTimeout(timer); }
 }
 
 export async function readPendingTakeoutCommands({ client = apiRequest } = {}) {
@@ -71,15 +84,38 @@ const NATIVE_FAILURES = {
   logged_out: ["takeout_login_expired", "外卖登录已失效，请重新登录后重试。"],
   verification: ["takeout_verification_required", "外卖平台需要人机验证，请在页面中手动完成验证后再继续。"],
   shop_not_found: ["takeout_shop_not_found", "没有找到对应店铺，请换店名或搜索词后重试。"],
+  product_not_found: ["takeout_product_not_found", "没有找到指定商品，未改选其他商品。请在店铺里确认名称后再试。"],
   over_limit: ["takeout_budget_exceeded", "购物车金额超过设置的预算，请核对商品数量和金额后再继续。"],
   error: ["takeout_page_execution_failed", "外卖页面未完成操作，请检查页面和购物车后再重试。"],
 };
 
 const NATIVE_PAGE_FAILURES = {
+  browser_account_required: "请先登录灯塔，再从当前账号打开外卖页面。",
+  browser_account_restore_required: "外卖网页被系统重建，页面会话未恢复。请返回灯塔重新打开；已保存的登录资料未被清除。",
+  browser_account_changed: "灯塔账号已变化，本次外卖操作已停止。请从当前账号重新打开，先核对购物车。",
+  browser_account_isolation_unavailable: "系统 WebView 暂不支持账号独立登录，请更新 Android System WebView，或到系统浏览器／外卖 App 手动操作。未使用旧账号登录态。",
+  browser_account_binding_failed: "未能绑定当前灯塔账号，外卖操作未开始。请返回重新打开。",
+  takeout_page_not_ready: "外卖页面尚未就绪，无法确认登录和店铺状态，已停止自动操作。请在当前页面检查或刷新后再试。",
+  takeout_page_touch_unavailable: "无法确认按钮位置，未继续自动加购。请在当前页面手动选择并核对购物车。",
   takeout_page_init_failed: "外卖页面初始化失败，自动操作已停止。请核对页面后手动返回。",
   takeout_page_renderer_failed: "外卖页面渲染异常，自动操作已停止。请核对购物车后手动返回。",
+  takeout_page_load_failed: "当前外卖网页未能加载，自动操作已停止。可点击“恢复网页，手动核对”检查网络、登录和购物车。",
   takeout_page_interrupted: "外卖页面因系统重建中断，未重复自动操作。请核对购物车后手动返回。",
+  browser_page_init_failed: "外卖登录网页初始化失败，请重新打开；已保存的登录资料未被清除。",
+  browser_page_renderer_failed: "外卖登录网页渲染进程已退出，请重新打开网页或更新系统 WebView。",
+  browser_page_load_failed: "外卖登录网页加载失败，请检查网络后重新打开；未将它判定为未登录。",
 };
+
+export function takeoutLoginFailure(code) {
+  const messages = {
+    takeout_login_check_timeout: "本机登录状态检测超时，无法确认是否已登录。可以重新检测，或打开平台页面手动核对。",
+    takeout_login_state_invalid: "本机浏览器返回了无效的登录状态，未将它判定为未登录。请重新检测或更新应用。",
+    takeout_login_check_failed: "暂时无法读取本机登录状态，未将它判定为未登录。请重新检测或打开平台页面核对。",
+    takeout_login_open_failed: "无法打开外卖平台页面，请返回后重试；未清除已保存的登录资料。",
+  };
+  const safeCode = Object.hasOwn(messages, code) || Object.hasOwn(NATIVE_PAGE_FAILURES, code) ? code : "takeout_login_check_failed";
+  return { status: "error", loggedIn: false, hasCookie: false, code: safeCode, message: messages[safeCode] || NATIVE_PAGE_FAILURES[safeCode] };
+}
 
 function nativePageFailure(code) {
   return typeof code === "string" && Object.hasOwn(NATIVE_PAGE_FAILURES, code) ? [code, NATIVE_PAGE_FAILURES[code]] : null;
@@ -122,7 +158,7 @@ export async function executeTakeoutCommand(
     }
     if (payload.action === "search") {
       report("正在打开外卖页面搜索…");
-      const value = await plugin.searchShops({ keyword: payload.requirement, scope });
+      const value = await callAccountBrowser(plugin, "searchShops", { keyword: payload.requirement, scope });
       result = {
         ...nativeFeedback(value),
         status: value?.status || "done",
@@ -132,7 +168,7 @@ export async function executeTakeoutCommand(
       };
     } else {
       report("正在打开外卖页面选品加购…");
-      const value = await plugin.orderProduct({
+      const value = await callAccountBrowser(plugin, "orderProduct", {
         shopName: payload.shop_name || payload.requirement,
         product: payload.requirement,
         quantity: Number(payload.quantity) || 1,

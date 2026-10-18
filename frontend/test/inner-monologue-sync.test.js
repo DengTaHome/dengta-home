@@ -21,6 +21,12 @@ const synchronizedMessage = {
 
 assert.equal(isSynchronizedChatMessage(localMessage), false);
 assert.equal(isSynchronizedChatMessage(synchronizedMessage), true);
+for (const id of [1, Number.MAX_SAFE_INTEGER, '9223372036854775807']) {
+  assert.equal(isSynchronizedChatMessage({ id }), true);
+}
+for (const id of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '01', '9223372036854775808', 'local-user-1']) {
+  assert.equal(isSynchronizedChatMessage({ id }), false);
+}
 assert.equal(
   findSynchronizedAssistantMessage(localMessage, [{ ...synchronizedMessage, content: "Different reply." }]),
   null,
@@ -78,6 +84,14 @@ assert.ok(
   eventualLoads >= 2,
   "会话历史尚未可见时应在短窗口内再次确认同步",
 );
+
+let cancelledReads = 0;
+const cancelledRecovery = await recoverSynchronizedAssistantMessage({
+  message: localMessage, sessionId: "11111111-1111-4111-8111-111111111111",
+  signal: { aborted: true }, loadMessages: async () => { cancelledReads++; return []; },
+});
+assert.equal(cancelledReads, 0);
+assert.equal(cancelledRecovery.cause?.name, "AbortError", "older signals need no throwIfAborted method");
 
 const messageExtrasSource = readFileSync(
   new URL("../src/ChatMessageExtras.jsx", import.meta.url),

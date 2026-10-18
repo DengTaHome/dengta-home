@@ -7,6 +7,7 @@ function providerErrorReason(error) {
     const code = String(error.providerCode || error.code || "").toLowerCase();
     const message = String(error.message || "").slice(0, 4096);
     const status = Number(error.upstreamStatus);
+    if (code === "openai_responses_no_visible_text") return "provider_empty_response";
     if (code === "data_inspection_failed") return "data_inspection_failed";
     if (["insufficient_balance", "balance_not_enough", "credit_balance_too_low", "insufficient_credits"].includes(code) || /insufficient (?:account )?(?:balance|credits)|credit balance is too low|balance (?:is )?(?:insufficient|too low)|余额不足|欠费/i.test(message)) return "provider_balance_insufficient";
     if (["insufficient_quota", "quota_exceeded", "billing_hard_limit_reached"].includes(code) || /exceeded your current quota|billing hard limit|额度(?:不足|耗尽|超限)/i.test(message)) return "provider_quota_exhausted";

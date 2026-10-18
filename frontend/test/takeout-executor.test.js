@@ -31,12 +31,12 @@ try {
   const failure = await executeTakeoutCommand(command, { plugin: { orderProduct: async () => { throw Error('fixture private text'); } }, client: async (path, options) => { if (path.endsWith('/failure')) failureBodies.push(options.body); return {}; } });
   assert.equal(failure.code, 'takeout_native_execution_failed'); assert.equal(failure.receipt_synced, true);
   assert.ok(failureBodies.every(body => !body.includes('fixture private text')));
-  for (const [status, code] of [['logged_out','takeout_login_expired'],['verification','takeout_verification_required'],['shop_not_found','takeout_shop_not_found'],['over_limit','takeout_budget_exceeded'],['error','takeout_page_execution_failed']]) {
+  for (const [status, code] of [['logged_out','takeout_login_expired'],['verification','takeout_verification_required'],['shop_not_found','takeout_shop_not_found'],['product_not_found','takeout_product_not_found'],['over_limit','takeout_budget_exceeded'],['error','takeout_page_execution_failed']]) {
     let body;
     const outcome = await executeTakeoutCommand(command, { plugin: { orderProduct: async () => ({ status, error: 'fixture private text' }) }, client: async (path, options) => { if (path.endsWith('/result')) body = options.body; return {}; } });
     assert.equal(outcome.ok, false); assert.equal(outcome.code, code); assert.ok(!body.includes('fixture private text'));
   }
-  for (const code of ['takeout_page_init_failed','takeout_page_renderer_failed','takeout_page_interrupted']) {
+  for (const code of ['takeout_page_init_failed','takeout_page_renderer_failed','takeout_page_interrupted','takeout_page_not_ready','takeout_page_touch_unavailable','takeout_page_load_failed','browser_account_restore_required']) {
     for (const action of ['search','order']) {
       let resultBody;
       const nativeValue = { status: 'error', code, error: 'fictional private cause' };
@@ -94,7 +94,7 @@ try {
   assert.equal(entries[0].code, 'DT-TAKEOUT'); assert.equal(entries[0].reasonCode, 'takeout_login_expired');
   assert.ok(!JSON.stringify(entries).includes('fixture private text'));
   assert.equal(readOperationFailures('new-companion').length, 0);
-  for (const code of ['takeout_page_init_failed','takeout_page_renderer_failed','takeout_page_interrupted']) {
+  for (const code of ['takeout_page_init_failed','takeout_page_renderer_failed','takeout_page_interrupted','takeout_page_not_ready','takeout_page_touch_unavailable','takeout_page_load_failed','browser_account_restore_required']) {
     const scope = 'fictional-' + code;
     const codeStop = startTakeoutRunner({ scope, capacitor,
       plugin: { searchShops: async () => { throw Object.assign(Error('fictional private cause'), { code }); } },

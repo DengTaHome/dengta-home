@@ -18,7 +18,7 @@ const app = fs.readFileSync(env.DENGTA_STARTUP_APP_SOURCE || new URL("../src/App
 const anchor = app.indexOf("    voiceOutputStatusRef.current = null;");
 const effectStart = app.lastIndexOf("  useEffect(() => {", anchor) + "  useEffect(() => {".length;
 const effectBody = app.slice(effectStart, app.indexOf("\n  }, [", anchor));
-assert.ok(anchor >= 0 && effectBody.includes("async function loadInitialData()"), "extract the actual startup effect");
+assert.ok(anchor >= 0 && effectBody.includes("async function loadInitialData("), "extract the actual startup effect");
 
 async function tick() {
   for (let index = 0; index < 30; index += 1) await Promise.resolve();
@@ -98,6 +98,7 @@ async function startupHarness({ initialCompanion = COMPANION_A } = {}) {
     authSession: manager,
     privateMediaScope: settingsSaveScope(manager.getSnapshot()),
     AbortController,
+    Error,
     STARTUP_REQUEST_OPTIONS,
     createScopedSettingsSession,
     createStartupReconnectController,
@@ -155,6 +156,53 @@ async function startupHarness({ initialCompanion = COMPANION_A } = {}) {
 }
 
 const bootstrapData = { settings: { model: "synthetic-model", unified_system_prompt: "  synthetic instructions\r\n", user_details: "  synthetic details\n" }, sessions: [], state: {} };
+
+test("manual replacement aborts the actual bootstrap request and only the fresh receipt updates settings", async () => {
+  const h = await startupHarness();
+  try {
+    await h.ready();
+    const previous = h.requests[0];
+    const replacement = h.controller.retryNow("manual", { replaceInFlight: true });
+    await tick();
+    assert.equal(previous.signal.aborted, true);
+    assert.equal(h.requests.length, 2);
+    previous.resolve(200, { ...bootstrapData, settings: { model: "stale" } });
+    h.requests[1].resolve(200, bootstrapData);
+    await replacement;
+    const settings = h.ui.filter(value => value.name === "setSettings");
+    assert.equal(settings.length, 1);
+    assert.equal(settings[0].value.model, "synthetic-model");
+    assert.equal(settings[0].value.unified_system_prompt, bootstrapData.settings.unified_system_prompt);
+    assert.equal(h.controller.getState().status, "connected");
+  } finally { h.finish(); }
+});
+
+test("an empty successful bootstrap receipt leaves saved settings intact and offers retry", async () => {
+  const h = await startupHarness();
+  try {
+    await h.ready();
+    const saved = h.context.confirmedSettingsRef.current;
+    h.requests[0].resolve(200, {});
+    await h.initialRun;
+    assert.equal(h.context.confirmedSettingsRef.current, saved);
+    assert.equal(h.ui.some(value => value.name === "setSettings"), false);
+    assert.equal(h.controller.getState().status, "waiting");
+    assert.equal(h.controller.getState().lastError.code, "startup_receipt_invalid");
+  } finally { h.finish(); }
+});
+
+test("malformed session records are rejected before applying settings or any local reset", async () => {
+  const h = await startupHarness();
+  try {
+    await h.ready(); let resets = 0;
+    h.context.applyPersonaResetToLocalStorage = () => { resets++; return true; };
+    h.requests[0].resolve(200, { ...bootstrapData, sessions: [null] });
+    await h.initialRun;
+    assert.equal(resets, 0);
+    assert.equal(h.ui.some(value => value.name === "setSettings" || value.name === "setMessages"), false);
+    assert.equal(h.controller.getState().lastError.code, "startup_receipt_invalid");
+  } finally { h.finish(); }
+});
 
 for (const switchKind of ["companion", "account"]) {
   test(`late bootstrap success cannot restore the old companion after a ${switchKind} change`, async () => {

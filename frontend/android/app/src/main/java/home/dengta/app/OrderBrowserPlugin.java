@@ -70,10 +70,25 @@ public final class OrderBrowserPlugin extends Plugin {
     }
 
     static String technicalErrorMessage(String code) {
+        if (code != null && code.startsWith("browser_account_")) return BrowserSessionSupport.accountErrorMessage(code);
         if ("takeout_page_init_failed".equals(code)) return "外卖页面初始化失败，自动操作已停止。请手动返回后重试。";
         if ("takeout_page_renderer_failed".equals(code)) return "外卖页面渲染进程已退出，自动操作已停止。请手动返回后重试。";
+        if ("takeout_page_load_failed".equals(code)) return "当前外卖网页未能加载，自动操作已停止。可以恢复网页并手动核对网络、登录和购物车。";
         if ("takeout_page_interrupted".equals(code)) return "外卖页面已重新打开，自动操作已停止。请先手动核对，再返回重试。";
         return null;
+    }
+
+    private void withAccount(PluginCall call, java.util.function.Consumer<BrowserAccountScope.Binding> action) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                BrowserAccountScope.Binding binding = BrowserSessionSupport.ACCOUNTS.capture(call.getString("accountScope", ""));
+                BrowserSessionSupport.requireAccountProfiles();
+                action.accept(binding);
+            } catch (RuntimeException error) {
+                String code = BrowserSessionSupport.accountErrorCode(error);
+                call.reject(BrowserSessionSupport.accountErrorMessage(code), code);
+            }
+        });
     }
 
     private JSObject searchReceipt(String raw) throws Exception {
@@ -81,6 +96,8 @@ public final class OrderBrowserPlugin extends Plugin {
         String status = parsed.optString("status", "done");
         if (!java.util.Arrays.asList("done", "verification", "logged_out", "error", "shop_not_found").contains(status)) status = "error";
         JSObject result = new JSObject().put("status", status).put("loading", parsed.optBoolean("loading", false));
+        String code = BrowserSessionSupport.publicTakeoutSearchErrorCode(status, parsed.optString("code", ""));
+        if (!code.isEmpty()) result.put("code", code);
         JSONArray shops = new JSONArray();
         JSONArray incoming = parsed.optJSONArray("shops");
         if (incoming != null) for (int index = 0; index < Math.min(20, incoming.length()); index++) {
@@ -102,18 +119,18 @@ public final class OrderBrowserPlugin extends Plugin {
     // 外卖平台登录状态：读 WebView CookieStore 里的饿了么登录 Cookie。
     @PluginMethod
     public void getLoginState(PluginCall call) {
-        try {
-            String cookie = CookieManager.getInstance().getCookie("https://h5.ele.me");
+        withAccount(call, binding -> {
+            CookieManager cookies = BrowserSessionSupport.accountCookies(binding);
+            String cookie = cookies.getCookie("https://h5.ele.me");
             boolean hasCookie = cookie != null && !cookie.isEmpty();
-            boolean loggedIn = hasCookie
-                && (cookie.contains("SID=") || cookie.contains("USERID=") || cookie.contains("TOKEN="));
+            // Presence is only a local credential hint, never proof the platform still accepts the session.
+            boolean loggedIn = BrowserSessionSupport.hasAuthenticationCookie(cookie);
+            BrowserSessionSupport.persistCookies(cookies);
             JSObject out = new JSObject();
             out.put("loggedIn", loggedIn);
             out.put("hasCookie", hasCookie);
             call.resolve(out);
-        } catch (Exception error) {
-            call.reject("无法读取外卖登录状态。");
-        }
+        });
     }
 
     @PluginMethod
@@ -123,20 +140,29 @@ public final class OrderBrowserPlugin extends Plugin {
         // 之后的搜索/点单页自动带登录态（同一个 WebView CookieStore）。
         // 注意：必须同任务内启动（startActivityForResult），
         // NEW_TASK + context.startActivity 在新任务中会被 vivo 秒杀（"跳转1秒被取消"）。
-        try {
+        withAccount(call, binding -> { try {
             Intent browser = new Intent(getContext(), PersistentBrowserActivity.class);
             browser.putExtra("url", url);
             browser.putExtra("title", "外卖平台登录");
             browser.putExtra("site", "eleme");
             browser.putExtra("desktop", false);
+            browser.putExtra(BrowserSessionSupport.REQUEST_TICKET, BrowserSessionSupport.ACCOUNTS.issue(binding));
             startActivityForResult(call, browser, "browserLoginResult");
         } catch (Exception error) {
             call.reject("无法打开外卖登录页。");
-        }
+        } });
     }
 
     @ActivityCallback
     private void browserLoginResult(PluginCall call, ActivityResult result) {
+        try { BrowserSessionSupport.ACCOUNTS.capture(call.getString("accountScope", "")); }
+        catch (RuntimeException error) { String code = BrowserSessionSupport.accountErrorCode(error); call.reject(BrowserSessionSupport.accountErrorMessage(code), code); return; }
+        if (result.getData() != null && result.getData().hasExtra("code")) {
+            String code = result.getData().getStringExtra("code");
+            String message = code != null && code.startsWith("browser_account_")
+                ? BrowserSessionSupport.accountErrorMessage(code) : BrowserSessionSupport.browserErrorMessage(code);
+            call.reject(message, code); return;
+        }
         JSObject out = new JSObject();
         out.put("opened", true);
         call.resolve(out);
@@ -149,6 +175,7 @@ public final class OrderBrowserPlugin extends Plugin {
             call.reject("缺少搜索关键词。");
             return;
         }
+        withAccount(call, binding -> {
         String url = "https://h5.ele.me/minisearch/result?keyword="
             + android.net.Uri.encode(keyword.trim()) + "&from=mobile.default";
         String id = UUID.randomUUID().toString();
@@ -173,11 +200,13 @@ public final class OrderBrowserPlugin extends Plugin {
             intent.putExtra("config", "{}");
             intent.putExtra("title", "搜索：" + keyword.trim());
             intent.putExtra("request_id", id);
+            intent.putExtra(BrowserSessionSupport.REQUEST_TICKET, BrowserSessionSupport.ACCOUNTS.issue(binding));
             getActivity().startActivity(intent);
             searchHandler.postDelayed(timeout, 45_000);
         } catch (Exception error) {
             searchRequests.finish(id, null, "launch_failed");
         }
+        });
     }
 
     @PluginMethod
@@ -227,12 +256,14 @@ public final class OrderBrowserPlugin extends Plugin {
     }
 
     private void startOrderActivity(PluginCall call, String url, String mode, String config, String title) {
-        try {
+        if (call == null) return;
+        withAccount(call, binding -> { try {
             Intent intent = new Intent(getContext(), OrderWebActivity.class);
             intent.putExtra("url", url);
             intent.putExtra("mode", mode);
             intent.putExtra("config", config);
             intent.putExtra("title", title);
+            intent.putExtra(BrowserSessionSupport.REQUEST_TICKET, BrowserSessionSupport.ACCOUNTS.issue(binding));
             if (call != null) {
                 // 必须同任务内启动：带 FLAG_ACTIVITY_NEW_TASK 时
                 // startActivityForResult 会立即返回 RESULT_CANCELED，
@@ -247,11 +278,13 @@ public final class OrderBrowserPlugin extends Plugin {
             if (call != null) {
                 call.reject("外卖页面暂时无法打开。");
             }
-        }
+        } });
     }
 
     @ActivityCallback
     private void orderResult(PluginCall call, ActivityResult result) {
+        try { BrowserSessionSupport.ACCOUNTS.capture(call.getString("accountScope", "")); }
+        catch (RuntimeException error) { String code = BrowserSessionSupport.accountErrorCode(error); call.reject(BrowserSessionSupport.accountErrorMessage(code), code); return; }
         if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
             String resultJson = result.getData().getStringExtra("result");
             try {

@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import React, { StrictMode, act } from "react";
 import TestRenderer from "react-test-renderer";
@@ -155,31 +153,6 @@ try {
   const payload = JSON.parse(JSON.stringify(createSettingsPayload(normalized)));
   assert.equal(normalizeSettingsDraft(payload).unified_system_prompt, longText);
   assert.equal(normalizeSettingsDraft(payload).user_details, longText, "frontend JSON payload preserves the complete strings");
-  const backendPackage = new URL("../../backend/package.json", import.meta.url);
-  if (existsSync(backendPackage)) {
-    const requireBackend = createRequire(backendPackage);
-    const { DEFAULT_SETTINGS, cleanUnifiedSystemPrompt, cleanUserDetails, updateStoredSettings } = requireBackend("./services/settings-store.js");
-    assert.equal(cleanUnifiedSystemPrompt(payload.unified_system_prompt), longText);
-    assert.equal(cleanUserDetails(payload.user_details), longText);
-    let stored = { ...DEFAULT_SETTINGS, id: "synthetic-settings-row" }, writes = 0;
-    const inMemoryDatabase = { from(table) {
-      assert.equal(table, "settings");
-      return {
-        select() { return this; }, order() { return this; }, limit() { return this; },
-        async maybeSingle() { return { data: stored, error: null }; },
-        update(changes) { writes += 1; stored = { ...stored, ...changes }; return this; },
-        eq(column, id) { assert.equal(column, "id"); assert.equal(id, "synthetic-settings-row"); return this; },
-        async single() { return { data: stored, error: null }; },
-      };
-    } };
-    const saved = normalizeSettingsDraft(await updateStoredSettings(inMemoryDatabase, payload));
-    assert.equal(writes, 1);
-    assert.equal(saved.unified_system_prompt, longText);
-    assert.equal(saved.user_details, longText);
-    console.log("Adjacent backend checkout: actual settings save code with an in-memory database also preserved the million-character payload.");
-  } else {
-    console.log("Adjacent backend checkout unavailable: backend-cleaner check skipped; frontend round trip verified.");
-  }
   await unmount();
 
   await act(async () => { tree = TestRenderer.create(React.createElement(StrictMode, null, React.createElement(PersonalizationEditor, { field: "user_details", label: "你的详情", value: "", onChange: (text) => calls.push(text), scopeKey: "strict-scope" }))); });

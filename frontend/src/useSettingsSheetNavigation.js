@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { useBackLayer } from "./useAppBackNavigation.js";
 
 export function useSettingsSheetNavigation({ isOpen, scopeKey, panelRef, onClose }) {
   const liveRef = useRef(null);
   const previousRef = useRef(null);
   const returnFocusRef = useRef(null);
+  useBackLayer(isOpen, () => liveRef.current?.onClose?.(), 200);
 
   useLayoutEffect(() => {
     liveRef.current = { isOpen, scopeKey, onClose };

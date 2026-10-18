@@ -87,4 +87,20 @@ assert.ok(
   "backend wake-up must start before React waits for session restoration",
 );
 
+{
+  let calls = 0, firstSignal;
+  const prewarm = createBackendPrewarmer({
+    baseUrl: "https://backend.example", timeoutMs: 10,
+    fetchImpl(_url, options) {
+      calls++;
+      if (calls === 1) { firstSignal = options.signal; return new Promise(() => {}); }
+      return Promise.resolve({ ok: true, status: 200 });
+    },
+  });
+  assert.equal((await prewarm()).ok, false);
+  assert.equal(firstSignal.aborted, true);
+  assert.equal((await prewarm()).ok, true);
+  assert.equal(calls, 2, "a failed or hung prewarm must not suppress a fresh attempt for 45 seconds");
+}
+
 console.log("backend prewarm tests passed");

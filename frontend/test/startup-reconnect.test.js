@@ -329,4 +329,37 @@ async function flushPromises() {
   controller.stop();
 }
 
+{
+  const timers = createFakeTimers();
+  const stale = deferred();
+  let secondSignal;
+  const controller = createStartupReconnectController({
+    attempt: ({ reason, signal }) => { if (reason === "startup") return stale.promise; secondSignal = signal; return { ok: true }; },
+    setTimeoutFn: timers.setTimeout, clearTimeoutFn: timers.clearTimeout,
+  });
+  const first = controller.start(); await flushPromises();
+  const fresh = controller.retryNow("manual", { replaceInFlight: true });
+  await fresh; await first;
+  stale.resolve({ old: true }); await flushPromises();
+  assert.equal(secondSignal.aborted, false);
+  assert.equal(controller.getState().status, "connected");
+  assert.deepEqual(timers.pendingDelays(), []);
+  controller.stop(); assert.equal(secondSignal.aborted, true);
+}
+
+{
+  const timers = createFakeTimers();
+  let signal;
+  const controller = createStartupReconnectController({
+    attempt: options => { signal = options.signal; return new Promise(() => {}); },
+    setTimeoutFn: timers.setTimeout, clearTimeoutFn: timers.clearTimeout,
+  });
+  const running = controller.start(); await flushPromises();
+  await timers.advanceBy(BACKEND_WAKE_TIMEOUT_MS); await running;
+  assert.equal(signal.aborted, true);
+  assert.equal(controller.getState().status, "waiting");
+  assert.equal(controller.getState().lastError.code, "startup_connection_timeout");
+  controller.stop();
+}
+
 console.log("startup reconnect tests passed");

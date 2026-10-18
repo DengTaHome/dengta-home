@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { settingsServiceErrorDetail } from "./settings-service-errors.js";
+import { apiFetch, apiRequest } from "./api.js";
+import { authSession } from "./auth-session.js";
+import { createScopedSettingsSession, settingsSaveScope } from "./settings-save-scope.js";
+import { filterStickerShelf, importStickerFiles } from "./sticker-shelf.js";
 import { AuthenticatedImage } from "./PrivateMedia";
+import StickerImportSettings, { StickerSource } from "./StickerImportSettings.jsx";
+import XhsStickerImportSettings from "./XhsStickerImportSettings.jsx";
 import {
   archivePrivateMediaAsset,
   patchPrivateMediaAsset,
@@ -30,12 +36,13 @@ function UploadControl({ purpose, label, busy, disabled, onUpload }) {
         <span>{busy ? "上传中…" : `上传${label}`}</span>
         <input
           type="file"
-          accept="image/*"
+          accept={purpose === "custom_sticker" ? "image/jpeg,image/png,image/webp,image/gif" : "image/jpeg,image/png,image/webp"}
+          multiple={purpose === "custom_sticker"}
           disabled={disabled || busy}
           onChange={(event) => {
             const file = event.target.files?.[0];
             setWarning(privateMediaFileWarning(file, purpose));
-            if (file) void onUpload(file);
+            if (file) void onUpload(purpose === "custom_sticker" ? Array.from(event.target.files) : file);
             event.target.value = "";
           }}
         />
@@ -57,6 +64,9 @@ function StickerEditor({ asset, busy, onSave, onArchive, onDelete, onPreview }) 
         src={privateMediaContentPath(asset.id)}
         alt={asset.alt_text || asset.display_name || "自定义表情"}
         className="media-sticker-preview"
+        animationControls
+        width={asset.width}
+        height={asset.height}
         buttonClassName="media-preview-button"
         onPreview={onPreview}
       />
@@ -121,6 +131,7 @@ function StickerEditor({ asset, busy, onSave, onArchive, onDelete, onPreview }) 
           删除
         </button>
       </div>
+      <StickerSource assetId={asset.id} />
     </article>
   );
 }
@@ -136,25 +147,47 @@ export default function MediaSettings({
   const normalized = useMemo(() => normalizePrivateMediaCatalog(catalog), [catalog]);
   const [busy, setBusy] = useState("");
   const [localError, setLocalError] = useState("");
+  const [stickerQuery, setStickerQuery] = useState("");
+  const [importResults, setImportResults] = useState([]);
   const operation = useRef(null);
   const mounted = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; operation.current = null; };
+    const unsubscribe = authSession.subscribe?.(() => {
+      if (operation.current && settingsSaveScope(authSession.getSnapshot()) !== operation.current.scope) {
+        operation.current.controller.abort(); operation.current = null;
+      }
+    });
+    return () => { mounted.current = false; operation.current?.controller.abort(); operation.current = null; unsubscribe?.(); };
   }, []);
 
   async function perform(key, action) {
     if (!mounted.current || operation.current || loading) return;
-    const request = {};
+    const request = { scope: settingsSaveScope(authSession.getSnapshot()), controller: new AbortController() };
     operation.current = request;
-    const isCurrent = () => mounted.current && operation.current === request;
+    const isCurrent = () => mounted.current && operation.current === request &&
+      !request.controller.signal.aborted && settingsSaveScope(authSession.getSnapshot()) === request.scope;
+    const options = { signal: request.controller.signal,
+      authSession: createScopedSettingsSession(authSession, request.scope, request.controller.signal) };
+    let confirmed = 0;
+    const client = {
+      apiFetch: (path, init) => apiFetch(path, { ...init, ...options }),
+      apiRequest: (path, init) => apiRequest(path, { ...init, ...options }),
+      isCurrent,
+      onConfirmed: () => { confirmed++; },
+    };
     let submitted = false;
     setBusy(key);
     setLocalError("");
     try {
-      await action();
+      await action(client);
       submitted = true;
+      if (!isCurrent()) {
+        // The parent catalog refresh has its own scope guard and may outlive this sheet.
+        if (settingsSaveScope(authSession.getSnapshot()) === request.scope) await onRefresh?.();
+        return;
+      }
       if (key.startsWith('delete:') || key.startsWith('archive:')) {
         const id = key.slice(key.indexOf(':') + 1);
         onCatalogChange?.(current => {
@@ -170,20 +203,30 @@ export default function MediaSettings({
       if (!fresh) setLocalError("图片操作已提交，但目录暂时无法刷新。请点击刷新确认结果，请勿重复上传或删除。（Code: private_media_refresh_failed）");
     } catch (caught) {
       if (isCurrent()) setLocalError((submitted ? "图片操作已提交，目录刷新失败，请先点击刷新确认结果。" : "") + settingsServiceErrorDetail(caught, "私密媒体操作失败，请稍后重试。"));
+      else if (confirmed > 0 && settingsSaveScope(authSession.getSnapshot()) === request.scope) {
+        // A cancelled batch may already have confirmed files; only reconcile its original parent scope.
+        await Promise.resolve().then(() => onRefresh?.()).catch(() => {});
+      }
     } finally {
       if (isCurrent()) { operation.current = null; setBusy(""); }
     }
   }
 
   function upload(purpose, file) {
-    return perform(`upload:${purpose}`, () =>
-      uploadPrivateMediaAsset({ image: file, purpose }),
+    return perform(`upload:${purpose}`, async (client) => {
+      if (purpose !== "custom_sticker") return uploadPrivateMediaAsset({ image: file, purpose }, client);
+      const results = await importStickerFiles(Array.isArray(file) ? file : [file], {
+        upload: values => uploadPrivateMediaAsset(values, client), isCurrent: client.isCurrent,
+        onConfirmed: client.onConfirmed,
+      });
+      if (client.isCurrent()) setImportResults(results);
+    },
     );
   }
 
   function choose(purpose, id) {
-    return perform(`preference:${purpose}`, () =>
-      updatePrivateMediaPreferences({ [preferenceKey(purpose)]: id || null }),
+    return perform(`preference:${purpose}`, (client) =>
+      updatePrivateMediaPreferences({ [preferenceKey(purpose)]: id || null }, client),
     );
   }
 
@@ -195,7 +238,7 @@ export default function MediaSettings({
     }
   }
 
-  const stickers = normalized.assets.filter((asset) => asset.purpose === "custom_sticker");
+  const stickers = filterStickerShelf(normalized.assets, stickerQuery);
   const feedback = localError || error;
 
   return (
@@ -264,11 +307,11 @@ export default function MediaSettings({
                               if (nextName === null) return;
                               const nextAlt = window.prompt("替代文字（可留空）：", asset.alt_text || "");
                               if (nextAlt === null) return;
-                              void perform(`patch:${asset.id}`, () =>
+                              void perform(`patch:${asset.id}`, (client) =>
                                 patchPrivateMediaAsset(asset.id, {
                                   display_name: nextName.trim(),
                                   alt_text: nextAlt.trim(),
-                                }),
+                                }, client),
                               );
                             }}
                           >
@@ -280,7 +323,7 @@ export default function MediaSettings({
                             disabled={loading || Boolean(busy)}
                             onClick={() => {
                               if (!window.confirm(`确认删除此${label}？删除后不可恢复。`)) return;
-                              void perform(`delete:${asset.id}`, () => archivePrivateMediaAsset(asset.id, true));
+                              void perform(`delete:${asset.id}`, (client) => archivePrivateMediaAsset(asset.id, true, client));
                             }}
                           >
                             删除
@@ -313,9 +356,16 @@ export default function MediaSettings({
 
       <section className="media-sticker-section" aria-labelledby="media-stickers-title">
         <div className="media-purpose-heading">
-          <div><h4 id="media-stickers-title">自定义表情包</h4><small>名称与替代文字仅用于显示，不在前端做内容词过滤。</small></div>
+          <div><h4 id="media-stickers-title">表情包架</h4><small>可批量上传 JPG、PNG、WebP 和 GIF，保留表情动画。填写描述和心情，方便伴侣挑选；动图可暂停，单张不超过 12MB、240 帧。</small></div>
           <UploadControl purpose="custom_sticker" label="表情" busy={busy === "upload:custom_sticker"} disabled={loading || Boolean(busy)} onUpload={(file) => upload("custom_sticker", file)} />
         </div>
+        <StickerImportSettings onRefresh={onRefresh} />
+        <XhsStickerImportSettings onRefresh={onRefresh} />
+        <label>搜索表情包<input type="search" value={stickerQuery} placeholder="名称、描述或心情" onChange={event => setStickerQuery(event.target.value)} /></label>
+        {importResults.length > 0 && <div role="status" className="media-import-results">
+          <p>已确认上传 {importResults.filter(item => item.ok).length} / {importResults.length} 张。失败项目不会自动重传。</p>
+          {importResults.some(item => !item.ok) && <ul>{importResults.filter(item => !item.ok).map((item, index) => <li key={index}>{item.name}：{item.message}（{item.code}）</li>)}</ul>}
+        </div>}
         {stickers.length ? (
           <div className="media-sticker-list">
             {stickers.map((asset) => (
@@ -324,13 +374,13 @@ export default function MediaSettings({
                 asset={asset}
                 busy={loading || Boolean(busy)}
                 onPreview={onPreview}
-                onSave={(id, changes) => perform(`patch:${id}`, () => patchPrivateMediaAsset(id, changes))}
-                onArchive={(id) => perform(`archive:${id}`, () => archivePrivateMediaAsset(id))}
-                onDelete={(id) => perform(`delete:${id}`, () => archivePrivateMediaAsset(id, true))}
+                onSave={(id, changes) => perform(`patch:${id}`, (client) => patchPrivateMediaAsset(id, changes, client))}
+                onArchive={(id) => perform(`archive:${id}`, (client) => archivePrivateMediaAsset(id, false, client))}
+                onDelete={(id) => perform(`delete:${id}`, (client) => archivePrivateMediaAsset(id, true, client))}
               />
             ))}
           </div>
-        ) : <p className="media-empty-state">还没有自定义表情，上传后可编辑显示文字与心情标签。</p>}
+        ) : <p className="media-empty-state">{stickerQuery ? "没有匹配的表情，试试其他名称或心情。" : "还没有自定义表情，上传后可编辑显示文字与心情标签。"}</p>}
       </section>
     </section>
   );

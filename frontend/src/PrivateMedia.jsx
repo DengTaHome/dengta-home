@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { usePrivateMediaSource } from "./use-private-media";
+import AnimatedPrivateImage from "./AnimatedPrivateImage.jsx";
 
-export function AuthenticatedImage({
+export function AuthenticatedImage(props) {
+  return props.animationControls ? <AnimatedPrivateImage {...props} /> : <StillImage {...props} />;
+}
+
+function StillImage({
   src,
   alt = "",
   className,

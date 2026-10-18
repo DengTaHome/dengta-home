@@ -6,6 +6,10 @@ function createXhsRouter(services = {}) {
     const client = services.client || createXhsClient();
     const database = services.database || null;
     const router = express.Router();
+    function scopedClient(scope) {
+        if (typeof client.forScope !== "function") throw Object.assign(new Error("小红书服务需要更新账号隔离支持，未使用共享登录态。"), { status: 503, code: "xhs_session_isolation_required" });
+        return client.forScope(scope);
+    }
     router.use((req, res, next) => {
         res.set("Cache-Control", "private, no-store");
         try {
@@ -37,6 +41,7 @@ function createXhsRouter(services = {}) {
         await saveConnection(scope, {
             status: cookiePresent ? "active" : "expired",
             cookie_present: cookiePresent,
+            ...(cookiePresent ? {} : { cookie_ciphertext: null }),
             logged_in_at: cookiePresent ? new Date().toISOString() : null,
             updated_at: new Date().toISOString()
         });
@@ -45,7 +50,7 @@ function createXhsRouter(services = {}) {
     router.post("/login/start", async (req, res, next) => {
         try {
             const scope = requireRequestScope(req);
-            const started = await client.loginStart();
+            const started = await scopedClient(scope).loginStart();
             res.json({ login: started, note: "请用小红书 App 扫码;写操作前我们会先征得你的同意。" });
         } catch (error) { next(error); }
     });
@@ -62,13 +67,16 @@ function createXhsRouter(services = {}) {
                 error.code = "xhs_cookie_required";
                 return next(error);
             }
-            let stored = false;
             if (client.configured()) {
                 try {
-                    const result = await client.setCookie(cookie);
-                    stored = true;
-                    await touchConnection(scope, true);
-                    return res.json({ ok: true, mode: "service", ...(result || {}) });
+                    await scopedClient(scope).setCookie(cookie);
+                    const { encryptCredential, hasCredentialEncryption } = require("../../services/mcp-device-center");
+                    if (hasCredentialEncryption(process.env)) await saveConnection(scope, {
+                        status: "active", cookie_present: true, cookie_ciphertext: encryptCredential(cookie, process.env),
+                        logged_in_at: new Date().toISOString(), updated_at: new Date().toISOString()
+                    });
+                    else await touchConnection(scope, true);
+                    return res.json({ ok: true, mode: "service" });
                 } catch (serviceError) {
                     if (serviceError?.code !== "xhs_service_unconfigured") {
                         throw serviceError;
@@ -93,7 +101,7 @@ function createXhsRouter(services = {}) {
     router.get("/login/status", async (req, res, next) => {
         try {
             const scope = requireRequestScope(req);
-            const status = await client.loginStatus(String(req.query.session || ""));
+            const status = await scopedClient(scope).loginStatus(String(req.query.session || ""));
             if (status.status === "done") await touchConnection(scope, true);
             res.json({ status });
         } catch (error) { next(error); }
@@ -102,7 +110,7 @@ function createXhsRouter(services = {}) {
     router.get("/me", async (req, res, next) => {
         try {
             const scope = requireRequestScope(req);
-            const me = await client.me();
+            const me = await scopedClient(scope).me();
             await touchConnection(scope, true);
             res.json({ me });
         } catch (error) {
@@ -120,7 +128,7 @@ function createXhsRouter(services = {}) {
     router.delete("/logout", async (req, res, next) => {
         try {
             const scope = requireRequestScope(req);
-            await client.logout();
+            await scopedClient(scope).logout();
             await touchConnection(scope, false);
             res.json({ ok: true, message: "已退出小红书登录。" });
         } catch (error) { next(error); }
@@ -128,7 +136,7 @@ function createXhsRouter(services = {}) {
 
     router.get("/search", async (req, res, next) => {
         try {
-            const result = await client.search(
+            const result = await scopedClient(requireRequestScope(req)).search(
                 String(req.query.keyword || ""),
                 Number(req.query.page) || 1,
                 String(req.query.sort || "1")
@@ -139,7 +147,7 @@ function createXhsRouter(services = {}) {
 
     router.get("/notes/:id/comments", async (req, res, next) => {
         try {
-            const result = await client.comments(String(req.params.id || ""));
+            const result = await scopedClient(requireRequestScope(req)).comments(String(req.params.id || ""));
             res.json({ result });
         } catch (error) { next(error); }
     });
@@ -153,7 +161,7 @@ function createXhsRouter(services = {}) {
                 error.code = "xhs_note_id_required";
                 return next(error);
             }
-            res.json({ result: await client.like(id) });
+            res.json({ result: await scopedClient(requireRequestScope(req)).like(id) });
         } catch (error) { next(error); }
     });
 
@@ -167,7 +175,7 @@ function createXhsRouter(services = {}) {
                 error.code = "xhs_comment_args_required";
                 return next(error);
             }
-            res.json({ result: await client.comment(id, content) });
+            res.json({ result: await scopedClient(requireRequestScope(req)).comment(id, content) });
         } catch (error) { next(error); }
     });
 
@@ -180,10 +188,14 @@ function createXhsRouter(services = {}) {
                 error.code = "xhs_user_id_required";
                 return next(error);
             }
-            res.json({ result: await client.follow(uid) });
+            res.json({ result: await scopedClient(requireRequestScope(req)).follow(uid) });
         } catch (error) { next(error); }
     });
 
+    router.use((error, _req, _res, next) => {
+        if (error?.code === "cookie_expired") error.status = 409;
+        next(error);
+    });
     return router;
 }
 

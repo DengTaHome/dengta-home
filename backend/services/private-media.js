@@ -6,7 +6,8 @@ const MAX_PRIVATE_MEDIA_BYTES = 12 * 1024 * 1024;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PURPOSES = new Set(["user_avatar", "companion_avatar", "chat_background", "custom_sticker", "knowledge_file"]);
 const PREFERENCE_PURPOSES = new Set(["user_avatar", "companion_avatar", "chat_background"]);
-const INPUT_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const INPUT_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const STICKER_ANIMATION_LIMITS = Object.freeze({ frames: 240, pixels: 40_000_000, seconds: 15 });
 const KNOWLEDGE_MIME_TYPES = new Set(["text/plain", "text/markdown", "text/x-markdown", "application/markdown", "text/octet-stream", "application/octet-stream"]);
 const MAX_KNOWLEDGE_FILE_BYTES = 512 * 1024;
 const LIMITS = Object.freeze({
@@ -72,29 +73,50 @@ async function normalizeImage(file, purpose) {
     }
     const reportedMime = String(file.mimetype || "").split(";", 1)[0].toLowerCase();
     if (!INPUT_MIME_TYPES.has(reportedMime)) {
-        throw mediaError(415, "private_media_type_unsupported", "仅支持 JPEG、PNG 或 WebP 静态图片。");
+        throw mediaError(415, "private_media_type_unsupported", "支持 JPEG、PNG、WebP；GIF 仅用于表情包。");
     }
     const limit = LIMITS[purpose];
     try {
-        const input = sharp(file.buffer, { animated: true, limitInputPixels: limit.pixels, failOn: "warning" });
-        const metadata = await input.metadata();
-        if (!['jpeg', 'png', 'webp'].includes(metadata.format) || Number(metadata.pages || 1) !== 1) {
+        // Inspect a single frame before allocating the complete animation's pixel stack.
+        const metadata = await sharp(file.buffer, { limitInputPixels: limit.pixels, failOn: "warning" }).metadata();
+        const pages = Number(metadata.pages || 1);
+        const animated = pages > 1;
+        if (!['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)) {
+            throw mediaError(415, "private_media_type_unsupported", "图片真实格式不受支持。");
+        }
+        if (purpose !== "custom_sticker" && (animated || metadata.format === "gif")) {
             throw mediaError(415, "private_media_not_static", "仅支持 JPEG、PNG 或 WebP 静态图片。");
         }
         const expectedMime = `image/${metadata.format === "jpeg" ? "jpeg" : metadata.format}`;
         if (reportedMime !== expectedMime) {
             throw mediaError(415, "private_media_type_mismatch", "声明类型与真实图片格式不一致。");
         }
-        const buffer = await input.rotate().resize({
+        if (animated && (pages > STICKER_ANIMATION_LIMITS.frames ||
+            metadata.width * metadata.height * pages > STICKER_ANIMATION_LIMITS.pixels)) {
+            throw mediaError(413, "private_media_animation_too_complex", "动图帧数或累计像素过大；请缩小尺寸或精简到 240 帧以内再上传。");
+        }
+        const input = sharp(file.buffer, {
+            animated,
+            limitInputPixels: animated ? STICKER_ANIMATION_LIMITS.pixels : limit.pixels,
+            failOn: "warning"
+        });
+        const buffer = await (animated ? input : input.rotate()).resize({
             width: limit.width,
             height: limit.height,
             fit: limit.fit,
             withoutEnlargement: true
-        }).webp({ quality: 86, effort: 4 }).toBuffer();
+        }).webp({ quality: 86, effort: animated ? 3 : 4 })
+            .timeout({ seconds: STICKER_ANIMATION_LIMITS.seconds }).toBuffer();
+        if (buffer.length > MAX_PRIVATE_MEDIA_BYTES) {
+            throw mediaError(413, "private_media_too_large", "转换后的表情超过 12MB，请缩小尺寸或减少帧数。");
+        }
         const output = await sharp(buffer).metadata();
         return { buffer, mimeType: "image/webp", width: output.width, height: output.height };
     } catch (error) {
         if (error?.status) throw error;
+        if (/timeout|timed out/i.test(error?.message || "")) {
+            throw mediaError(422, "private_media_processing_timeout", "图片处理超时，请缩小动图后再上传。");
+        }
         throw mediaError(415, "private_media_decode_failed", "图片无法安全解码或像素尺寸过大。");
     }
 }
@@ -124,13 +146,16 @@ function assetCompanionId(scope, purpose) {
     return purpose === "user_avatar" ? null : scope.companionId;
 }
 
-async function uploadAsset({ scope, storage, file, purpose: rawPurpose, metadata = {} }) {
+async function uploadAsset({ scope, storage, file, purpose: rawPurpose, metadata = {}, stableAssetId }) {
     const purpose = assertPurpose(rawPurpose);
+    if (stableAssetId !== undefined && !UUID_PATTERN.test(stableAssetId)) {
+        throw mediaError(400, "private_media_id_invalid", "媒体编号不正确。");
+    }
     const isKnowledge = purpose === "knowledge_file";
     const normalized = isKnowledge
         ? await normalizeKnowledgeFile(file)
         : await normalizeImage(file, purpose);
-    const id = randomUUID();
+    const id = stableAssetId || randomUUID();
     const extension = isKnowledge
         ? (normalized.mimeType === "text/markdown" ? "md" : "txt")
         : "webp";
@@ -164,6 +189,11 @@ async function uploadAsset({ scope, storage, file, purpose: rawPurpose, metadata
         return publicAsset(result.data);
     } catch (error) {
         await bucket.remove([storagePath]).catch(() => undefined);
+        // Concurrent imports share a receipt ID; retain the winner and remove only our object.
+        if (stableAssetId && error?.code === "23505") {
+            const existing = await findScopedAsset(scope, id, { includeArchived: false });
+            if (existing.purpose === purpose) return publicAsset(existing);
+        }
         throw error;
     }
 }
@@ -257,11 +287,20 @@ async function archiveAsset(scope, id) {
     return publicAsset(result.data);
 }
 
-async function downloadAsset(scope, storage, id) {
+async function downloadAsset(scope, storage, id, { poster = false } = {}) {
     const asset = await findScopedAsset(scope, id, { includeArchived: true });
     const result = await storage.from(asset.storage_bucket).download(asset.storage_path);
     if (result.error) throw mediaError(502, "private_media_download_failed", "媒体暂时无法读取。");
     const buffer = Buffer.isBuffer(result.data) ? result.data : Buffer.from(await result.data.arrayBuffer());
+    if (poster && asset.purpose === "custom_sticker") {
+        try {
+            const still = await sharp(buffer, { pages: 1, limitInputPixels: LIMITS.custom_sticker.pixels, failOn: "warning" })
+                .webp({ quality: 86, effort: 2 }).timeout({ seconds: 5 }).toBuffer();
+            return { buffer: still, mimeType: "image/webp" };
+        } catch {
+            throw mediaError(415, "private_media_poster_failed", "动图静态预览暂时无法读取，请重新打开重试。");
+        }
+    }
     return { buffer, mimeType: asset.mime_type };
 }
 
@@ -269,6 +308,8 @@ async function listActiveCustomStickers(scope, limit = 48) {
     const rows = await scopedAssets(scope, { status: "active" });
     return rows.filter((row) => row.purpose === "custom_sticker").slice(0, Math.min(48, limit)).map((row) => ({
         id: row.id,
+        display_name: cleanText(row.display_name, 120),
+        alt_text: cleanText(row.alt_text, 500),
         mood_tags: normalizeMoodTags(row.mood_tags)
     }));
 }
@@ -317,6 +358,7 @@ async function deleteAssetPermanently(scope, storage, id) {
 
 module.exports = {
     MAX_PRIVATE_MEDIA_BYTES,
+    STICKER_ANIMATION_LIMITS,
     PRIVATE_MEDIA_BUCKET,
     archiveAsset,
     catalog,

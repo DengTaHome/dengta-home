@@ -26,7 +26,7 @@ function uploadOne(req, res, next) {
     });
 }
 
-function createPrivateMediaRouter({ storage, service = {} } = {}) {
+function createPrivateMediaRouter({ storage, service = {}, stickerImports = null, xhsStickerImports = null, xhsClient = null } = {}) {
     if (!storage || typeof storage.from !== "function") throw new Error("private media router requires storage");
     const operations = { uploadAsset, catalog, setPreference, updateAsset, archiveAsset, deleteAssetPermanently, downloadAsset, ...service };
     const router = express.Router();
@@ -48,6 +48,46 @@ function createPrivateMediaRouter({ storage, service = {} } = {}) {
             res.status(201).json({ ok: true, asset });
         } catch (error) { next(error); }
     });
+    if (stickerImports) {
+        router.get("/sticker-import/preferences", async (req, res, next) => {
+            try { res.json({ ok: true, ...await stickerImports.preferences(requireRequestScope(req)) }); } catch (error) { next(error); }
+        });
+        router.put("/sticker-import/preferences", async (req, res, next) => {
+            try { res.json({ ok: true, ...await stickerImports.savePreferences(requireRequestScope(req), req.body) }); } catch (error) { next(error); }
+        });
+        router.post("/sticker-import/bilibili", async (req, res, next) => {
+            try { res.status(201).json({ ok: true, ...await stickerImports.importBilibili(requireRequestScope(req), req.body) }); } catch (error) { next(error); }
+        });
+    }
+    if (xhsStickerImports) {
+        router.get("/sticker-import/xhs/preferences", async (req, res, next) => {
+            try { res.json({ ok: true, ...await xhsStickerImports.preferences(requireRequestScope(req)) }); } catch (error) { next(error); }
+        });
+        router.put("/sticker-import/xhs/preferences", async (req, res, next) => {
+            try { res.json({ ok: true, ...await xhsStickerImports.savePreferences(requireRequestScope(req), req.body) }); } catch (error) { next(error); }
+        });
+        router.get("/sticker-import/xhs/search", async (req, res, next) => {
+            try {
+                const scope = requireRequestScope(req);
+                if (typeof xhsClient?.forScope !== "function") throw Object.assign(new Error("小红书独立服务尚未配置。"), { status: 503, code: "xhs_service_unconfigured" });
+                const result = await xhsClient.forScope(scope).search(String(req.query.keyword || ""));
+                res.json({ ok: true, result });
+            } catch (error) { next(error); }
+        });
+        router.post("/sticker-import/xhs", async (req, res, next) => {
+            try { res.status(201).json({ ok: true, ...await xhsStickerImports.importXhs(requireRequestScope(req), req.body) }); } catch (error) { next(error); }
+        });
+    }
+    if (stickerImports || xhsStickerImports) router.get("/assets/:id/source", async (req, res, next) => {
+        try {
+            const scope = requireRequestScope(req);
+            const readers = [stickerImports, xhsStickerImports].filter(Boolean);
+            for (const [index, reader] of readers.entries()) {
+                try { return res.json({ ok: true, source: await reader.readSource(scope, req.params.id) }); }
+                catch (error) { if (error?.code !== "sticker_import_source_not_found" || index === readers.length - 1) throw error; }
+            }
+        } catch (error) { next(error); }
+    });
     router.put("/preferences", async (req, res, next) => {
         try { res.json({ ok: true, preference: await operations.setPreference(requireRequestScope(req), req.body?.purpose, req.body?.asset_id) }); } catch (error) { next(error); }
     });
@@ -65,7 +105,7 @@ function createPrivateMediaRouter({ storage, service = {} } = {}) {
     });
     router.get("/assets/:id/content", async (req, res, next) => {
         try {
-            const content = await operations.downloadAsset(requireRequestScope(req), storage, req.params.id);
+            const content = await operations.downloadAsset(requireRequestScope(req), storage, req.params.id, { poster: req.query.poster === "1" });
             res.set("Content-Type", content.mimeType);
             res.set("Content-Length", String(content.buffer.length));
             res.send(content.buffer);

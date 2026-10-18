@@ -1,0 +1,45 @@
+.xhs-login-panel {
+  font-family: var(--apple-ff-text, system-ui, sans-serif);
+}
+
+.xhs-login-panel .device-activity-heading strong {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.xhs-login-panel .device-activity-heading span,
+.notification-feature-panel.xhs-login-panel small {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.notification-feature-panel.xhs-login-panel p {
+  font-size: 14px;
+  line-height: 1.7;
+  font-family: inherit;
+}
+
+.xhs-login-panel .device-activity-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.xhs-login-panel .device-activity-actions button {
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  border-radius: 14px;
+  white-space: normal;
+}
+
+.xhs-login-panel .notification-feature-feedback {
+  overflow-wrap: anywhere;
+}
+
+.xhs-login-panel .xhs-qr-wrap img {
+  width: min(100%, 240px);
+  height: auto;
+}

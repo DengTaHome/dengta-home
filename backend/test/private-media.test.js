@@ -123,11 +123,14 @@ async function main() {
     assert.equal((await media.listActiveCustomStickers(scopeA)).length, 0);
     assert.equal((await media.downloadAsset(scopeA, bucket, sticker.id)).buffer.length > 0, true, "归档内容仍可读取");
 
-    const active = await media.uploadAsset({ scope: scopeA, storage: bucket, file: { buffer: png, mimetype: "image/png" }, purpose: "custom_sticker", metadata: { mood_tags: ["cheer"] } });
+    const active = await media.uploadAsset({ scope: scopeA, storage: bucket, file: { buffer: png, mimetype: "image/png" }, purpose: "custom_sticker", metadata: { display_name: "虚构招手", alt_text: "虚构贴图正在招手", mood_tags: ["cheer"] } });
     const candidates = await media.listActiveCustomStickers(scopeA);
+    assert.equal(candidates[0].display_name, active.display_name);
+    assert.equal(candidates[0].alt_text, active.alt_text);
     const tool = stickers.createCompanionStickerTool(candidates);
     assert.deepEqual(tool.input_schema.properties.custom_sticker_id.enum, [active.id]);
     assert.match(tool.description, /cheer/);
+    assert.match(tool.description, /虚构招手|虚构贴图正在招手/);
     assert.doesNotMatch(tool.description, /新名称|私密名称|path|url/);
     assert.equal(stickers.parseCompanionStickerToolArguments({ custom_sticker_id: sticker.id }, candidates).ok, false);
     const selector = stickers.createCompanionStickerSelector(candidates);

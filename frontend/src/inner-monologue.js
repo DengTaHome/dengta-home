@@ -26,6 +26,15 @@ function storageKey(accountScope = "") {
 
 const MAX_RECORDS = 120;
 const MAX_TEXT_LENGTH = 12_000;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isPersistedMessageId(value) {
+  if (typeof value === "number" && !Number.isSafeInteger(value)) return false;
+  const id = String(value || "");
+  return UUID_PATTERN.test(id) ||
+    (/^[1-9]\d{0,18}$/.test(id) && BigInt(id) <= 9223372036854775807n);
+}
 
 function removeControlCharacters(value) {
   return Array.from(String(value || ""))
@@ -49,7 +58,19 @@ function normalizeRecord(value) {
   const createdAt = Number.isFinite(Date.parse(value.createdAt))
     ? new Date(value.createdAt).toISOString()
     : new Date().toISOString();
-  return { text, createdAt };
+  return {
+    text,
+    createdAt,
+    ...(value.source === VISIBLE_MONOLOGUE_SOURCE
+      ? { source: VISIBLE_MONOLOGUE_SOURCE }
+      : {}),
+    ...(typeof value.generated_with_reply === "boolean"
+      ? { generated_with_reply: value.generated_with_reply }
+      : {}),
+    ...(VISIBLE_MONOLOGUE_STATES.has(value.state)
+      ? { state: value.state }
+      : {}),
+  };
 }
 
 export function readInnerMonologues(
@@ -79,13 +100,14 @@ export function readInnerMonologues(
 }
 
 export function storeInnerMonologue(
-  { messageId, text, createdAt = new Date().toISOString() },
+  { messageId, text, createdAt = new Date().toISOString(), source, generated_with_reply, state },
   storage = globalThis.localStorage,
   accountScope = "",
+  onStorageFailure,
 ) {
   const id = cleanText(messageId, 80);
-  const record = normalizeRecord({ text, createdAt });
-  if (!storage || !id || !record) {
+  const record = normalizeRecord({ text, createdAt, source, generated_with_reply, state });
+  if (!id || !record) {
     return readInnerMonologues(storage, accountScope);
   }
   const current = readInnerMonologues(storage, accountScope);
@@ -93,9 +115,12 @@ export function storeInnerMonologue(
     [...Object.entries(current), [id, record]].slice(-MAX_RECORDS),
   );
   try {
-    storage.setItem(storageKey(accountScope), JSON.stringify(next));
+    const serialized = JSON.stringify(next);
+    storage.setItem(storageKey(accountScope), serialized);
+    if (storage.getItem(storageKey(accountScope)) !== serialized) onStorageFailure?.();
   } catch {
     // The generated text remains visible for this app session.
+    onStorageFailure?.();
   }
   return next;
 }
@@ -103,6 +128,18 @@ export function storeInnerMonologue(
 export function innerMonologueForMessage(records, messageId) {
   const value = records?.[String(messageId || "")];
   return normalizeRecord(value);
+}
+
+export function removeStoredInnerMonologue(messageId, storage = globalThis.localStorage, accountScope = "") {
+  const current = readInnerMonologues(storage, accountScope);
+  const id = String(messageId || "");
+  if (!Object.hasOwn(current, id)) return;
+  delete current[id];
+  try {
+    storage?.setItem(storageKey(accountScope), JSON.stringify(current));
+  } catch {
+    // In-memory state is cleared independently when storage is unavailable.
+  }
 }
 
 function normalizeVisibleMonologue(value) {
@@ -194,8 +231,10 @@ export function isSynchronizedVisibleMonologue(value) {
 }
 
 export function canRequestVisibleMonologue(message = {}, monologue = visibleMonologueForMessage(message)) {
-  if (message.chatError || message.isStreaming || message.generationInProgress || (message.role && message.role !== "assistant") || message.tool_calls?.refusal_detected) return false;
-  return !monologue || (TERMINAL_VISIBLE_MONOLOGUE_STATES.has(monologue.state) && !String(monologue.text || "").trim());
+  if (message.isStreaming || message.generationInProgress || (message.role && message.role !== "assistant") || message.tool_calls?.refusal_detected) return false;
+  if (message.chatError && !isPersistedMessageId(message.monologueUserMessageId)) return false;
+  return !monologue || ["missing", "failed", "truncated"].includes(monologue.state) ||
+    (monologue.state === "complete" && !String(monologue.text || "").trim());
 }
 
 function settleCurrentVisibleSegment(value = {}) {

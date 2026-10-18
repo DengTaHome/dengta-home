@@ -155,7 +155,7 @@ assert.doesNotMatch(bridge, /cc-switch\.db/);
 assert.match(app, /<AiProviderCenter(?:\s+onStatusChange=\{setProviderStatus\})? \/>/);
 assert.match(app, /function openProviderRecovery\(\)/);
 assert.match(app, /setSettingsCategory\("services"\)/);
-assert.match(app, /修复聊天接口 \/ Fix chat API/);
+assert.match(app, /onClick=\{retryStartupConnection\}/);
 assert.doesNotMatch(app, /旧版单接口（兼容保留）/);
 assert.doesNotMatch(app, /draftSettings\.api_url/);
 assert.doesNotMatch(app, /draftSettings\.model/);

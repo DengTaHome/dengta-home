@@ -44,6 +44,11 @@ import java.util.Random;
  */
 public class OrderWebActivity extends Activity {
     private WebView webView;
+    private CookieManager accountCookies;
+    private BrowserAccountScope.Binding accountBinding;
+    private final Runnable accountChanged = () -> {
+        if (!BrowserSessionSupport.ACCOUNTS.isCurrent(accountBinding) && !isFinishing() && !isDestroyed()) showTechnicalError("browser_account_changed");
+    };
     private String mode;
     private String requestId = "";
     private TextView operationStatus;
@@ -56,6 +61,7 @@ public class OrderWebActivity extends Activity {
     private String currentUrl = "";
     private int searchRetries = 0;
     private boolean enterTickPending = false;
+    private long pageGeneration = 0;
     // 帖子 11 节「钱的闸」+ 14 节「截图」：
     // maxAmount<=0 表示未设上限（不拦）；quiet 表示加购完自动收手（不等人点「完成后点这里返回」）。
     private double maxAmount = -1.0;
@@ -69,11 +75,11 @@ public class OrderWebActivity extends Activity {
     // 必须 postDelayed 而非 Thread.sleep：evaluateJavascript 回调跑在主线程，sleep 会冻住 UI。
     private void slow(Runnable next) {
         if (!canAutomate()) return;
-        webView.postDelayed(() -> { if (canAutomate()) next.run(); }, 1500 + random.nextInt(2701));
+        postOnPage(webView, () -> { if (canAutomate()) next.run(); }, 1500 + random.nextInt(2701));
     }
     private void postSlow(Runnable r) {
         if (!canAutomate()) return;
-        webView.postDelayed(() -> { if (canAutomate()) r.run(); }, 1500 + random.nextInt(2701));
+        postOnPage(webView, () -> { if (canAutomate()) r.run(); }, 1500 + random.nextInt(2701));
     }
 
     // 坑 8 / 30：真触摸打坐标——构造 DOWN/UP 触摸序列注入 WebView。
@@ -86,7 +92,7 @@ public class OrderWebActivity extends Activity {
                 downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0);
             webView.dispatchTouchEvent(down);
             down.recycle();
-            webView.postDelayed(() -> {
+            postOnPage(webView, () -> {
                 if (!canAutomate()) return;
                 try {
                     long upTime = SystemClock.uptimeMillis();
@@ -105,30 +111,39 @@ public class OrderWebActivity extends Activity {
     // js 里打标记后用这一个函数做点击。
     private void tapMarked(final String selector) {
         if (!canAutomate()) return;
+        final WebView targetView = webView;
+        final long generation = pageGeneration;
         String js = "(function(){"
             + "function inView(e){if(!e)return null;var r=e.getBoundingClientRect();"
             + "if(r.width<2||r.height<2)return null;return r;}"
-            + "var el=document.querySelector('" + selector + "');"
+            + "var el=document.querySelector(" + JSONObject.quote(selector) + ");"
             + "if(!el)return null;"
             + "var r=inView(el);if(!r)return null;"
-            + "// 坑45：中央被飘带/角标压住就九宫格换点"
+            + "var width=window.innerWidth,height=window.innerHeight;"
+            + "function point(x,y){if(!isFinite(x)||!isFinite(y)||!isFinite(width)||!isFinite(height)||width<=0||height<=0||x<0||y<0||x>=width||y>=height)return null;"
+            + "return {x:x,y:y,viewportWidth:width,viewportHeight:height};}"
+            + "/* 坑45：中央被飘带/角标压住就九宫格换点 */"
             + "var cx=r.x+r.width/2,cy=r.y+r.height/2;"
             + "var offs=[[0,0],[-0.35,-0.35],[0.35,-0.35],[-0.35,0.35],[0.35,0.35],[0,-0.4],[0,0.4],[-0.4,0],[0.4,0]];"
             + "for(var i=0;i<offs.length;i++){"
             + "var x=r.x+r.width*(0.5+offs[i][0]);var y=r.y+r.height*(0.5+offs[i][1]);"
             + "if(x<0||y<0)continue;"
             + "var top=document.elementFromPoint(x,y);"
-            + "var hit=(top===el)||(el.contains(top))||(top&&(top.getAttribute&&top.getAttribute('data-dengta-any')));"
-            + "if(hit){return {x:x,y:y};}"
+            + "var hit=(top===el)||(el.contains(top));"
+            + "if(hit){var p=point(x,y);if(p)return p;}"
             + "}"
-            + "return {x:cx,y:cy};"
+            + "return null;"
             + "})();";
-        webView.evaluateJavascript(js, value -> {
-            if (value == null || value.equals("null")) return;
+        evaluateOnPage(targetView, js, value -> {
+            if (!activePage(targetView, generation)) return;
             try {
                 JSONObject pos = new JSONObject(String.valueOf(value));
-                realTap((float) pos.getDouble("x"), (float) pos.getDouble("y"));
+                float[] nativePoint = BrowserSessionSupport.nativeTouchPoint(pos.getDouble("x"), pos.getDouble("y"),
+                    pos.getDouble("viewportWidth"), pos.getDouble("viewportHeight"), targetView.getWidth(), targetView.getHeight());
+                if (nativePoint == null) throw new IllegalArgumentException("invalid_touch_point");
+                realTap(nativePoint[0], nativePoint[1]);
             } catch (Exception ignored) {
+                finishWithResult("{\"status\":\"error\",\"code\":\"takeout_page_touch_unavailable\",\"error\":\"目标按钮暂不可点击或坐标尚未就绪，已停止自动操作，请在当前页面手动处理。\"}");
             }
         });
     }
@@ -138,7 +153,7 @@ public class OrderWebActivity extends Activity {
         if (!canAutomate()) return;
         String js = "(function(){"
             + "var t=document.body.innerText||'';"
-            + "// 只认验证专用句式，避免正文偶带“验证码”字样误报（坑 14 / 24）"
+            + "/* 只认验证专用句式，避免正文偶带“验证码”字样误报（坑 14 / 24） */"
             + "var re=/请选择符合描述|拖动滑块|向右滑动|滑动验证|拖拽下方滑块|完成拼图|人机验证|安全验证通过前|验证码已发送到|图形验证码/i;"
             + "if(re.test(t))return {verify:true,path:'text'};"
             + "var el=document.querySelector('#baxia-dialog,.nc-container,.nc_wrapper,#aliyunCaptcha,[id*=\"captcha\"],[class*=\"captcha\"],iframe[src*=\"punish\"],iframe[src*=\"captcha\"],iframe[src*=\"baxia\"]');"
@@ -147,7 +162,7 @@ public class OrderWebActivity extends Activity {
             + "}"
             + "return {verify:false};"
             + "})();";
-        webView.evaluateJavascript(js, value -> {
+        evaluateOnPage(webView, js, value -> {
             if (!canAutomate()) return;
             boolean verified = false;
             if (value != null && !value.equals("null") && !String.valueOf(value).contains("verify:false")) {
@@ -165,32 +180,49 @@ public class OrderWebActivity extends Activity {
         });
     }
 
-    // 坑 48：掉登录认 URL /login 或备案页脚
-    private boolean looksLoggedOut() {
-        String url = currentUrl == null ? "" : currentUrl.toLowerCase();
-        if (url.contains("/login") || url.contains("login.html")) return true;
-        return false;
-    }
-
     private void checkLoginState(Runnable next) {
         if (!canAutomate()) return;
-        if (looksLoggedOut()) {
-            finishWithResult("{\"status\":\"logged_out\",\"error\":\"掉登录了：页面把我踢到了登录页。请点「扫码登录外卖」重新登录后再试。\"}");
-            return;
-        }
-        String js = "(function(){var t=document.body.innerText||'';"
-            + "var foot=/备案|ICP|京ICP|增值电信/i;"
-            + "if(t.length<120&&foot.test(t)){return true;}"
-            + "return false;})();";
-        webView.evaluateJavascript(js, value -> {
-            if (!canAutomate()) return;
-            boolean emptyShell = "true".equals(String.valueOf(value).replace("\"", "").trim());
-            if (emptyShell) {
-                finishWithResult("{\"status\":\"logged_out\",\"error\":\"登录态失效了（页面只剩空壳）。请重新扫码登录后再试。\"}");
+        checkLoginState(next, 0, webView, pageGeneration);
+    }
+
+    private void checkLoginState(Runnable next, int attempt, WebView targetView, long generation) {
+        if (!activePage(targetView, generation)) return;
+        evaluateOnPage(targetView, BrowserSessionSupport.LOGIN_STATE_SCRIPT, value -> {
+            if (!activePage(targetView, generation)) return;
+            String state = "unknown";
+            try { state = new JSONObject(String.valueOf(value)).optString("state", "unknown"); }
+            catch (Exception ignored) {}
+            BrowserSessionSupport.LoginDecision decision = BrowserSessionSupport.loginDecision(state, attempt);
+            if (decision == BrowserSessionSupport.LoginDecision.REQUIRED) {
+                finishWithResult("{\"status\":\"logged_out\",\"error\":\"页面需要登录，已停止自动操作。请在当前页面登录后手动返回。\"}");
+            } else if (decision == BrowserSessionSupport.LoginDecision.WAIT) {
+                postOnPage(targetView, () -> checkLoginState(next, attempt + 1, targetView, generation), 500);
+            } else if (decision == BrowserSessionSupport.LoginDecision.NOT_READY) {
+                finishWithResult("{\"status\":\"error\",\"code\":\"takeout_page_not_ready\",\"error\":\"页面仍未加载完整，未执行后续自动操作。请检查网络并在当前页面手动操作。\"}");
             } else if (next != null) {
                 next.run();
             }
         });
+    }
+
+    private boolean activePage(WebView targetView, long generation) {
+        return targetView == webView && generation == pageGeneration && canAutomate();
+    }
+
+    private void postOnPage(WebView target, Runnable action, long delay) {
+        long generation = pageGeneration;
+        target.postDelayed(() -> { if (activePage(target, generation)) action.run(); }, delay);
+    }
+
+    private void evaluateOnPage(WebView target, String script, android.webkit.ValueCallback<String> callback) {
+        long generation = pageGeneration;
+        if (!activePage(target, generation)) return;
+        target.evaluateJavascript(script, value -> { if (activePage(target, generation)) callback.onReceiveValue(value); });
+    }
+
+    private boolean hasScriptStatus(String value, String expected) {
+        try { return expected.equals(new JSONObject(String.valueOf(value)).optString("status")); }
+        catch (Exception ignored) { return false; }
     }
 
     @Override
@@ -200,6 +232,13 @@ public class OrderWebActivity extends Activity {
             Intent intent = getIntent();
             mode = intent == null ? "" : intent.getStringExtra("mode");
             requestId = intent == null ? "" : intent.getStringExtra("request_id");
+            currentUrl = savedInstanceState == null ? intent == null ? "" : intent.getStringExtra("url") : savedInstanceState.getString("dengta_order_url", "");
+            accountBinding = intent == null ? null : savedInstanceState == null
+                ? BrowserSessionSupport.ACCOUNTS.consume(intent.getStringExtra(BrowserSessionSupport.REQUEST_TICKET))
+                : BrowserSessionSupport.ACCOUNTS.restore(savedInstanceState.getString(BrowserSessionSupport.RESTORE_TICKET));
+            if (accountBinding == null) { showTechnicalError(savedInstanceState == null ? "browser_account_required" : "browser_account_restore_required"); return; }
+            BrowserSessionSupport.requireAccountProfiles();
+            BrowserSessionSupport.ACCOUNTS.addListener(accountChanged);
             if (savedInstanceState != null) {
                 automationStopped = savedInstanceState.getBoolean("dengta_order_automation_stopped", true);
                 if (savedInstanceState.getBoolean("dengta_order_result_published", false)) resultState.markPublished();
@@ -207,6 +246,8 @@ public class OrderWebActivity extends Activity {
                 return;
             }
             onCreateGuarded(savedInstanceState);
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            showTechnicalError(BrowserSessionSupport.accountErrorCode(error));
         } catch (Throwable ignored) {
             android.util.Log.e(TAG, "takeout_page_init_failed");
             showTechnicalError("takeout_page_init_failed");
@@ -214,8 +255,14 @@ public class OrderWebActivity extends Activity {
     }
 
     private void onCreateGuarded(Bundle savedInstanceState) {
-        // 定位权限:外卖页面需要真实位置,先申请系统授权。
-        if (android.os.Build.VERSION.SDK_INT >= 23) {
+        onCreateGuarded(savedInstanceState, null);
+    }
+
+    private void onCreateGuarded(Bundle savedInstanceState, String reviewUrl) {
+        String url = getIntent().getStringExtra("url");
+        if (reviewUrl != null && !reviewUrl.isEmpty()) url = reviewUrl;
+        // Only an official takeout page can ask for the existing system location permission.
+        if (BrowserLocationPolicy.isTrustedPage(url) && !LocationFix.hasPermission(this)) {
             requestPermissions(
                 new String[]{
                     android.Manifest.permission.ACCESS_FINE_LOCATION,
@@ -224,7 +271,6 @@ public class OrderWebActivity extends Activity {
                 1001
             );
         }
-        String url = getIntent().getStringExtra("url");
         configJson = getIntent().getStringExtra("config");
         String title = getIntent().getStringExtra("title");
         // 从 config 解析帖子 11 节的钱闸参数
@@ -257,36 +303,40 @@ public class OrderWebActivity extends Activity {
         root.addView(operationStatus, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         webView = new WebView(this);
+        accountCookies = BrowserSessionSupport.attachAccount(webView, accountBinding);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setGeolocationEnabled(true);
+        settings.setGeolocationEnabled(false);
         // 移动端 UA + 视口适配,避免桌面版页面挤在一角。
-        settings.setUserAgentString(
-            "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36 DengTaOrder/1.0"
-        );
+        BrowserSessionSupport.useDeviceUserAgent(webView);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+        accountCookies.setAcceptCookie(true);
+        accountCookies.setAcceptThirdPartyCookies(webView, true);
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onGeolocationPermissionsShowPrompt(
                 String origin,
                 android.webkit.GeolocationPermissions.Callback callback
             ) {
-                // 用户已在应用内主动发起点餐,授权页面读取定位。
-                callback.invoke(origin, true, false);
+                // Only the origin-aware main-frame bridge can read location; native prompts lack frame identity.
+                callback.invoke(origin, false, false);
             }
         });
         // 无 GMS 手机 WebView 定位必失败：document-start 注入 mock geolocation（真实坐标）。
-        LocationFix.apply(webView);
+        if (!LocationFix.apply(webView, () -> BrowserSessionSupport.ACCOUNTS.isCurrent(accountBinding)) && BrowserLocationPolicy.isTrustedPage(url))
+            android.widget.Toast.makeText(this, "当前系统 WebView 不支持安全定位，请更新 WebView，或在外卖 App 中手动选择地址。", android.widget.Toast.LENGTH_LONG).show();
         webView.addJavascriptInterface(new OrderBridge(this), "DengTaOrderBridge");
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
-                if (automationStopped || view != webView || isFinishing() || isDestroyed()) return;
+                if (view != webView || isFinishing() || isDestroyed()) return;
+                currentUrl = url;
+                if (automationStopped) return;
+                pageGeneration += 1;
+                enterTickPending = false;
                 // document-start 注入不可靠时的兜底：页面加载早期覆盖 geolocation。
                 LocationFix.injectMock(view);
             }
@@ -303,20 +353,28 @@ public class OrderWebActivity extends Activity {
             }
 
             @Override
+            public void onReceivedError(WebView view, android.webkit.WebResourceRequest request, android.webkit.WebResourceError error) {
+                if (view == webView && BrowserSessionSupport.isCurrentNavigationFailure(request.getUrl().toString(), currentUrl, request.isForMainFrame()) && !isFinishing() && !isDestroyed()) showTechnicalError("takeout_page_load_failed");
+            }
+
+            @Override
             public void onPageFinished(WebView view, String finishedUrl) {
                 super.onPageFinished(view, finishedUrl);
+                if (view != webView || isFinishing() || isDestroyed()) return;
                 currentUrl = finishedUrl;
+                LocationFix.injectMock(view);
+                BrowserSessionSupport.persistCookies(accountCookies);
                 if (!canAutomate()) return;
                 if ("search".equals(mode)) {
-                    view.postDelayed(() -> runSearchStep(view), 2500);
+                    postOnPage(view, () -> runSearchStep(view), 2500);
                 } else if ("order".equals(mode)) {
                     if (orderStep == 0) {
-                        view.postDelayed(() -> runOrderStep(view), 2500);
+                        postOnPage(view, () -> runOrderStep(view), 2500);
                     } else if (orderStep == 1) {
                         // 坑 50：进店后先识门（小柜台→重建正门；还在搜索→再点一次；正店→选品）
                         if (!enterTickPending) {
                             enterTickPending = true;
-                            view.postDelayed(() -> {
+                            postOnPage(view, () -> {
                                 enterTickPending = false;
                                 enterShop(view, 0);
                             }, 2000 + random.nextInt(1500));
@@ -324,7 +382,7 @@ public class OrderWebActivity extends Activity {
                     }
                     // orderStep>=2：购物车/结算页
                     // 加载后执行结算价检查（帖子 11 节「钱的闸」）
-                    view.postDelayed(() -> settlementCheck(), 2000 + random.nextInt(1500));
+                    postOnPage(view, () -> settlementCheck(), 2000 + random.nextInt(1500));
                 }
             }
         });
@@ -334,6 +392,7 @@ public class OrderWebActivity extends Activity {
         Button done = new Button(this);
         done.setText("完成后点这里返回");
         done.setOnClickListener(v -> {
+            if (!technicalErrorCode.isEmpty()) { returnToDengTa(technicalErrorResult()); return; }
             if ("search".equals(mode)) {
                 if (resultState.result() == null) cancelUnreadySearch();
                 else returnToDengTa(resultState.result());
@@ -359,12 +418,22 @@ public class OrderWebActivity extends Activity {
 
     private void runSearchStep(WebView view) {
         if (!canAutomate()) return;
+        evaluateOnPage(view, BrowserSessionSupport.LOGIN_STATE_SCRIPT, value -> {
+            String state = "unknown";
+            try { state = new JSONObject(String.valueOf(value)).optString("state", "unknown"); } catch (Exception ignored) {}
+            if ("login_required".equals(state)) finishWithResult("{\"status\":\"logged_out\",\"error\":\"当前网页需要重新登录，自动搜索已停止，页面仍保留。\"}");
+            else readSearchStep(view);
+        });
+    }
+
+    private void readSearchStep(WebView view) {
+        if (!canAutomate()) return;
         // 坑 2：等真数据——轮询直到出现店卡身份证（"分"评分为主，起送只是可选牌子，坑 40）。
         String waitJs = "(function(){var t=document.body.innerText||'';"
             + "return /分\\s*\\|/.test(t)||/起送¥/.test(t)||t.indexOf('起送')>=0;})();";
         String js = "(function(){"
             + "function txt(e){return (e.innerText||'').replace(/\\n+/g,' | ').replace(/\\s+/g,' ').trim();}"
-            + "// 坑 40：店卡身份证是评分「分」，起送不是必须的。"
+            + "/* 坑 40：店卡身份证是评分「分」，起送不是必须的。 */"
             + "var cards=[].slice.call(document.querySelectorAll('[class*=\"card\" i],[class*=\"item\" i]'))"
             + ".map(function(e){return {t:txt(e),e:e};})"
             + ".filter(function(x){return /\\|\\s*[\\d.]+\\s*\\|\\s*分/.test(x.t)&&x.t.length<300;});"
@@ -376,21 +445,21 @@ public class OrderWebActivity extends Activity {
             + "var m=t.match(/([^|]{2,40})\\s*\\|\\s*[\\d.]+\\s*\\|\\s*分/);"
             + "return m?m[1].trim():t.slice(0,40);}"
             + "return {shops:cards.slice(0,20).map(function(x){"
-            + "return {name:shopName(x),meta:x.t.slice(0,240)};}),loading:false};"
+            + "return {name:shopName(x.t),meta:x.t.slice(0,240)};}),loading:false};"
             + "})();";
-        view.evaluateJavascript(waitJs, waited -> {
+        evaluateOnPage(view, waitJs, waited -> {
             checkVerification(() -> {
                 boolean ready = "true".equals(String.valueOf(waited).replace("\"", "").trim());
                 if (!ready) {
                     if (searchRetries < 10) {
                         searchRetries += 1;
-                        view.postDelayed(() -> runSearchStep(view), 2500);
+                        postOnPage(view, () -> runSearchStep(view), 2500);
                     } else {
-                        view.evaluateJavascript(js, value -> finishWithResult(value));
+                        evaluateOnPage(view, js, value -> finishWithResult(value));
                     }
                     return;
                 }
-                view.evaluateJavascript(js, value -> finishWithResult(value));
+                evaluateOnPage(view, js, value -> finishWithResult(value));
             });
         });
     }
@@ -402,16 +471,15 @@ public class OrderWebActivity extends Activity {
             String shopName = config.optString("shop_name", "");
             String js = "(function(){"
                 + "var shop=" + JSONObject.quote(shopName) + ";"
-                + "function txt(e){return (e.innerText||'').replace(/\\n+/g,' ').replace(/\\s+/g,' ').trim();}"
-                + "// 坑 40：店卡身份证是评分「分」；起送不是必须。"
+                + "function txt(e){return (e.innerText||'').replace(/\\n+/g,' | ').replace(/\\s+/g,' ').trim();}"
+                + "/* 坑 40：店卡身份证是评分「分」；起送不是必须。 */"
                 + "var cards=[].slice.call(document.querySelectorAll('[class*=\"card\" i],[class*=\"item\" i]'))"
                 + ".map(function(e){return {t:txt(e),e:e};})"
                 + ".filter(function(x){return /\\|\\s*[\\d.]+\\s*\\|\\s*分/.test(x.t)&&x.t.length<300;});"
-                + "var target=null,fallback=null;"
+                + "var target=null;"
                 + "for(var i=0;i<cards.length;i++){"
                 + "var n=shopName(cards[i].t);"
-                + "if(!fallback)fallback=cards[i].e;"
-                + "if(n.indexOf(shop)>=0||(shop.length>4&&shop.indexOf(n.slice(0,6))>=0)){target=cards[i].e;break;}"
+                + "if(n.replace(/\\s+/g,'')===shop.replace(/\\s+/g,'')){target=cards[i].e;break;}"
                 + "}"
                 + "function shopName(t){"
                 + "var parts=t.split('|').map(function(s){return s.trim();}).filter(Boolean);"
@@ -419,21 +487,23 @@ public class OrderWebActivity extends Activity {
                 + "for(var i=0;i<parts.length;i++){if(parts[i].length>=2&&parts[i].length<=40&&!bad.test(parts[i])){return parts[i];}}"
                 + "var m=t.match(/([^|]{2,40})\\s*\\|\\s*[\\d.]+\\s*\\|\\s*分/);"
                 + "return m?m[1].trim():'';}"
-                + "if(!target&&fallback){target=fallback;}"
-                + "if(!target){return {status:'shop_not_found'};}"
+                + "if(!target){return {status:'shop_not_found',code:'takeout_shop_not_found',error:'没有找到名称完全一致的店铺，未自动选择其他店铺。请在当前页面手动选择。',"
+                + "candidates:cards.slice(0,8).map(function(x){return shopName(x.t);})};}"
                 + "target.setAttribute('data-dengta-pick','1');"
                 + "return {status:'opening_shop',shop:(target.innerText||'').replace(/\\n+/g,' ').slice(0,80)};"
                 + "})();";
             orderStep = 1;
-            webView.evaluateJavascript(js, value -> {
+            evaluateOnPage(webView, js, value -> {
                 // 坑 50：进店后先看是不是「猜你喜欢」小柜台（只有六道菜那种）
                 checkLoginState(() -> {
-                    if (value != null && String.valueOf(value).contains("opening_shop")) {
+                    if (hasScriptStatus(value, "opening_shop")) {
                         // 真触摸打开店卡（坑 8：认元素打标记后真点），先来一拍真人节奏（坑 13）
                         slow(() -> tapMarked("[data-dengta-pick='1']"));
                         // 进店后的识门/选品交给 onPageFinished → enterShop 处理（坑 50）
                     } else {
-                        finishWithResult(value == null ? "{\"status\":\"shop_not_found\"}" : String.valueOf(value));
+                        finishWithResult(value == null || "null".equals(value)
+                            ? "{\"status\":\"error\",\"code\":\"takeout_page_script_failed\",\"error\":\"店铺页面没有返回有效结果，未打开其他店铺。\"}"
+                            : String.valueOf(value));
                     }
                 });
             });
@@ -448,16 +518,17 @@ public class OrderWebActivity extends Activity {
     //  - 还在搜索/中间页 → 再认一拍（坑 19），认不出就按小柜台兜底找 shopId
     private void enterShop(WebView view, int attempt) {
         if (!canAutomate()) return;
+        checkLoginState(() -> enterShopReady(view, attempt));
+    }
+
+    private void enterShopReady(WebView view, int attempt) {
+        if (!canAutomate()) return;
         if (attempt > 4) {
             // 实在认不出门：直接从当前页尝试选品，至少不会卡死
             addProductStep(view);
             return;
         }
         String url = currentUrl == null ? "" : currentUrl;
-        if (looksLoggedOut()) {
-            finishWithResult("{\"status\":\"logged_out\",\"error\":\"掉登录了：请重新扫码登录后再试。\"}");
-            return;
-        }
         boolean isShopDoor = url.contains("SHOP_SCHEME") || url.contains("restaurant")
             || url.contains("pages-poi") || url.contains("/poi/") || url.contains("shopId");
         boolean miniCounter = url.contains("ITEM_STICKY") || url.contains("menu_extra_info")
@@ -471,7 +542,7 @@ public class OrderWebActivity extends Activity {
             return;
         }
         // 仍在中间页/搜索页：等一拍再认
-        view.postDelayed(() -> enterShop(view, attempt + 1), 2500 + random.nextInt(1500));
+        postOnPage(view, () -> enterShop(view, attempt + 1), 2500 + random.nextInt(1500));
     }
 
     // 坑 50：小柜台里必然带着 shopId，抽出数字 id 重建 SHOP_SCHEME 正门再进。
@@ -484,7 +555,7 @@ public class OrderWebActivity extends Activity {
             + "if(el){var h=(el.getAttribute&&(el.getAttribute('href')||el.getAttribute('data-scheme')||''))||'';"
             + "var m2=h.match(/(\\d{4,})/);if(m2)return m2[1];}"
             + "return '';})();";
-        view.evaluateJavascript(js, value -> {
+        evaluateOnPage(view, js, value -> {
             if (!canAutomate()) return;
             String shopId = String.valueOf(value).replace("\"", "").trim();
             if (shopId.length() >= 4 && shopId.matches("\\d+") && !"null".equals(shopId)) {
@@ -508,24 +579,32 @@ public class OrderWebActivity extends Activity {
             orderStep = 2;
             String js = "(function(){"
                 + "var p=" + JSONObject.quote(product) + ";"
-                + "function txt(e){return (e.innerText||'').replace(/\\n+/g,' ').replace(/\\s+/g,' ').trim();}"
-                + "// 菜单卡：真菜卡认标题类名（.food-name 之类），排除「买过/再来一单」面板（坑 23 / 37）"
+                + "function txt(e){return (e.innerText||'').replace(/\\n+/g,' | ').replace(/\\s+/g,' ').trim();}"
+                + "function productName(e){var title=e.querySelector('[class*=\"food-name\" i],[class*=\"foodName\" i],[class*=\"item-name\" i],[class*=\"title\" i]');"
+                + "return txt(title||e).split('|')[0].trim();}"
+                + "/* 菜单卡：真菜卡认标题类名（.food-name 之类），排除「买过/再来一单」面板（坑 23 / 37） */"
                 + "var rows=[].slice.call(document.querySelectorAll('[class*=\"food\" i],[class*=\"menu\" i],[class*=\"item\" i]'))"
                 + ".map(function(e){return {t:txt(e),e:e};})"
                 + ".filter(function(x){return x.t.length>3&&x.t.length<200&&!/再来一单|购买过|买过/.test(x.t);});"
                 + "var target=null;"
-                + "for(var i=0;i<rows.length;i++){if(rows[i].t.indexOf(p)>=0||(p.length>4&&p.indexOf(rows[i].t.slice(0,4))>=0)){target=rows[i].e;break;}}"
-                + "if(!target&&rows.length){target=rows[0].e;}"
-                + "if(!target){return {status:'product_not_found'};}"
+                + "for(var i=0;i<rows.length;i++){if(productName(rows[i].e).replace(/\\s+/g,'')===p.replace(/\\s+/g,'')){target=rows[i].e;break;}}"
+                + "if(!target){return {status:'product_not_found',code:'takeout_product_not_found',error:'没有找到名称完全一致的商品，未自动添加其他商品。请在当前页面手动选择。',"
+                + "candidates:rows.slice(0,8).map(function(x){return productName(x.e);})};}"
                 + "target.setAttribute('data-dengta-product','1');"
                 + "return {status:'opening_product'};"
                 + "})();";
-            view.evaluateJavascript(js, value -> {
+            evaluateOnPage(view, js, value -> {
                 checkLoginState(() -> {
+                    if (!hasScriptStatus(value, "opening_product")) {
+                        finishWithResult(value == null || "null".equals(value)
+                            ? "{\"status\":\"error\",\"code\":\"takeout_page_script_failed\",\"error\":\"商品页面没有返回有效结果，未执行加购。\"}"
+                            : String.valueOf(value));
+                        return;
+                    }
                     // 真人节奏后点卡身（坑 13）
                     slow(() -> {
                         tapMarked("[data-dengta-product='1']");
-                        view.postDelayed(this::confirmAddToCart, 2500 + random.nextInt(1500));
+                        postOnPage(view, this::confirmAddToCart, 2500 + random.nextInt(1500));
                     });
                 });
             });
@@ -539,36 +618,36 @@ public class OrderWebActivity extends Activity {
     private void confirmAddToCart() {
         checkVerification(() -> checkLoginState(() -> {
             String js = "(function(){"
-                + "// 详情页确认已打开（URL 含 detail 或出现选规格字样）"
+                + "/* 详情页确认已打开（URL 含 detail 或出现选规格字样） */"
                 + "var btn=null;"
-                + "// 先找真正加购的通栏钮"
+                + "/* 先找真正加购的通栏钮 */"
                 + "var sku=document.querySelector('.sku__button');"
                 + "if(sku&&sku.getBoundingClientRect().height>20){sku.setAttribute('data-dengta-any','1');return {w:'sku'};}"
-                + "// 详情页底部「加入购物车」"
+                + "/* 详情页底部「加入购物车」 */"
                 + "var add=[].slice.call(document.querySelectorAll('*')).find(function(e){"
                 + "var t=(e.innerText||'').trim();return /加入购物车|选规格/.test(t)&&t.length<12&&(e.children.length<3);});"
                 + "if(add){add.setAttribute('data-dengta-any','1');return {w:'add'};}"
                 + "return {w:'none'};"
                 + "})();";
-            webView.evaluateJavascript(js, value -> {
+            evaluateOnPage(webView, js, value -> {
                 String v = String.valueOf(value);
                 // 真人节奏后再判断（坑 13）
                 slow(() -> {
                     if (v.contains("sku")) {
                         tapMarked("[data-dengta-any='1']");
-                        webView.postDelayed(() -> goToCart(), 2000 + random.nextInt(1500));
+                        postOnPage(webView, () -> goToCart(), 2000 + random.nextInt(1500));
                     } else if (v.contains("add")) {
                         tapMarked("[data-dengta-any='1']");
-                        webView.postDelayed(() -> {
+                        postOnPage(webView, () -> {
                             if (!canAutomate()) return;
                             String js2 = "(function(){var s=document.querySelector('.sku__button');"
                                 + "if(s&&s.getBoundingClientRect().height>20){s.setAttribute('data-dengta-any','1');return true;}"
                                 + "return false;})();";
-                            webView.evaluateJavascript(js2, v2 -> {
+                            evaluateOnPage(webView, js2, v2 -> {
                                 if ("true".equals(String.valueOf(v2).replace("\"", "").trim())) {
                                     slow(() -> {
                                         tapMarked("[data-dengta-any='1']");
-                                        webView.postDelayed(this::goToCart, 2000 + random.nextInt(1500));
+                                        postOnPage(webView, this::goToCart, 2000 + random.nextInt(1500));
                                     });
                                 } else {
                                     goToCart();
@@ -587,7 +666,7 @@ public class OrderWebActivity extends Activity {
     private void goToCart() {
         if (!canAutomate()) return;
         try {
-            webView.postDelayed(() -> {
+            postOnPage(webView, () -> {
                 if (!canAutomate()) return;
                 try {
                     webView.loadUrl("https://h5.ele.me/msite/cart");
@@ -605,21 +684,25 @@ public class OrderWebActivity extends Activity {
         if (!canAutomate()) return;
         String js = "(function(){"
             + "var t=document.body.innerText||'';"
-            + "// 读合计（帖子 11 节：两种写法 A/B）"
+            + "/* 读合计（帖子 11 节：两种写法 A/B） */"
             + "var tail=t.slice(Math.max(0,t.lastIndexOf('合计')));"
             + "var total=NaN;"
             + "var m=t.match(/合计¥\\s*(\\d+(?:\\.\\d+)?)/);"
             + "if(!m)m=tail.match(/已优惠\\s*¥\\s*[\\d.]+[\\s\\S]{0,12}?¥\\s*(\\d+(?:\\.\\d+)?)/);"
             + "if(!m)m=t.match(/¥\\s*(\\d+(?:\\.\\d+)?)/g);"
             + "if(m){total=Number(m[1]||m[0].replace('¥','').trim());}"
-            + "// 车里有旧货闸：商品明细段数"
+            + "/* 车里有旧货闸：商品明细段数 */"
             + "var detail=t.slice(0,(t.indexOf('打包费')+1)||t.length);"
             + "var items=(detail.match(/×\\s*\\d+/g)||[]).length;"
             + "return {total:isNaN(total)?0:total,items:items};"
             + "})();";
-        webView.evaluateJavascript(js, value -> {
+        evaluateOnPage(webView, js, value -> {
             if (!canAutomate()) return;
             try {
+                if (value == null || "null".equals(value)) {
+                    finishWithResult("{\"status\":\"error\",\"code\":\"takeout_page_script_failed\",\"error\":\"购物车金额尚未读取成功，请在当前页面手动核对。\"}");
+                    return;
+                }
                 double total = 0;
                 int items = 0;
                 if (value != null && !value.equals("null")) {
@@ -684,7 +767,7 @@ public class OrderWebActivity extends Activity {
         }
     }
 
-    private boolean canAutomate() { return webView != null && !automationStopped && !isFinishing() && !isDestroyed() && !resultState.stopped(); }
+    private boolean canAutomate() { return webView != null && BrowserSessionSupport.ACCOUNTS.isCurrent(accountBinding) && !automationStopped && !isFinishing() && !isDestroyed() && !resultState.stopped(); }
 
     private void disposeWebView(WebView view) {
         if (view == null) return;
@@ -701,6 +784,7 @@ public class OrderWebActivity extends Activity {
     private void showTechnicalError(String code) {
         automationStopped = true;
         technicalErrorCode = code;
+        BrowserSessionSupport.persistCookies(accountCookies);
         WebView failed = webView;
         webView = null;
         disposeWebView(failed);
@@ -716,6 +800,20 @@ public class OrderWebActivity extends Activity {
             operationStatus.setText(OrderBrowserPlugin.technicalErrorMessage(code));
             operationStatus.setPadding(24, 24, 24, 24);
             root.addView(operationStatus, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (accountBinding != null && BrowserSessionSupport.ACCOUNTS.isCurrent(accountBinding)) {
+                Button review = new Button(this);
+                review.setText("恢复网页，手动核对");
+                review.setOnClickListener(v -> {
+                    try {
+                        BrowserSessionSupport.ACCOUNTS.requireCurrent(accountBinding);
+                        String url = currentUrl;
+                        if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) url = "https://h5.ele.me/msite/";
+                        onCreateGuarded(null, url);
+                        operationStatus.setText("已恢复当前账号的网页。自动点餐仍已停止，请手动核对登录和购物车；返回不会重新加购。");
+                    } catch (RuntimeException error) { showTechnicalError(BrowserSessionSupport.accountErrorCode(error)); }
+                });
+                root.addView(review, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            }
             Button done = new Button(this);
             done.setText("完成后点这里返回");
             done.setOnClickListener(v -> returnToDengTa(technicalErrorResult()));
@@ -737,6 +835,7 @@ public class OrderWebActivity extends Activity {
     }
 
     private void returnToDengTa(String resultJson) {
+        BrowserSessionSupport.persistCookies(accountCookies);
         Intent data = new Intent();
         data.putExtra("result", resultJson);
         setResult(Activity.RESULT_OK, data);
@@ -776,12 +875,21 @@ public class OrderWebActivity extends Activity {
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
+        state.putString("dengta_order_url", currentUrl);
+        if (BrowserSessionSupport.ACCOUNTS.isCurrent(accountBinding)) state.putString(BrowserSessionSupport.RESTORE_TICKET, BrowserSessionSupport.ACCOUNTS.issueRestoration(accountBinding));
         state.putBoolean("dengta_order_automation_stopped", true);
         state.putBoolean("dengta_order_result_published", resultState.published());
         super.onSaveInstanceState(state);
     }
 
+    @Override protected void onPause() {
+        BrowserSessionSupport.persistCookies(accountCookies);
+        super.onPause();
+    }
+
     @Override protected void onDestroy() {
+        BrowserSessionSupport.ACCOUNTS.removeListener(accountChanged);
+        BrowserSessionSupport.persistCookies(accountCookies);
         if ("search".equals(mode) && !isChangingConfigurations() && !resultState.published() && requestId != null && !requestId.isEmpty()) {
             resultState.markPublished();
             OrderBrowserPlugin.publishSearchResult(this, requestId, null, "cancelled");

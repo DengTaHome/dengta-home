@@ -7,6 +7,11 @@ const {
     UPDATE_COMPANION_STATUS_TOOL,
     validateCompanionStatusToolArguments
 } = require("./companion-status");
+const {
+    SELECT_COMPANION_STICKER_TOOL,
+    isAllowedCompanionStickerId,
+    parseCompanionStickerToolArguments
+} = require("./companion-stickers");
 
 const REPLY_SUGGESTION_ENVELOPE_VERSION = "v1";
 const REPLY_SUGGESTION_ENVELOPE_MAX_CHARS = 4096;
@@ -42,11 +47,40 @@ function safeEnvelopeNonce(value) {
         : randomBytes(16).toString("hex");
 }
 
+function normalizeStickerTool(value) {
+    if (value?.name !== SELECT_COMPANION_STICKER_TOOL.name) return null;
+    const properties = value.input_schema?.properties;
+    const builtin = (Array.isArray(properties?.sticker_id?.enum) ? properties.sticker_id.enum : [])
+        .filter(isAllowedCompanionStickerId);
+    const custom = [];
+    for (const id of Array.isArray(properties?.custom_sticker_id?.enum) ? properties.custom_sticker_id.enum : []) {
+        const parsed = parseCompanionStickerToolArguments({ custom_sticker_id: id }, [{ id }]);
+        if (parsed.ok && !custom.includes(parsed.value)) custom.push(parsed.value);
+        if (custom.length === 48) break;
+    }
+    if (!builtin.length && !custom.length) return null;
+    return Object.freeze({
+        name: SELECT_COMPANION_STICKER_TOOL.name,
+        description: typeof value.description === "string" ? value.description : "",
+        builtin: Object.freeze([...new Set(builtin)]),
+        custom: Object.freeze(custom)
+    });
+}
+
+function parseEnvelopeSticker(value, stickerTool) {
+    if (!stickerTool) return null;
+    const parsed = parseCompanionStickerToolArguments(value, stickerTool.custom.map(id => ({ id })));
+    if (!parsed.ok) return null;
+    if (parsed.kind === "custom") return { custom_sticker_id: parsed.value };
+    return stickerTool.builtin.includes(parsed.value) ? { sticker_id: parsed.value } : null;
+}
+
 function buildReplySuggestionEnvelopeInstruction({
     openMarker,
     closeMarker,
     includeReplySuggestions,
-    includeCompanionStatus
+    includeCompanionStatus,
+    stickerTool
 }) {
     const lines = [
         "【DengTa 本轮隐藏元数据协议】",
@@ -77,61 +111,77 @@ function buildReplySuggestionEnvelopeInstruction({
         );
         example.suggestions = ["第一条候选", "第二条候选"];
     }
+    if (stickerTool) {
+        lines.push(
+            stickerTool.description,
+            "需要配图时，在 sticker 中仅选择一个给定的 sticker_id 或 custom_sticker_id；不需要表情时省略 sticker，不得输出图片网址或文件路径。"
+        );
+        example.sticker = stickerTool.builtin.length
+            ? { sticker_id: stickerTool.builtin[0] }
+            : { custom_sticker_id: stickerTool.custom[0] };
+    }
 
+    const allowedFields = [
+        ...(includeCompanionStatus ? ["companion_status"] : []),
+        ...(includeReplySuggestions ? ["suggestions"] : []),
+        ...(stickerTool ? ["sticker"] : [])
+    ];
     lines.push(
         `${openMarker}${JSON.stringify(example)}${closeMarker}`,
-        `协议 JSON 只能包含${includeCompanionStatus ? " companion_status" : ""}${
-            includeCompanionStatus && includeReplySuggestions ? " 和" : ""
-        }${includeReplySuggestions ? " suggestions" : ""}；没有任何元数据时完全省略整段协议。不要使用 Markdown 代码块，不要解释协议，不要在结束标记后输出除空白外的任何内容。`
+        `协议 JSON 只能包含 ${allowedFields.join(" 和 ")}；没有任何元数据时完全省略整段协议。不要使用 Markdown 代码块，不要解释协议，不要在结束标记后输出除空白外的任何内容。`
     );
     return lines.join("\n");
 }
 
-function emptyEnvelopeMetadata() {
-    return { suggestions: [], companionStatus: null };
+function emptyEnvelopeMetadata(stickerTool) {
+    return { suggestions: [], companionStatus: null, ...(stickerTool ? { sticker: null } : {}) };
 }
 
 function parseReplySuggestionEnvelopeMetadata(
     value,
     {
         includeReplySuggestions = true,
-        includeCompanionStatus = false
+        includeCompanionStatus = false,
+        stickerTool: rawStickerTool = null
     } = {}
 ) {
+    const stickerTool = normalizeStickerTool(rawStickerTool);
+    const empty = () => emptyEnvelopeMetadata(stickerTool);
     const source = String(value || "");
     if (
         !source ||
         Array.from(source).length > REPLY_SUGGESTION_ENVELOPE_MAX_CHARS
     ) {
-        return emptyEnvelopeMetadata();
+        return empty();
     }
 
     let parsed;
     try {
         parsed = JSON.parse(source);
     } catch {
-        return emptyEnvelopeMetadata();
+        return empty();
     }
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return emptyEnvelopeMetadata();
+        return empty();
     }
     const keys = Object.keys(parsed);
     const allowedKeys = new Set([
         ...(includeReplySuggestions ? ["suggestions"] : []),
-        ...(includeCompanionStatus ? ["companion_status"] : [])
+        ...(includeCompanionStatus ? ["companion_status"] : []),
+        ...(stickerTool ? ["sticker"] : [])
     ]);
     if (
         keys.length === 0 ||
         keys.some((key) => !allowedKeys.has(key))
     ) {
-        return emptyEnvelopeMetadata();
+        return empty();
     }
 
     let suggestions = [];
     if (Object.hasOwn(parsed, "suggestions")) {
         suggestions = normalizeReplySuggestions(parsed.suggestions);
-        if (suggestions.length !== 2) return emptyEnvelopeMetadata();
+        if (suggestions.length !== 2) return empty();
     }
 
     let companionStatus = null;
@@ -139,11 +189,16 @@ function parseReplySuggestionEnvelopeMetadata(
         const validated = validateCompanionStatusToolArguments(
             parsed.companion_status
         );
-        if (!validated.ok) return emptyEnvelopeMetadata();
+        if (!validated.ok) return empty();
         companionStatus = validated.value;
     }
 
-    return { suggestions, companionStatus };
+    let sticker = null;
+    if (Object.hasOwn(parsed, "sticker")) {
+        sticker = parseEnvelopeSticker(parsed.sticker, stickerTool);
+        if (!sticker) return empty();
+    }
+    return { suggestions, companionStatus, ...(stickerTool ? { sticker } : {}) };
 }
 
 function parseReplySuggestionEnvelopePayload(value) {
@@ -155,7 +210,8 @@ function createReplySuggestionEnvelopeFilter({
     openMarker,
     closeMarker,
     includeReplySuggestions,
-    includeCompanionStatus
+    includeCompanionStatus,
+    stickerTool
 }) {
     const hiddenPrefixes = [
         REPLY_SUGGESTION_ENVELOPE_OPEN_PREFIX,
@@ -303,11 +359,12 @@ function createReplySuggestionEnvelopeFilter({
             !openMarker.endsWith(`${nonce}>>>`) ||
             !closeMarker.endsWith(`${nonce}>>>`)
         ) {
-            return emptyEnvelopeMetadata();
+            return emptyEnvelopeMetadata(stickerTool);
         }
         return parseReplySuggestionEnvelopeMetadata(payload, {
             includeReplySuggestions,
-            includeCompanionStatus
+            includeCompanionStatus,
+            stickerTool
         });
     }
 
@@ -320,6 +377,9 @@ function createReplySuggestionEnvelopeFilter({
         getCompanionStatus() {
             return getMetadata().companionStatus;
         },
+        getSticker() {
+            return getMetadata().sticker || null;
+        },
         getMetadata
     };
 }
@@ -329,6 +389,17 @@ function createReplySuggestionEnvelopeProtocol(options = {}) {
     const includeReplySuggestions =
         options.includeReplySuggestions !== false;
     const includeCompanionStatus = options.includeCompanionStatus === true;
+    const normalizedStickerTool = normalizeStickerTool(options.stickerTool);
+    const stickerTool = normalizedStickerTool ? Object.freeze({
+        name: normalizedStickerTool.name,
+        description: normalizedStickerTool.description,
+        input_schema: {
+            properties: {
+                sticker_id: { enum: normalizedStickerTool.builtin },
+                custom_sticker_id: { enum: normalizedStickerTool.custom }
+            }
+        }
+    }) : null;
     const openMarker = `${REPLY_SUGGESTION_ENVELOPE_OPEN_PREFIX}${nonce}>>>`;
     const closeMarker = `${REPLY_SUGGESTION_ENVELOPE_CLOSE_PREFIX}${nonce}>>>`;
     return Object.freeze({
@@ -340,7 +411,8 @@ function createReplySuggestionEnvelopeProtocol(options = {}) {
             openMarker,
             closeMarker,
             includeReplySuggestions,
-            includeCompanionStatus
+            includeCompanionStatus,
+            stickerTool: normalizedStickerTool
         }),
         createFilter() {
             return createReplySuggestionEnvelopeFilter({
@@ -348,7 +420,8 @@ function createReplySuggestionEnvelopeProtocol(options = {}) {
                 openMarker,
                 closeMarker,
                 includeReplySuggestions,
-                includeCompanionStatus
+                includeCompanionStatus,
+                stickerTool
             });
         },
         filterText(value) {
@@ -357,7 +430,8 @@ function createReplySuggestionEnvelopeProtocol(options = {}) {
                 openMarker,
                 closeMarker,
                 includeReplySuggestions,
-                includeCompanionStatus
+                includeCompanionStatus,
+                stickerTool
             });
             const text = `${filter.push(value)}${filter.finish()}`;
             const result = {
@@ -367,6 +441,7 @@ function createReplySuggestionEnvelopeProtocol(options = {}) {
             if (includeCompanionStatus) {
                 result.companionStatus = filter.getCompanionStatus();
             }
+            if (normalizedStickerTool) result.sticker = filter.getSticker();
             return result;
         }
     });
@@ -416,7 +491,26 @@ async function executeReplySuggestionEnvelopeMetadata(metadata, executeTool) {
         metadata?.suggestions,
         executeTool
     );
-    return { companionStatus, suggestions };
+    if (!Object.hasOwn(metadata || {}, "sticker")) return { companionStatus, suggestions };
+    let sticker = false;
+    const parsedSticker = parseCompanionStickerToolArguments(metadata.sticker,
+        [{ id: metadata.sticker?.custom_sticker_id }]);
+    if (parsedSticker.ok) {
+        try {
+            // The real selector rechecks this turn's tenant-scoped candidate allowlist.
+            const result = await executeTool({
+                id: "companion_sticker_envelope_v1",
+                name: SELECT_COMPANION_STICKER_TOOL.name,
+                arguments: JSON.stringify(parsedSticker.kind === "custom"
+                    ? { custom_sticker_id: parsedSticker.value }
+                    : { sticker_id: parsedSticker.value })
+            });
+            sticker = result?.ok === true;
+        } catch {
+            sticker = false;
+        }
+    }
+    return { companionStatus, suggestions, sticker };
 }
 
 module.exports = {

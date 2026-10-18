@@ -7,6 +7,8 @@ import { createServer } from "vite";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const previousObserver = Object.getOwnPropertyDescriptor(globalThis, "IntersectionObserver");
 const oldCreateUrl = URL.createObjectURL, oldRevokeUrl = URL.revokeObjectURL;
+const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
 const createdUrls = [], revokedUrls = [], observers = [], listeners = new Set();
 const fixture = {
   snapshot: { user: { id: "account-a" }, activeCompanionId: "companion-a" }, calls: [],
@@ -26,6 +28,7 @@ Object.defineProperty(globalThis, "IntersectionObserver", { configurable: true, 
   emit(isIntersecting) { this.callback([{ target: this.target, isIntersecting }]); }
 } });
 URL.createObjectURL = () => { const url = `blob:synthetic-${createdUrls.length + 1}`; createdUrls.push(url); return url; };
+const fixtureObserver = globalThis.IntersectionObserver;
 URL.revokeObjectURL = (url) => revokedUrls.push(url);
 const vite = await createServer({
   root: fileURLToPath(new URL("..", import.meta.url)), appType: "custom", logLevel: "silent", server: { middlewareMode: true },
@@ -60,7 +63,7 @@ try {
   const update = async (updates) => { props = { ...props, ...updates }; await act(async () => tree.update(React.createElement(AuthenticatedImage, props))); };
   const unmount = async () => { await act(async () => tree.unmount()); tree = null; };
   const visible = async () => { await act(async () => observers.at(-1).emit(true)); };
-  const resolve = async (index) => { await act(async () => fixture.calls[index].resolve({ ok: true, blob: async () => new Blob(["synthetic pixels"]) })); };
+  const resolve = async (index, blob = new Blob(["synthetic pixels"])) => { await act(async () => fixture.calls[index].resolve({ ok: true, blob: async () => blob })); };
 
   await mount();
   assert.equal(fixture.calls.length, 0, "offscreen private images must not start an authenticated fetch");
@@ -169,7 +172,60 @@ try {
   await unmount();
   assert.equal(listeners.size, 0, "auth subscriptions leave no mounted-image residue");
 
-  console.log("Actual private image passed: offscreen zero fetches, visible loading, eager/fallback/direct hook, scope and source isolation, old responses, no shared cache, request abort, blob revocation, StrictMode and preview.");
+  const motionListeners = new Set(), pageListeners = new Set();
+  Object.defineProperty(globalThis, "IntersectionObserver", { configurable: true, value: fixtureObserver });
+  const motion = { matches: false, addEventListener: (_, listener) => motionListeners.add(listener), removeEventListener: (_, listener) => motionListeners.delete(listener) };
+  const page = { visibilityState: "visible", addEventListener: (_, listener) => pageListeners.add(listener), removeEventListener: (_, listener) => pageListeners.delete(listener) };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { matchMedia: () => motion } });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: page });
+  const header = new Uint8Array(30);
+  for (const [offset, word] of [[0, "RIFF"], [8, "WEBP"], [12, "VP8X"]]) for (let index = 0; index < word.length; index++) header[offset + index] = word.charCodeAt(index);
+  header[20] = 2;
+  const animatedBlob = new Blob([header], { type: "image/webp" });
+  const emitAnimatedVisibility = async value => { await act(async () => observers.at(-1).emit(value)); };
+  await mount({ animationControls: true, width: 24, height: 16, onPreview: () => {} });
+  assert.equal(fixture.calls.length, 0);
+  await emitAnimatedVisibility(true); await resolve(0, animatedBlob);
+  const animatedUrl = tree.root.findByType("img").props.src;
+  assert.equal(tree.root.findByProps({ className: "animated-sticker" }).props["data-playing"], true);
+  assert.equal(tree.root.findByProps({ className: "animated-sticker-frame " }).props.style.aspectRatio, "24 / 16");
+  const toggle = () => tree.root.findByProps({ className: "animated-sticker-toggle" });
+  await act(async () => toggle().props.onClick());
+  assert.equal(tree.root.findAllByType("img").length, 0, "pause never leaves the animated image behind the poster");
+  assert.equal(fixture.calls[1].path, `${sourceA}?poster=1`);
+  await resolve(1);
+  assert.equal(tree.root.findAllByType("img").length, 1, "confirmed poster replaces the playing animation");
+  assert.notEqual(tree.root.findByType("img").props.src, animatedUrl);
+  assert.equal(toggle().props["aria-pressed"], false);
+  await act(async () => toggle().props.onClick());
+  assert.equal(tree.root.findByType("img").props.src, animatedUrl);
+  assert.equal(fixture.calls.length, 2, "resume reuses only this mounted instance's original blob");
+  await emitAnimatedVisibility(false);
+  assert.equal(tree.root.findAllByType("img").length, 0, "offscreen animations detach from the document");
+  await emitAnimatedVisibility(true);
+  assert.equal(fixture.calls.length, 2, "scrolling back does not redownload the original");
+  await act(async () => { page.visibilityState = "hidden"; pageListeners.forEach(listener => listener()); });
+  assert.equal(tree.root.findAllByType("img").length, 0, "background tabs cannot render a playing animation");
+  await act(async () => { page.visibilityState = "visible"; pageListeners.forEach(listener => listener()); });
+  assert.equal(tree.root.findByType("img").props.src, animatedUrl);
+  await act(async () => fixture.publish({ user: { id: "account-c" }, activeCompanionId: "companion-c" }));
+  assert.equal(tree.root.findAllByType("img").length, 0, "account switches hide both private variants immediately");
+  assert.ok(revokedUrls.includes(animatedUrl));
+  await unmount();
+  assert.equal(motionListeners.size, 0); assert.equal(pageListeners.size, 0);
+
+  motion.matches = true;
+  await mount({ animationControls: true }); await emitAnimatedVisibility(true); await resolve(0, animatedBlob);
+  assert.equal(tree.root.findAllByType("img").length, 0, "reduced motion never flashes the original animation");
+  assert.equal(fixture.calls[1].path, `${sourceA}?poster=1`);
+  await resolve(1);
+  assert.equal(toggle().children.join(""), "播放动图");
+  await act(async () => toggle().props.onClick());
+  assert.equal(tree.root.findByProps({ className: "animated-sticker" }).props["data-playing"], true, "explicit playback remains possible");
+  await unmount();
+  assert.equal(listeners.size, 0); assert.equal(motionListeners.size, 0); assert.equal(pageListeners.size, 0);
+
+  console.log("Actual private image passed: lazy reads, scope/source isolation, cancellation/revocation, animated pause/poster/resume, offscreen/background suspension, reduced motion and listener cleanup.");
 } finally {
   if (tree) await act(async () => tree.unmount());
   await vite.close();
@@ -178,4 +234,6 @@ try {
   else delete globalThis.IntersectionObserver;
   delete globalThis.__privateImageFixture; delete globalThis.__privateImageListeners;
   delete globalThis.IS_REACT_ACT_ENVIRONMENT;
+  if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow); else delete globalThis.window;
+  if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument); else delete globalThis.document;
 }

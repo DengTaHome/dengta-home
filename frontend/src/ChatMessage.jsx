@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import DeviceActionReceipts from "./DeviceActionReceipts";
 import CompanionActivityCards from "./CompanionActivityCards.jsx";
 import { MessageAttachments, ThinkingPanel } from "./ChatMessageExtras";
@@ -14,6 +14,7 @@ import ChatSkinOrnament from "./ChatSkinOrnament";
 import { privateMediaAsset, privateMediaContentPath } from "./private-media";
 import ChatErrorLog from "./ChatErrorLog";
 import { readChatDisplayContent } from "./chat-display-content.js";
+import ChatTextImpact from "./ChatTextImpact.jsx";
 
 const messageTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
   hour: "2-digit",
@@ -44,10 +45,14 @@ function ChatMessage({
   innerMonologuePending = false,
   innerMonologueError = "",
   onRequestInnerMonologue,
+  onCancelInnerMonologue,
   userAvatar = "",
   companionAvatar = "",
   privateMediaCatalog = null,
+  textImpactScope = "",
+  reduceMotion = false,
 }) {
+  const rowRef = useRef(null);
   const isUser = item.role === "user";
   const displayName = isUser ? userName : aiName;
   const quotedMessage = messageReferenceFromMessage(item);
@@ -86,7 +91,6 @@ function ChatMessage({
     item.tool_calls?.artwork_alt || `${aiName}创作的图片`;
   const isGenerating = item.isStreaming === true || item.generationInProgress === true;
   const displayContent = useMemo(() => readChatDisplayContent(item), [item]);
-  const [thinkingDetailOpen, setThinkingDetailOpen] = useState(false);
   const formattedTime = useMemo(() =>
     typeof item.formattedTime === "string" && item.formattedTime
       ? item.formattedTime : formatMessageTime(item.created_at),
@@ -191,6 +195,8 @@ function ChatMessage({
 
   return (
     <article
+      ref={rowRef}
+      data-text-impact-scope={textImpactScope}
       className={`message-row ${isUser ? "user" : "assistant"}${
         canReference ? " can-reference" : ""
       }${skin === "taotao-cream" ? " chat-skin-cream-message" : ""}${
@@ -262,6 +268,19 @@ function ChatMessage({
               </span>
             </div>
           )}
+          {!isUser && (
+            <ThinkingPanel
+              message={item}
+              aiName={aiName}
+              aiPronoun={aiPronoun}
+              companionMood={companionMood}
+              innerMonologue={innerMonologue}
+              innerMonologuePending={innerMonologuePending}
+              innerMonologueError={innerMonologueError}
+              onRequestInnerMonologue={onRequestInnerMonologue}
+              onCancelInnerMonologue={onCancelInnerMonologue}
+            />
+          )}
           {item.chatError && item.partialContent && (
             <div className="message-content" role="note">
               <small>回复中断 · 以下片段仅临时显示，尚未确认保存</small>
@@ -294,6 +313,9 @@ function ChatMessage({
               src={privateMediaContentPath(customSticker.id)}
               alt={customSticker.alt_text || customSticker.display_name || "自定义表情"}
               className="message-sticker-image"
+              animationControls
+              width={customSticker.width}
+              height={customSticker.height}
               buttonClassName="message-sticker"
               onPreview={onPreview}
             />
@@ -329,35 +351,6 @@ function ChatMessage({
             )}
           {!isUser && (
             <>
-              {isGenerating && !thinkingDetailOpen ? (
-                <div className="thinking-panel-minimal">
-                  <span className="typing-indicator-inline" aria-label="正在回复中">
-                    <span className="dot" />
-                    <span className="dot" />
-                    <span className="dot" />
-                  </span>
-                  <button
-                    type="button"
-                    className="thinking-panel-minimal-toggle"
-                    onClick={() => setThinkingDetailOpen(true)}
-                    title="查看当前进度"
-                  >
-                    <span className="chevron">▸</span>
-                    详情
-                  </button>
-                </div>
-              ) : (
-                <ThinkingPanel
-                  message={item}
-                  aiName={aiName}
-                  aiPronoun={aiPronoun}
-                  companionMood={companionMood}
-                  innerMonologue={innerMonologue}
-                  innerMonologuePending={innerMonologuePending}
-                  innerMonologueError={innerMonologueError}
-                  onRequestInnerMonologue={onRequestInnerMonologue}
-                />
-              )}
               <DeviceActionReceipts actions={item.tool_calls?.mcp_actions} />
               <CompanionActivityCards actions={item.tool_calls?.activity_actions} onOpen={onOpenActivity} />
             </>
@@ -390,12 +383,16 @@ function ChatMessage({
               </strong>
             </div>
           )}
-          {item.isStreaming && !isGenerating === false && thinkingDetailOpen && (
+          {item.isStreaming && (
             <span className="stream-caret" aria-label="正在回复">
               ♥
             </span>
           )}
           <div className="message-footer">
+            {!item.chatError && !item.tool_calls?.refusal_detected && String(item.content || "").trim() && (
+              <ChatTextImpact rowRef={rowRef} scopeKey={textImpactScope} messageId={item.id}
+                recent={!isUser && item.monologueAutoOpen === true} generating={isGenerating} reducedMotion={reduceMotion} />
+            )}
             {item.chatError === true &&
               typeof onDismissError === "function" && (
                 <button

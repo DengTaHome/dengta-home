@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useBackLayer } from "./useAppBackNavigation.js";
 import { X } from "lucide-react";
 import {
   formatAttachmentSize,
@@ -179,6 +180,7 @@ export function ThinkingPanel({
   innerMonologuePending = false,
   innerMonologueError = "",
   onRequestInnerMonologue,
+  onCancelInnerMonologue,
 }) {
   const completed = thinkingPanelCompleted(message);
   const synchronizedMonologue =
@@ -196,8 +198,9 @@ export function ThinkingPanel({
     Boolean(innerMonologue?.text) ||
     synchronizedMonologue ||
     canRequestInnerMonologue;
-  const [open, setOpen] = useState(!completed);
+  const [open, setOpen] = useState(!completed || message.monologueAutoOpen === true);
   const [monologueDialogOpen, setMonologueDialogOpen] = useState(false);
+  useBackLayer(monologueDialogOpen, () => setMonologueDialogOpen(false), 300);
 
   useEffect(() => {
     if (!monologueDialogOpen) return undefined;
@@ -216,9 +219,20 @@ export function ThinkingPanel({
   const displayName = String(aiName || "").trim() || "伴侣";
   const mood = String(companionMood || "").trim();
   const monologueText = String(innerMonologue?.text || "").trim();
+  const providerSummary = message.thinkingSummarySource === "provider_summary"
+    ? Array.from(String(message.thinkingSummary || "")).slice(0, 6_000).join("")
+    : "";
+  const supplementedMonologue = innerMonologue?.generated_with_reply === false ||
+    (!synchronizedMonologue && Boolean(monologueText));
+  const storageWarning = String(innerMonologueError).startsWith("[inner_monologue_storage_unavailable]");
+  const supplementLabel = storageWarning ? "补充生成 · 暂存在本次打开期间" : "补充生成 · 仅保存在这台设备";
+  const previewParagraph = monologueText.split(/\n\s*\n/)[0];
+  const previewCharacters = Array.from(previewParagraph);
+  const previewText = previewCharacters.slice(0, 160).join("") +
+    (previewCharacters.length > 160 || previewParagraph !== monologueText ? "…" : "");
   const synchronizedSummary = {
     streaming: "AI 可见心声同步中",
-    complete: "已随本次回复同步保存",
+    complete: supplementedMonologue ? supplementLabel : "已随本次回复同步保存",
     missing: "这次未生成可显示的心声",
     truncated: "这次心声未完整生成",
     failed: "这次心声同步未完成",
@@ -232,6 +246,35 @@ export function ThinkingPanel({
 
   return (
     <>
+      {storageWarning && <small className="inner-monologue-error" role="alert">{innerMonologueError}</small>}
+      {innerMonologuePending && typeof onCancelInnerMonologue === "function" && (
+        <div className="inner-monologue-request"><button type="button" onClick={() => onCancelInnerMonologue(message)}>取消心声等待</button></div>
+      )}
+      {providerSummary && (
+        <section className="provider-summary-panel" aria-label="接口提供的公开推理摘要">
+          <small>接口提供的公开推理摘要</small>
+          <p className="thinking-summary-text" aria-live={!completed ? "polite" : undefined}>{providerSummary}</p>
+          <small>不是隐藏的原始思考链，也不是角色心声</small>
+        </section>
+      )}
+      {!open && monologueText && (
+        <div className="inner-monologue-result visible-monologue-preview">
+          <small className="visible-monologue-status">
+            {supplementedMonologue ? supplementLabel : "AI 生成的可见心声"}
+          </small>
+          <p className="thinking-summary-text inner-monologue-text" aria-live={monologueState === "streaming" ? "polite" : undefined}>
+            {previewText}
+          </p>
+        </div>
+      )}
+      {!open && canRequestInnerMonologue && (
+        <div className="inner-monologue-request">
+          <button type="button" disabled={innerMonologuePending} onClick={requestMonologue}>
+            {innerMonologuePending ? "正在补充心声…" : "补充这次心声"}
+          </button>
+          {innerMonologueError && <small className="inner-monologue-error" role="alert">{innerMonologueError}</small>}
+        </div>
+      )}
       <details
         className="thinking-panel"
         open={open}
@@ -244,7 +287,7 @@ export function ThinkingPanel({
             ? synchronizedMonologue
               ? synchronizedSummary
               : monologueText
-                ? "按需心声 · 仅保存在这台设备"
+                ? supplementLabel
                 : "可按需生成心声"
             : synchronizedMonologue
               ? synchronizedSummary
@@ -325,7 +368,7 @@ export function ThinkingPanel({
                 type="button"
                 onClick={() => setMonologueDialogOpen(true)}
               >
-                打开这次 AI 可见心声
+                {supplementedMonologue ? "打开这次补充心声" : "打开这次 AI 可见心声"}
               </button>
             )}
           </div>
@@ -338,7 +381,7 @@ export function ThinkingPanel({
               打开这次补充心声
             </button>
           </div>
-        ) : completed ? (
+        ) : completed && canRequestInnerMonologue ? (
           <div className="inner-monologue-request">
             <button
               type="button"
@@ -360,7 +403,7 @@ export function ThinkingPanel({
           </div>
         ) : (
           <p className="thinking-availability-note">
-            正在等待本次回复的 AI 可见心声。
+            {completed ? "这次回复尚未确认保存，暂时不能补充心声。" : "正在等待本次回复的 AI 可见心声。"}
           </p>
         )}
         </div>
@@ -393,14 +436,10 @@ export function ThinkingPanel({
               </button>
             </header>
             <div className="inner-monologue-dialog-body">
-              {innerMonologuePending ? (
-                <div className="inner-monologue-dialog-pending" role="status">
-                  <span aria-hidden="true" />
-                  <p>{aiPronoun}正在把没有说出口的念头慢慢写下来…</p>
-                </div>
-              ) : monologueText ? (
+              {monologueText && (
                 <>
                   <p>{monologueText}</p>
+                  {supplementedMonologue && <small>{supplementLabel}</small>}
                   {monologueState === "truncated" && (
                     <small>心声格式未闭合或超过显示长度，以上仅为收到的片段。</small>
                   )}
@@ -408,6 +447,13 @@ export function ThinkingPanel({
                     <small>本轮回复未完成，以上片段仅临时显示，尚未确认保存到聊天记录。</small>
                   )}
                 </>
+              )}
+              {innerMonologuePending ? (
+                <div className="inner-monologue-dialog-pending" role="status">
+                  <span aria-hidden="true" />
+                  <p>{aiPronoun}正在把没有说出口的念头慢慢写下来…</p>
+                  {typeof onCancelInnerMonologue === "function" && <button type="button" onClick={() => onCancelInnerMonologue(message)}>取消等待</button>}
+                </div>
               ) : innerMonologueError ? (
                 <div className="inner-monologue-dialog-error" role="alert">
                   <p>{innerMonologueError}</p>
@@ -417,11 +463,11 @@ export function ThinkingPanel({
                     </button>
                   )}
                 </div>
-              ) : synchronizedMonologue ? (
+              ) : !monologueText && synchronizedMonologue ? (
                 <p>{synchronizedSummary}</p>
-              ) : (
+              ) : !monologueText ? (
                 <p>这一次暂时没有收到可显示的心声。</p>
-              )}
+              ) : null}
             </div>
           </section>
         </div>

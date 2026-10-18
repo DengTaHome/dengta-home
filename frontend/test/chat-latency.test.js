@@ -12,7 +12,7 @@ const sendEnd = app.indexOf("sendMessageRef.current = sendMessage", sendStart);
 assert.ok(sendStart >= 0 && sendEnd > sendStart);
 const sendHandler = app.slice(sendStart, sendEnd);
 
-const startupStart = app.indexOf("async function loadInitialData()");
+const startupStart = app.indexOf("async function loadInitialData(");
 const startupEnd = app.indexOf(
   "const reconnectController = createStartupReconnectController",
   startupStart,
@@ -21,7 +21,7 @@ assert.ok(startupStart >= 0 && startupEnd > startupStart);
 const startupHandler = app.slice(startupStart, startupEnd);
 assert.match(
   startupHandler,
-  /apiRequest\(\s*"\/api\/v2\/bootstrap",\s*startupRequestOptions,?\s*\)/,
+  /apiRequest\(\s*"\/api\/v2\/bootstrap",\s*requestOptions,?\s*\)/,
   "startup must use one authenticated bootstrap request",
 );
 assert.doesNotMatch(

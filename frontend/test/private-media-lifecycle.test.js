@@ -70,7 +70,7 @@ try {
     await unmount();
     const reads = fixture.reads;
     await act(async () => wait.resolve({}));
-    assert.equal(refreshes, 1, "a completed mutation calls the parent's scope-safe refresh even after this panel closes");
+    assert.equal(refreshes, 1, "a confirmed mutation reconciles through the parent's scope-safe refresh after the sheet closes");
     assert.equal(fixture.reads, reads, "old completion cannot invoke a global current-account read");
     assert.equal(commits, 0);
   }

@@ -266,7 +266,7 @@ for (const state of ["complete", "missing", "truncated", "failed"]) {
   const empty = { ...missingStream, state };
   assert.equal(canRequestVisibleMonologue({ visibleMonologue: empty }), true);
   assert.equal(canRequestVisibleMonologue({ visibleMonologue: empty, generationInProgress: true }), false);
-  assert.equal(canRequestVisibleMonologue({ visibleMonologue: { ...empty, text: "已有可见心声" } }), false);
+  assert.equal(canRequestVisibleMonologue({ visibleMonologue: { ...empty, text: "已有可见心声" } }), state !== "complete");
 }
 assert.equal(canRequestVisibleMonologue({ tool_calls: { visible_monologue: null } }), true);
 assert.equal(canRequestVisibleMonologue({ role: "user" }), false);
@@ -390,7 +390,7 @@ assert.match(messageExtrasSource, /aria-modal="true"/);
 assert.match(appStylesSource, /\.inner-monologue-dialog-backdrop\s*\{/);
 assert.match(appStylesSource, /\.inner-monologue-dialog\s*\{/);
 assert.match(appSource, /\/companion\/inner-monologue/);
-assert.match(appSource, /timeoutMs:\s*300\s*\*\s*1000/);
+assert.match(appSource, /timeoutMs:\s*120\s*\*\s*1000/);
 assert.match(appSource, /event\.type === "monologue"/);
 assert.match(appSource, /reduceVisibleMonologueEvent/);
 assert.match(appSource, /<ChatTranscript/);

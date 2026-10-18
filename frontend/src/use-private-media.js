@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { API_BASE_URL, apiFetch } from "./api";
 import { privateMediaRequestPath } from "./private-media";
 import { authSession } from "./auth-session.js";
+import { isAnimatedStickerBlob } from "./animated-stickers.js";
 
 export function usePrivateMediaSource(source, { enabled = true, scopeKey = "" } = {}) {
   const value = String(source || "").trim();
@@ -30,9 +31,11 @@ export function usePrivateMediaSource(source, { enabled = true, scopeKey = "" } 
         const blob = await response.blob();
         if (!active) return;
         if (!blob.size) throw new Error("媒体内容为空。");
+        const animated = await isAnimatedStickerBlob(blob);
+        if (!active) return;
         objectUrl = URL.createObjectURL(blob);
         if (active) {
-          setLoaded({ identity, url: objectUrl, error: "" });
+          setLoaded({ identity, url: objectUrl, animated, error: "" });
         }
       })
       .catch((error) => {
@@ -60,6 +63,7 @@ export function usePrivateMediaSource(source, { enabled = true, scopeKey = "" } 
   }
   return {
     url: loaded.url,
+    animated: loaded.animated === true,
     loading: false,
     error: loaded.error,
   };

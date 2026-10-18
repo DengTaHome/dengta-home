@@ -1097,7 +1097,7 @@ async function testWorkflow() {
         [customStickerId],
         "互动调用链应只暴露当前 scope 的有效自定义表情 UUID"
     );
-    assert.match(generationInput.tools[0].description, /warm\|hug/);
+    assert.match(generationInput.tools[0].description, /"mood_tags":\["warm","hug"\]/);
     assert.equal(typeof generationInput.executeTool, "function");
     assert.match(generationInput.runtimeContext, /Asia\/Shanghai/);
     assert.equal(

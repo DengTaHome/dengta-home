@@ -1,5 +1,6 @@
 "use strict";
 module.exports = {
+    "provider_empty_response": "模型接口有响应，但没有返回可显示的正文；具体原因尚未确认。 点同一条消息的“重试”；持续出现时检查模型输出预算和接口协议，或切换接口。 / The provider returned no visible reply text. Retry the same message or check output budget and API compatibility.",
     "provider_balance_insufficient": "API 账户余额不足。 到当前供应商控制台充值或切换有余额的接口，保存后点“重试”。 / The API account balance is insufficient. Add credits or switch providers, then retry.",
     "provider_quota_exhausted": "API 额度或账单上限已耗尽；不一定是余额不足。 检查供应商用量、余额和账单限额；恢复额度或切换接口后点“重试”。 / The API quota or billing limit is exhausted. Check usage and billing limits, then retry.",
     "provider_rate_limited": "模型接口限制了请求频率或并发数。 等待片刻再点“重试”，避免连续点击；持续出现时检查供应商限额或切换接口。 / The provider rate-limited the request. Wait briefly before retrying.",

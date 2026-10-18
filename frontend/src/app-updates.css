@@ -1,0 +1,19 @@
+.app-update-backdrop { position: fixed; inset: 0; z-index: 1400; display: grid; place-items: center; padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); background: #10213266; }
+.app-update-dialog { width: min(100%, 430px); max-height: 85dvh; overflow: auto; padding: 26px; border: 1px solid #ffffffba; border-radius: 28px; background: #fffaf5; color: #263848; box-shadow: 0 18px 70px #10213240; }
+.app-update-dialog h2 { margin: 9px 0; font-size: 25px; }
+.app-update-dialog small { color: #78625c; letter-spacing: .1em; }
+.app-update-dialog p { font-size: 14px; line-height: 1.6; color: #53616b; }
+.app-update-dialog ul { padding-left: 22px; line-height: 1.8; overflow-wrap: anywhere; }
+.app-update-actions { display: flex; gap: 10px; margin-top: 20px; }
+.app-update-actions button { flex: 1; min-height: 46px; border-radius: 16px; border: 1px solid #b6c9d0; background: #fff; color: #2e5363; font: inherit; }
+.app-update-actions button:last-child { background: #31576b; color: #fff; }
+.app-update-preference-toggle { min-height: 46px; max-width: 100%; padding: 10px 16px; border: 1px solid #b6c9d0; border-radius: 16px; background: #fff; color: #2e5363; font: inherit; }
+.app-update-notifications { min-height: 44px; margin-top: 12px; border: 0; background: transparent; color: #42637a; font: inherit; }
+.app-update-feedback { position: fixed; z-index: 1500; bottom: max(25px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(90%, 440px); display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 18px; background: #fffaf5; color: #263848; box-shadow: 0 6px 30px #10213233; }
+.app-update-feedback button { flex: none; width: 36px; height: 36px; font: inherit; font-size: 24px; color: inherit; background: transparent; border: 0; }
+.settings-app-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 100%; }
+.settings-app-actions .install-button { min-height: 40px; white-space: normal; }
+@media (max-width: 620px) {
+  .settings-app-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-app-actions > :first-child { grid-column: 1 / -1; }
+}

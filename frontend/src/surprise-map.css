@@ -1,0 +1,37 @@
+.surprise-map-page{max-width:760px;margin:auto;padding:20px 16px 40px;color:var(--ink,#46373c)}
+.surprise-map-tabs,.surprise-map-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.surprise-map-page button{min-height:44px;padding:9px 15px;border:1px solid var(--line,#d9c9c8);border-radius:16px;background:var(--paper,#fff9f5);color:inherit;font:inherit;cursor:pointer}
+.surprise-map-page button[aria-pressed=true],.surprise-map-page .primary-button{background:#785363;color:#fff;border-color:#785363}
+.surprise-map-page button:disabled{opacity:.55;cursor:default}
+.surprise-map-page :focus-visible{outline:3px solid #b47e98;outline-offset:3px}
+.surprise-map-radar{position:relative;height:260px;overflow:hidden;margin:20px 0 10px;border:1px solid #bbcfca;border-radius:30px;background:repeating-radial-gradient(circle at center,transparent 0 39px,#c0d4ce99 40px 41px,transparent 42px 80px),linear-gradient(135deg,#e3efea,#f9eee0);color:#4a6d64}
+.surprise-map-radar:before,.surprise-map-radar:after{content:"";position:absolute;left:50%;top:8%;height:84%;width:1px;background:#bbd0c6}
+.surprise-map-radar:after{transform:rotate(90deg)}
+.surprise-map-compass{position:absolute;top:10px;left:calc(50% - 5px);font-size:11px;letter-spacing:2px}
+.surprise-map-center{position:absolute;left:calc(50% - 9px);top:calc(50% - 14px);font-size:28px;z-index:1}
+.surprise-map-dot{position:absolute;z-index:2;padding:4px 8px;transform:translate(-50%,-50%);border:1px solid #d8b38e;border-radius:12px;background:#fff7e9;color:#916b44;font-size:20px;box-shadow:0 3px 12px #896e491b}
+.surprise-map-radar small{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:11px;letter-spacing:1px;color:#45685f;opacity:1}
+.surprise-map-page .section-intro p,.surprise-map-location,.surprise-map-form small{font-size:14px;line-height:1.8;color:color-mix(in srgb,var(--ink,#46373c) 80%,transparent)}
+.surprise-map-list{display:grid;gap:14px;margin-top:20px}
+.surprise-map-card,.surprise-map-form,.surprise-map-opened{padding:20px;margin:14px 0;border:1px solid var(--line,#e2d3d0);border-radius:24px;background:var(--paper,#fff9f3);box-shadow:0 5px 18px #44333708}
+.surprise-map-card h3,.surprise-map-form h3{margin:8px 0 10px;font-size:19px}
+.surprise-map-opened{background:#fff7e5;color:#594b3d;white-space:pre-wrap;overflow-wrap:anywhere}
+.surprise-map-form{display:grid;gap:14px}
+.surprise-map-form label{display:grid;gap:7px;font-size:14px}
+.surprise-map-form input,.surprise-map-form textarea,.surprise-map-form select{width:100%;box-sizing:border-box;border:1px solid #d8c9c5;border-radius:12px;background:#fffdf9;color:#46373c;padding:11px;font:inherit;min-width:0}
+.surprise-map-form .surprise-map-consent{display:flex;align-items:flex-start;line-height:1.6}
+.surprise-map-consent input{width:20px;min-width:20px;height:20px;padding:0}
+.surprise-map-feedback{padding:14px;border:1px solid #d9b592;border-radius:14px;background:#fff5e6;color:#754d2c;overflow-wrap:anywhere}
+.surprise-map-basemap-choice{padding:14px 16px;margin-top:16px;border:1px solid #c3d5ce;border-radius:20px;background:#edf4ee;color:#36584c;font-size:13px;line-height:1.7}
+.surprise-map-basemap-choice p{margin:0 0 10px}
+.surprise-map-canvas{height:340px;isolation:isolate;z-index:0;border-radius:24px;overflow:hidden;background:#e5eee8;color:#283d33}
+.surprise-map-interactive{margin:16px 0;padding:0 0 10px;min-width:0}
+.surprise-map-map-status{font-size:13px;line-height:1.7;color:var(--ink,#46373c)}
+.surprise-map-selected{padding:14px 16px;border:1px solid #b9839c;border-radius:18px;background:#fff4f8;color:#5e3549;overflow-wrap:anywhere}
+.surprise-map-selected p{font-size:13px;line-height:1.7}
+.surprise-map-selected button{background:#fff8fc;color:#65354b;border-color:#c69bb0}
+.surprise-map-canvas .leaflet-control a{color:#285b52}
+.surprise-map-canvas .leaflet-control-zoom a{min-width:44px;min-height:44px;line-height:44px}
+.surprise-map-canvas .leaflet-control-attribution{font-size:11px;background:#fffffff2;color:#263c33;max-width:calc(100% - 16px)}
+.surprise-map-canvas path[role=button]:focus-visible{outline:3px solid #963d64;outline-offset:3px}
+@media(prefers-reduced-motion:no-preference){.surprise-map-page button{transition:background-color .15s,border-color .15s}}

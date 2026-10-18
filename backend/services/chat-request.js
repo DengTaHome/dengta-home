@@ -97,6 +97,7 @@ function normalizeChatBody(bodyValue, filesValue) {
         emotionUnderstandingEnabled: parseChatBoolean(
             body.emotion_understanding_enabled
         ),
+        publicReasoningSummary: parseChatBoolean(body.public_reasoning_summary),
         attachmentInstructionMode,
         attachmentStorageMode,
         companionStatus: parseChatObject(

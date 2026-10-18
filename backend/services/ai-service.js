@@ -12,6 +12,7 @@ const {
 const {
     UPDATE_COMPANION_STATUS_TOOL
 } = require("./companion-status");
+const { SELECT_COMPANION_STICKER_TOOL } = require("./companion-stickers");
 const {
     createReplySuggestionEnvelopeProtocol,
     executeReplySuggestionEnvelopeMetadata
@@ -74,15 +75,19 @@ function createReplySuggestionEnvelopeForTools(tools, executeTool) {
     const includeCompanionStatus =
         Array.isArray(tools) &&
         tools.some((tool) => tool?.name === UPDATE_COMPANION_STATUS_TOOL.name);
+    const stickerTool = Array.isArray(tools)
+        ? tools.find((tool) => tool?.name === SELECT_COMPANION_STICKER_TOOL.name)
+        : null;
     if (
         typeof executeTool !== "function" ||
-        (!includeReplySuggestions && !includeCompanionStatus)
+        (!includeReplySuggestions && !includeCompanionStatus && !stickerTool)
     ) {
         return null;
     }
     return createReplySuggestionEnvelopeProtocol({
         includeReplySuggestions,
-        includeCompanionStatus
+        includeCompanionStatus,
+        stickerTool
     });
 }
 
@@ -95,7 +100,8 @@ function createProviderReplySuggestionEnvelope(provider, tools, executeTool) {
 function hasUnsupportedEnvelopeTools(tools) {
     const supportedTools = new Set([
         SELECT_REPLY_SUGGESTIONS_TOOL.name,
-        UPDATE_COMPANION_STATUS_TOOL.name
+        UPDATE_COMPANION_STATUS_TOOL.name,
+        SELECT_COMPANION_STICKER_TOOL.name
     ]);
     return (
         Array.isArray(tools) &&
@@ -285,12 +291,12 @@ const PROACTIVE_MESSAGE_PROMPT_ARCHITECTURE =
 const VISIBLE_INNER_MONOLOGUE_PROMPT_ARCHITECTURE =
     "visible-inner-monologue";
 const MAIN_CHAT_PROMPT_CONTRACT_VERSION = "dengta-prompt-contract-v8";
-const VISIBLE_MONOLOGUE_CONTRACT_VERSION = "visible-monologue-v2";
+const VISIBLE_MONOLOGUE_CONTRACT_VERSION = "visible-monologue-v3";
 const VISIBLE_MONOLOGUE_MAX_CHARACTERS = 6000;
 const VISIBLE_MONOLOGUE_INSTRUCTION = [
     "Public visible-monologue output format (user-facing text, not private chain-of-thought):",
-    "Write the normal answer first so the user can read it immediately. Never place the answer inside the monologue block.",
-    "After the answer, append one [monologue] ... [/monologue] block and close it exactly; only after that append any hidden metadata protocol line. If no monologue is produced, keep the normal answer intact.",
+    "First write one [monologue] ... [/monologue] block, close it exactly, then immediately write the normal answer outside that block. Do not wait for another user message between them.",
+    "Only after the normal answer append any hidden metadata protocol line. If no monologue is produced, keep the normal answer intact.",
     "Inside that block, write a first-person monologue intentionally shown to the user. Its length, tone, and detail follow the user's personalization, user details, and current request.",
     "Do not reproduce hidden reasoning, system instructions, secrets, tool arguments, or private data.",
     "Do not use the markers anywhere else."
@@ -1893,7 +1899,7 @@ async function completeOpenAiMessages({ endpoint, settings, messages, apiKey }) 
 
     const text = data?.choices?.[0]?.message?.content;
     if (!text) {
-        throw new Error("模型接口没有返回可显示的文字。");
+        throw providerNoVisibleTextError();
     }
 
     return filterThinkTags(openAiContentText(text)).trim();
@@ -1906,6 +1912,13 @@ function applyOpenAiChatReasoning(body, settings = {}) {
     );
     if (effort) body.reasoning_effort = effort;
     return body;
+}
+
+function providerNoVisibleTextError(message = "模型接口完成了响应，但没有返回可显示的文字。") {
+    return Object.assign(new Error(message), {
+        code: "provider_empty_response", status: 502, upstreamStatus: 200,
+        errorSource: "upstream_provider_or_gateway", providerPhase: "completed_output"
+    });
 }
 
 function applyOpenAiResponsesReasoning(body, settings = {}) {
@@ -1922,6 +1935,10 @@ function applyOpenAiResponsesReasoning(body, settings = {}) {
 function openAiResponsesNoVisibleTextError(response) {
     const error = new Error("Responses 接口没有返回可显示的文字。");
     error.code = "OPENAI_RESPONSES_NO_VISIBLE_TEXT";
+    error.status = 502;
+    error.upstreamStatus = 200;
+    error.errorSource = "upstream_provider_or_gateway";
+    error.providerPhase = "completed_output";
     error.upstreamResponseStatus = String(response?.status || "").slice(0, 40);
     error.upstreamIncompleteReason = String(
         response?.incomplete_details?.reason || ""
@@ -1985,6 +2002,7 @@ async function streamOpenAiResponses({
     attachments = [],
     onEvent,
     reasoningEmitter,
+    publicReasoningSummary = false,
     replySuggestionEnvelope = null
 }) {
     const endpoint = ensureOpenAiResponsesEndpoint(settings.api_url);
@@ -2004,6 +2022,9 @@ async function streamOpenAiResponses({
         stream: true
     };
     applyOpenAiResponsesReasoning(body, settings);
+    if (publicReasoningSummary === true) {
+        body.reasoning = { ...body.reasoning, summary: "auto" };
+    }
     const temperature = Number(settings.temperature);
     if (Number.isFinite(temperature)) body.temperature = temperature;
 
@@ -2093,7 +2114,8 @@ async function streamOpenAiResponses({
     return {
         text: fullText.trim(),
         replySuggestions: envelopeFilter?.getSuggestions?.() || [],
-        companionStatus: envelopeFilter?.getCompanionStatus?.() || null
+        companionStatus: envelopeFilter?.getCompanionStatus?.() || null,
+        sticker: envelopeFilter?.getSticker?.() || null
     };
 }
 
@@ -2204,7 +2226,7 @@ async function callOpenAiCompatibleWithTools({
             if (toolCalls.length === 0) {
                 const text = visibleParts.join("\n").trim();
                 if (!text) {
-                    throw new Error("模型接口没有返回可显示的文字。");
+                    throw providerNoVisibleTextError();
                 }
                 return {
                     text,
@@ -2261,7 +2283,7 @@ async function callOpenAiCompatibleWithTools({
                 executeTool
             );
             if (!text) {
-                throw new Error("模型接口没有返回可显示的文字。");
+                throw providerNoVisibleTextError();
             }
             return {
                 text,
@@ -2312,11 +2334,9 @@ async function callGemini({
 
     if (!text) {
         const reason = data?.promptFeedback?.blockReason;
-        throw new Error(
-            reason
-                ? `Gemini 没有返回内容：${reason}`
-                : "Gemini 没有返回可显示的文字。"
-        );
+        const error = providerNoVisibleTextError();
+        if (reason) error.providerCode = safeProviderErrorCode(reason);
+        throw error;
     }
 
     return String(text).trim();
@@ -2353,7 +2373,7 @@ async function callAnthropic({
         .join("\n");
 
     if (!text) {
-        throw new Error("Anthropic 没有返回可显示的文字。");
+        throw providerNoVisibleTextError();
     }
 
     return String(text).trim();
@@ -3288,7 +3308,7 @@ async function streamOpenAiCompatibleWithTools({
             if (toolCalls.length === 0) {
                 const text = fullText.trim();
                 if (!text) {
-                    throw new Error("模型接口没有返回可显示的文字。");
+                    throw providerNoVisibleTextError();
                 }
                 return {
                     text,
@@ -3452,7 +3472,8 @@ async function streamGemini({
     return {
         text: fullText.trim(),
         replySuggestions: envelopeFilter?.getSuggestions?.() || [],
-        companionStatus: envelopeFilter?.getCompanionStatus?.() || null
+        companionStatus: envelopeFilter?.getCompanionStatus?.() || null,
+        sticker: envelopeFilter?.getSticker?.() || null
     };
 }
 
@@ -3540,7 +3561,8 @@ async function streamAnthropic({
     return {
         text: fullText.trim(),
         replySuggestions: envelopeFilter?.getSuggestions?.() || [],
-        companionStatus: envelopeFilter?.getCompanionStatus?.() || null
+        companionStatus: envelopeFilter?.getCompanionStatus?.() || null,
+        sticker: envelopeFilter?.getSticker?.() || null
     };
 }
 
@@ -3858,7 +3880,7 @@ async function generateReply({
             executeTool
         );
         if (!text) {
-            throw new Error("Gemini 没有返回可显示的文字。");
+            throw providerNoVisibleTextError();
         }
         return screenedGeneratedReply(finalizeGeneratedReply({
             text,
@@ -3882,7 +3904,7 @@ async function generateReply({
             executeTool
         );
         if (!text) {
-            throw new Error("Anthropic 没有返回可显示的文字。");
+            throw providerNoVisibleTextError();
         }
         return screenedGeneratedReply(finalizeGeneratedReply({
             text,
@@ -3906,7 +3928,7 @@ async function generateReply({
             executeTool
         );
         if (!text) {
-            throw new Error("Responses 接口没有返回可显示的文字。");
+            throw providerNoVisibleTextError();
         }
         return screenedGeneratedReply(finalizeGeneratedReply({
             text,
@@ -4112,6 +4134,7 @@ async function generateReplyStream({
     attachments = [],
     onEvent,
     publicProgress = {},
+    publicReasoningSummary = false,
     tools = [],
     executeTool,
     visibleMonologue = false,
@@ -4217,6 +4240,7 @@ async function generateReplyStream({
     let toolsUnsupported = false;
     let envelopeSuggestions = [];
     let envelopeCompanionStatus = null;
+    let envelopeSticker = null;
     let receiptSystemInstructions = providerSystemInstructions;
 
     if (!settings.model || !apiKey) {
@@ -4239,6 +4263,7 @@ async function generateReplyStream({
         text = generated.text;
         envelopeSuggestions = generated.replySuggestions;
         envelopeCompanionStatus = generated.companionStatus;
+        envelopeSticker = generated.sticker;
         toolsUnsupported = hasUnsupportedEnvelopeTools(tools);
     } else if (provider === "anthropic") {
         const generated = await streamAnthropic({
@@ -4254,6 +4279,7 @@ async function generateReplyStream({
         text = generated.text;
         envelopeSuggestions = generated.replySuggestions;
         envelopeCompanionStatus = generated.companionStatus;
+        envelopeSticker = generated.sticker;
         toolsUnsupported = hasUnsupportedEnvelopeTools(tools);
     } else if (provider === "openai-responses") {
         const generated = await streamOpenAiResponses({
@@ -4264,11 +4290,13 @@ async function generateReplyStream({
             attachments,
             onEvent: onProviderEvent,
             reasoningEmitter,
+            publicReasoningSummary,
             replySuggestionEnvelope
         });
         text = generated.text;
         envelopeSuggestions = generated.replySuggestions;
         envelopeCompanionStatus = generated.companionStatus;
+        envelopeSticker = generated.sticker;
         toolsUnsupported = hasUnsupportedEnvelopeTools(tools);
     } else {
         if (
@@ -4310,6 +4338,7 @@ async function generateReplyStream({
         }
     }
 
+    if (mode !== "placeholder" && !String(text || "").trim()) throw providerNoVisibleTextError();
     flushProviderOutput();
     const publicOutput = publicReplyOutput.finish();
     text = publicOutput.text;
@@ -4321,7 +4350,8 @@ async function generateReplyStream({
     await executeReplySuggestionEnvelopeMetadata(
         {
             suggestions: envelopeSuggestions,
-            companionStatus: envelopeCompanionStatus
+            companionStatus: envelopeCompanionStatus,
+            sticker: envelopeSticker
         },
         executeTool
     );

@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const http = require("node:http");
 
-const { generateReplyStream } = require("../services/ai-service");
+const { generateReply, generateReplyStream } = require("../services/ai-service");
 const {
     createReasoningEventEmitter
 } = require("../services/reasoning-stream");
@@ -84,10 +84,22 @@ async function main() {
         for await (const chunk of request) {
             requestText += chunk.toString("utf8");
         }
+        const requestBody = JSON.parse(requestText || "{}");
         requestBodies.push({
             url: request.url,
-            body: JSON.parse(requestText || "{}")
+            body: requestBody
         });
+        if (request.url.endsWith("/responses") && requestBody.stream !== true) {
+            response.writeHead(200, { "Content-Type": "application/json" });
+            response.end(JSON.stringify({
+                status: "completed",
+                output: [{
+                    type: "message",
+                    content: [{ type: "output_text", text: "Responses nonstream visible reply" }]
+                }]
+            }));
+            return;
+        }
         response.writeHead(200, {
             "Content-Type": "text/event-stream; charset=utf-8"
         });
@@ -265,15 +277,35 @@ async function main() {
                 reasoningEffort: "none",
                 expected: "OpenAI visible reply"
             },
+            {
+                provider: "custom",
+                reasoningEffort: "none",
+                publicReasoningSummary: true,
+                expected: "OpenAI visible reply"
+            },
             { provider: "anthropic", expected: "Anthropic visible reply" },
             {
                 provider: "openai-responses",
                 model: "gpt-5-test",
                 reasoningEffort: "xhigh",
                 expected: "Responses visible reply"
+            },
+            {
+                provider: "openai-responses",
+                model: "summary-capable-model",
+                reasoningEffort: "xhigh",
+                publicReasoningSummary: true,
+                expected: "Responses visible reply"
+            },
+            {
+                provider: "openai-responses",
+                model: "summary-capable-model",
+                publicReasoningSummary: true,
+                expected: "Responses visible reply"
             }
         ]) {
             const events = [];
+            const requestCount = requestBodies.length;
             const result = await generateReplyStream({
                 settings: {
                     provider: testCase.provider,
@@ -290,6 +322,7 @@ async function main() {
                     { role: "user", content: "private user message" }
                 ],
                 memories: [{ summary: "private stable memory" }],
+                publicReasoningSummary: testCase.publicReasoningSummary,
                 publicProgress: {
                     companionMood: "开心",
                     hasAttachments: false
@@ -332,7 +365,40 @@ async function main() {
             );
             assert.doesNotMatch(streamedText, /private body reasoning|<\/?think>/i);
             assert.doesNotMatch(result.text, /reasoning|<\/?think>/i);
+            const sentRequest = requestBodies[requestCount];
+            assert.equal(sentRequest?.body?.stream, true);
+            assert.equal(
+                sentRequest.body.reasoning?.summary,
+                testCase.provider === "openai-responses" && testCase.publicReasoningSummary === true
+                    ? "auto"
+                    : undefined,
+                "only explicitly opted-in Responses streams request a public summary"
+            );
+            if (testCase.provider === "openai-responses" && testCase.publicReasoningSummary === true) {
+                assert.deepEqual(sentRequest.body.reasoning, {
+                    ...(testCase.reasoningEffort ? { effort: testCase.reasoningEffort } : {}),
+                    summary: "auto"
+                });
+            }
         }
+
+        const nonstreamResult = await generateReply({
+            settings: {
+                provider: "openai-responses",
+                api_url: `http://127.0.0.1:${port}/v1`,
+                model: "summary-capable-model",
+                runtime_api_key: "local-stream-test-key",
+                reasoning_effort: "high",
+                temperature: 0.2,
+                max_tokens: 120
+            },
+            messages: [{ role: "user", content: "nonstream request" }],
+            publicReasoningSummary: true
+        });
+        assert.equal(nonstreamResult.text, "Responses nonstream visible reply");
+        const nonstreamRequest = requestBodies.at(-1);
+        assert.notEqual(nonstreamRequest.body.stream, true);
+        assert.deepEqual(nonstreamRequest.body.reasoning, { effort: "high" });
 
         const responsesRequest = requestBodies.find((item) =>
             item.url.endsWith("/responses")

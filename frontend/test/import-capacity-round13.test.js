@@ -8,15 +8,19 @@ import { open, mkdir, unlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import { backendTestRoot } from "./helpers/backend-test-root.js";
 import { readTextFileBatches, sampleLargeTextFile } from "../src/large-text-file.js";
 import { fingerprintImportFile } from "../src/import-file-fingerprint.js";
 import { previewContentImportPage } from "../src/content-import-api.js";
 
-const require = createRequire(import.meta.url);
-const { previewInput } = require("../../backend/routes/v2/imports.js");
-const { extractText } = require("../../backend/services/adaptive-file-parser.js");
+const frontendRoot = fileURLToPath(new URL("..", import.meta.url));
+const require = createRequire(path.join(backendTestRoot({ frontendRoot, requiredFiles: ["package.json", "routes/v2/imports.js", "services/adaptive-file-parser.js"] }), "package.json"));
+const { previewInput } = require("./routes/v2/imports.js");
+const { extractText } = require("./services/adaptive-file-parser.js");
 const MiB = 1024 ** 2;
-const output = path.resolve("../artifacts/dengta-design-polish-20261007/round13-product-flow");
+const output = path.resolve(process.env.DENGTA_TEST_ARTIFACT_DIR || path.join(tmpdir(), "dengta-import-capacity-" + process.pid));
 const bytes = Number(process.env.DENGTA_CAPACITY_BYTES || 24 * MiB);
 
 async function parsedPageClient(received) {
@@ -97,7 +101,7 @@ test("actual disk file is bounded, cancellable, resumable, fingerprintable and s
     let next = endStart;
     while (next < bytes) { const { page } = await previewContentImportPage({ file: tracked, kind: "chat_history", startByte: next }, client); assert.equal(page.startByte, next); next = page.endByte; rememberMemory(); }
     timings.endPagesMs = performance.now() - pageAt;
-    assert.equal(received.length, 2);
+    assert.equal(Buffer.concat(received.map(part => part.bytes)).toString("utf8"), record.toString("utf8").repeat((bytes - endStart) / record.length), "message-boundary paging must retain every byte without duplication");
     const result = { timestamp: new Date().toISOString(), runtime: process.version, bytes, realDiskFile: true, filesystemBackedBlob: true, fullBytesDecoded: coveredBytes, cancellationByte: resumedAt, fullReadSha256Matches: true, fingerprintMatches: true, maxSliceBytes: maxRead, readCalls, decodeBatches: batches, sampleCharacters: sample.included_characters, sampleBatches: sample.batches, finalPageRequests: received.length, finalPageStartByte: endStart, finalPageEndByte: next, timings, maximaBytes: maxima, fixtureDeleted: false, networkRequests: 0, databaseWrites: 0, productionAccepted: false, androidAccepted: false };
     await unlink(filename); result.fixtureDeleted = true;
     await writeFile(path.join(output, `import-capacity-${bytes}.json`), JSON.stringify(result, null, 2));

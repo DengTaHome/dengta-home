@@ -5,9 +5,6 @@ import android.util.Log;
 import android.view.View;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
-import android.widget.Toast;
-
-import androidx.activity.OnBackPressedCallback;
 
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.WebViewListener;
@@ -15,7 +12,6 @@ import com.getcapacitor.WebViewListener;
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "DengTaMainActivity";
     private boolean rendererRecoveryScheduled = false;
-    private long lastBackPressAt = 0L;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -30,27 +26,14 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(BrowserLauncherPlugin.class);
         registerPlugin(DlnaReceiverPlugin.class);
         registerPlugin(VideoExtractorPlugin.class);
+        registerPlugin(AppNavigationPlugin.class);
+        registerPlugin(AppUpdatesPlugin.class);
         super.onCreate(savedInstanceState);
         configureStableWebView();
         PushNotificationWorker.ensureNotificationChannel(this);
         PushNotificationWorker.schedule(this);
+        AppUpdateWorker.schedule(this);
         PushNotificationWorker.markAppVisible(this);
-        // 返回键体验：第一次按返回只是退到后台（进程保留，再打开秒回、不重新加载）；
-        // 2 秒内再按一次才真正退出 App。避免误触返回导致冷启动。
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                long now = System.currentTimeMillis();
-                if (now - lastBackPressAt > 2000L) {
-                    lastBackPressAt = now;
-                    Toast.makeText(MainActivity.this, "再按一次返回键退出", Toast.LENGTH_SHORT).show();
-                    moveTaskToBack(true);
-                    return;
-                }
-                setEnabled(false);
-                MainActivity.super.onBackPressed();
-            }
-        });
     }
 
     private void configureStableWebView() {

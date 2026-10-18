@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
+import { backendTestRoot } from "./helpers/backend-test-root.js";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { after, test } from "node:test";

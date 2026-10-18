@@ -179,10 +179,10 @@ assert.match(
     /\["text", "reasoning", "monologue"\]\.includes\(event\?\.type\)/
 );
 assert.match(aiSource, /createReasoningEventEmitter/);
-assert.doesNotMatch(
+assert.match(
     aiSource,
-    /reasoning\.summary\s*=\s*"auto"/,
-    "normal model requests must not ask the provider for a public reasoning summary"
+    /if \(publicReasoningSummary === true\) \{\s*body\.reasoning = \{ \.\.\.body\.reasoning, summary: "auto" \}/,
+    "Responses summaries require an explicit per-turn opt-in"
 );
 assert.doesNotMatch(aiSource, /reasoning_content|thinking_delta/);
 assert.match(reasoningSource, /type:\s*"reasoning"/);
@@ -191,7 +191,14 @@ assert.doesNotMatch(
     /reasoning[^\n]*saveMessage|saveMessage[^\n]*reasoning/i,
     "reasoning 事件不得写入 messages"
 );
-assert.match(source, /public_reasoning_summary_stream:\s*false/);
+assert.match(source, /public_reasoning_summary_stream:\s*true/);
+assert.match(source, /public_reasoning_summary_opt_in:\s*true/);
+assert.match(source, /provider_reasoning_summary_only:\s*true/);
+assert.match(
+    executeChatSource,
+    /generateReplyStream\(\{\s*\.\.\.generationInput,\s*publicReasoningSummary:\s*input\.publicReasoningSummary === true/,
+    "only the streamed chat path receives the per-turn public-summary option"
+);
 assert.match(source, /visible_inner_monologue_on_demand:\s*true/);
 assert.match(source, /visible_monologue_stream:\s*true/);
 assert.match(source, /visible_monologue_schema_version:\s*1/);
@@ -430,6 +437,7 @@ const jsonInput = normalizeChatBody(
         message: "  JSON 消息  ",
         session_id: "session-json",
         emotion_understanding_enabled: true,
+        public_reasoning_summary: true,
         attachment_instruction_mode: "untrusted",
         companion_status: { mood: "calm" },
         turn_context: "  本轮临时背景  ",
@@ -444,6 +452,7 @@ const jsonInput = normalizeChatBody(
 );
 assert.equal(jsonInput.message, "JSON 消息");
 assert.equal(jsonInput.emotionUnderstandingEnabled, true);
+assert.equal(jsonInput.publicReasoningSummary, true);
 assert.equal(jsonInput.attachmentInstructionMode, "untrusted");
 assert.equal(jsonInput.companionStatus.mood, "calm");
 assert.equal(jsonInput.turnContext, "本轮临时背景");
@@ -458,6 +467,7 @@ const multipartInput = normalizeChatBody(
         message: "multipart 消息",
         conversation_id: "session-form",
         emotion_understanding_enabled: "true",
+        public_reasoning_summary: "true",
         attachment_instruction_mode: "system",
         attachment_storage_mode: "persistent",
         companion_status: JSON.stringify({ mood: "warm" }),
@@ -474,6 +484,7 @@ const multipartInput = normalizeChatBody(
 );
 assert.equal(multipartInput.conversationId, "session-form");
 assert.equal(multipartInput.emotionUnderstandingEnabled, true);
+assert.equal(multipartInput.publicReasoningSummary, true);
 assert.equal(multipartInput.attachmentInstructionMode, "system");
 assert.equal(multipartInput.attachmentStorageMode, "persistent");
 assert.equal(multipartInput.companionStatus.mood, "warm");
@@ -484,6 +495,13 @@ assert.equal(
     multipartInput.clientMessageId,
     "dfc282a3-7a8b-433f-bd49-321de94d59b0"
 );
+for (const value of [undefined, null, false, "false", "", 1, "1"]) {
+    assert.equal(
+        normalizeChatBody({ public_reasoning_summary: value }, []).publicReasoningSummary,
+        false,
+        "public summaries remain off unless explicitly requested"
+    );
+}
 const ephemeralInput = normalizeChatBody(
     {
         message: "屏幕共看",
