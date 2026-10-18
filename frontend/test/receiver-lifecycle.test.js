@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
+import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import React, { act } from "react";
@@ -43,7 +44,7 @@ afterEach(async () => {
 after(async () => {
   await vite.close();
   assert.equal(dirname(resolve(cacheDir)), resolve(tmpdir())); assert.ok(basename(cacheDir).startsWith("dengta-receiver-lifecycle-"));
-  await rm(cacheDir, { recursive: true, force: true });
+  rmSync(cacheDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   for (const [name, descriptor] of Object.entries(original)) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
   delete globalThis.IS_REACT_ACT_ENVIRONMENT;
 });
