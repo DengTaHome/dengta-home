@@ -12,7 +12,9 @@ import { createServer } from "vite";
 import { buildCompanionActivityRequest } from "../src/companion-activities.js";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-const backendRequire = createRequire(new URL("../../backend/package.json", import.meta.url));
+const frontendRoot = fileURLToPath(new URL("..", import.meta.url));
+const backendRoot = backendTestRoot({ frontendRoot, requiredFiles: ["package.json", "server.js", "services/companion-activities.js", "services/chat-attachments.js"] });
+const backendRequire = createRequire(path.join(backendRoot, "package.json"));
 const { COMPANION_ACTIVITY_TOOL, createCompanionActivities } = backendRequire("./services/companion-activities.js");
 const { publicMessage } = backendRequire("./services/chat-attachments.js");
 const requests = [];
@@ -30,7 +32,7 @@ after(async () => { await vite.close(); delete globalThis.__artActivityFixture; 
 const text = node => typeof node === "string" ? node : (node?.children || []).map(text).join("");
 
 test("real chat tool dispatcher returns an art card that opens the independent studio without generating", async () => {
-  const server = readFileSync(new URL("../../backend/server.js", import.meta.url), "utf8");
+  const server = readFileSync(path.join(backendRoot, "server.js"), "utf8");
   const start = server.indexOf("function createChatToolExecutor("), end = server.indexOf("function previousReplySuggestionsFromMessages", start);
   assert.ok(start >= 0 && end > start);
   assert.ok(COMPANION_ACTIVITY_TOOL.input_schema.properties.activity.enum.includes("art"));
