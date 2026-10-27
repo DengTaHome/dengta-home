@@ -221,6 +221,37 @@ try {
     await act(async () => tree.unmount());
   }
 
+  // 回归：线上真实数据把 drives 作为**对象**返回（{possess:0.79,...}），
+  // 早先 sortDrives 只认数组，于是接上真实接口后花瓣为 0、主导项永远是「心潮」。
+  // 这个 bug 只有真机验证能发现，所以在这里补一条单测把它钉住。
+  {
+    const productionShape = {
+      drives: {
+        possess: 0.7962,
+        monitor: 0.7962,
+        share: 0.7962,
+        libido: 0.7982,
+        curiosity: 0.7962,
+        boredom: 0.7962,
+        duty: 0.7962,
+        reflection: 0.7995,
+        grieve: 0.12,
+        anger: 0.1035,
+        favored: 0.1247,
+        crave: 0.7962,
+        social: 0.7962,
+      },
+      emotion: { label: "平静", valence: 0.5199, arousal: 0.3226 },
+      consciousness: "sleeping",
+      revision: 519,
+      lastConversationAt: "2026-10-26T12:09:19.180Z",
+    };
+    const normalized = normalizeXinchaoPayload({ configured: true, state: productionShape });
+    assert.equal(sortDrives(productionShape.drives).length, DRIVE_LIMIT, "an object-shaped drives map yields five petals");
+    assert.equal(sortDrives(productionShape.drives)[0].label, "想心事", "object keys are mapped to production labels");
+    assert.match(capsuleTitle(normalized), /平静 · /, "the capsule title uses the real emotion label");
+    assert.equal(normalized.drives.length, DRIVE_LIMIT, "normalize keeps five drives for the object shape");
+  }
   console.log(
     "Xinchao UI: drive truncation, percent formatting, capsule title, consciousness swallowing, capsule and details rendering passed"
   );

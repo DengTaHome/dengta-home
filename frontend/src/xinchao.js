@@ -39,12 +39,46 @@ export function percentWidth(value) {
 }
 
 /**
+ * 线上真实的 GET /api/v2/xinchao/state 返回的 drives 是**对象**：
+ *   { possess: 0.79, monitor: 0.79, share: 0.79, libido: 0.8, ... }
+ * 而本仓库自己的服务端返回的是数组 [{ key, label, value }]。
+ * 两种都要支持——早先这里只认数组，于是接上真实数据后花瓣一片都不画、
+ * 主导项永远回退成「心潮」。这个 bug 只有真机验证能发现（单测喂的是数组）。
+ */
+export const DRIVE_LABELS = Object.freeze({
+  possess: "想靠近",
+  monitor: "惦记",
+  share: "想分享",
+  libido: "渴望",
+  curiosity: "好奇",
+  social: "想聊",
+  crave: "馋",
+  boredom: "空落",
+  reflection: "想心事",
+  grieve: "难过",
+  anger: "生气",
+  safety: "安全感",
+  confidence: "自信",
+});
+
+function driveEntries(drives) {
+  if (Array.isArray(drives)) return drives;
+  if (drives && typeof drives === "object") {
+    return Object.entries(drives).map(([key, value]) => ({
+      key,
+      label: DRIVE_LABELS[key] || key,
+      value,
+    }));
+  }
+  return [];
+}
+
+/**
  * 只保留结构完整、value 合法的驱动项，按 value 降序取前 5 个。
- * 后端多给几项是允许的（现在是 6 项），前端只画 5 片花瓣。
+ * 后端多给几项是允许的，前端只画 5 片花瓣。
  */
 export function sortDrives(drives) {
-  if (!Array.isArray(drives)) return [];
-  return drives
+  return driveEntries(drives)
     .filter((drive) => drive && typeof drive.key === "string" && isFiniteNumber(drive.value))
     .slice()
     .sort((a, b) => b.value - a.value)

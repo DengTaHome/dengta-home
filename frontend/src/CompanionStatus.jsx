@@ -1,4 +1,6 @@
-import XinchaoBadge from "./XinchaoBadge.jsx";
+import { useXinchaoState } from "./xinchao.js";
+import XinchaoCapsule from "./XinchaoCapsule.jsx";
+import XinchaoDetails from "./XinchaoDetails.jsx";
 import {
   memo,
   useCallback,
@@ -367,6 +369,10 @@ function CompanionStatus({
     setClockNow(Date.now());
   }
 
+  // 心潮状态：有心潮就替换掉胶囊里的装饰图标（与线上结构一致），
+  // 没有就回退到原来的心形/对话/星光装饰。
+  const { state: xinchaoState } = useXinchaoState({ enabled: Boolean(displayName) });
+
   const floatingStyle = {
     "--status-pulse-duration": pulseDuration,
   };
@@ -386,8 +392,11 @@ function CompanionStatus({
           <NowPlayingCard song={nowPlaying} busy={nowPlayingBusy} expanded={expanded} onToggle={togglePanel} onPlayPause={onNowPlayingPlayPause} onNext={onNowPlayingNext} onDismiss={onDismissNowPlaying} />
         ) : (
           <button type="button" className="sun-glass-liquid-capsule-toggle" aria-label={expanded ? "收起动态状态" : `展开${displayName}的动态状态`} aria-expanded={expanded} onClick={togglePanel}>
-            <span className="sun-glass-capsule-decoration" aria-hidden="true"><Heart /><MessageCircle /><Sparkles /></span>
-            <XinchaoBadge enabled={Boolean(displayName)} aiName={displayName || "伴侣"} />
+            {xinchaoState ? (
+              <XinchaoCapsule state={xinchaoState} as="span" />
+            ) : (
+              <span className="sun-glass-capsule-decoration" aria-hidden="true"><Heart /><MessageCircle /><Sparkles /></span>
+            )}
           </button>
         )}
       </section>
@@ -416,6 +425,15 @@ function CompanionStatus({
         inert={expanded ? undefined : true}
       >
         <StatusFlowField active={expanded} />
+        {/* 心潮详情内嵌在状态面板里（生产的用法就是 inline 而不是悬浮卡片）。
+            以前这个组件没有任何人渲染，「每条驱动项的进度条」那个界面根本不存在。 */}
+        {xinchaoState ? (
+          <XinchaoDetails
+            inline
+            state={xinchaoState}
+            aiName={displayName || "伴侣"}
+          />
+        ) : null}
         <header className="sun-glass-floating-status-header">
             <div className="sun-glass-status-drag-title">
               <small>{displayName}此刻</small>
