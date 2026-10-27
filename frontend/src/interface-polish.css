@@ -83,3 +83,20 @@
 .art-studio-page .section-intro small { display:block; margin-top:10px; color:var(--theme-muted); line-height:1.6; }
 .art-studio-page .companion-artwork-library .profile-section-heading h3 { color:var(--theme-ink); }
 .art-studio-page .section-intro button,.profile-art-studio-link { min-height:44px; margin-top:12px; padding:10px 14px; border-radius:12px; border:1px solid var(--theme-control-border); color:var(--theme-ink); background:var(--theme-control-background); }
+
+
+/* 触摸目标下限。
+ * 实测聊天里的「补充这次心声 / 听听TA此刻的心声」按钮只有 34-36px 高，
+ * 在 390px 宽的屏幕上很难点中。这一类没有自己的类名，只能按容器收敛。
+ */
+.inner-monologue-request button,
+.thinking-panel-body button,
+.inner-monologue-actions button {
+  min-height: 44px;
+}
+
+/* 最后两个实测偏小的触摸目标（按钮在标题栏/工具条里，用真实容器选择器） */
+.achievement-guide .achievement-guide-heading button,
+.cotton-chat-dock .cotton-dock-bar button {
+  min-height: 44px;
+}

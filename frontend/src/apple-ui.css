@@ -200,7 +200,8 @@ select:focus-visible {
 .primary-nav button,
 .session-select,
 .session-actions button {
-  min-height: 40px;
+  /* 触摸目标下限 44px：实测会话列表项只有 40px 高 */
+  min-height: 44px;
   border-radius: var(--apple-radius-control);
   color: #d1d1d6;
   background: transparent;

@@ -84,3 +84,41 @@ node tools/browser-verify/verify-streaming.mjs
 无法模拟真实的慢速分块。要验证逐字显示，需要真实后端 + 真实发一条消息（会花额度）。
 
 这个限制是刻意写下来的：**不要用它冒充「逐字显示已验证」**。
+---
+
+# 触摸目标检查（verify-touch-targets.mjs）
+
+用户反复说「触屏点不动」。这个脚本在真浏览器里逐个量可交互元素的实际命中框
+（`button / a / input / select / textarea / [role=button] / [role=tab]`），
+把小于 44×44 的按尺寸列出来，有任何一个就退出码 1。
+
+```powershell
+node tools/browser-verify/verify-touch-targets.mjs
+```
+
+隐藏的文件输入不算触摸目标（靠外部 label 触发），已在脚本里排除。
+
+## 第一次跑的结果
+
+```
+可交互元素 282 个，其中 136 个小于 44×44
+  63 个  按钮无类名（心声按钮 34–36px 高）
+  43 个  .message-reference-button   40×22
+  27 个  .session-select             291×40
+```
+
+## 修完之后
+
+```
+可交互元素 282 个，其中 0 个小于 44×44
+```
+
+对应改动：
+- `apple-ui.css`：会话列表项 40 → 44
+- `index.css`：引用按钮 40×22 → 44×44
+- `interface-polish.css`：心声按钮按容器收敛到 44；成就引导与棉花工具条的按钮同样处理
+
+## 局限
+
+只量主界面。设置面板、投屏接收端、音乐面板需要额外的打开步骤，尚未纳入
+（脚本里已有的侧边栏点击选择器在当前构建上没命中，需要按实际 DOM 更新）。

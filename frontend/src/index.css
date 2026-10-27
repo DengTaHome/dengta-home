@@ -1807,8 +1807,9 @@ button:disabled {
 }
 
 .message-reference-button {
-  min-width: 40px;
-  min-height: 22px;
+  /* 触摸目标下限 44px：原来只有 40×22 */
+  min-width: 44px;
+  min-height: 44px;
   padding: 2px 7px;
   border: 0;
   border-radius: 6px;
