@@ -7,6 +7,7 @@ const {
     storedAttachmentPathsForConversation
 } = require("../../services/chat-attachments");
 const { cleanModelId } = require("../../services/model-catalog");
+const { readStreamPartial } = require("../../services/stream-persistence");
 const { requireRequestScope } = require("../../services/request-scope");
 const { describeImageWithDebug, visionConfig, visionConfigured } = require("../../services/vision-describe");
 
@@ -435,13 +436,28 @@ function createV2CoreRouter({
                 .eq("visible", true)
                 .order("created_at", { ascending: true });
             if (error) throw error;
-            res.json({
-                messages: (data ?? []).map((message) =>
-                    publicMessage(message, {
-                        basePath: "/api/v2/attachments"
-                    })
-                )
+            const messages = (data ?? []).map((message) =>
+                publicMessage(message, {
+                    basePath: "/api/v2/attachments"
+                })
+            );
+            // 断点续看：生成到一半刷新/断线时，把已经落库的部分回复当作
+            // 一条临时助手消息接在末尾。前端不需要任何改动就能看到已生成的内容。
+            // 正式消息落库后这条缓冲行会被删除，所以下次刷新不会重复。
+            const streamingPartial = await readStreamPartial({
+                database: scope.db,
+                conversationId: req.params.id
             });
+            if (streamingPartial?.content) {
+                messages.push({
+                    id: `streaming-partial:${streamingPartial.clientMessageId || "unknown"}`,
+                    role: "assistant",
+                    content: streamingPartial.content,
+                    created_at: streamingPartial.updatedAt,
+                    tool_calls: {}
+                });
+            }
+            res.json({ messages });
         } catch (error) {
             next(error);
         }
