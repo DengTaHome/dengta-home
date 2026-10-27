@@ -85,6 +85,14 @@ test("renders the capsule once a state arrives", async () => {
         const json = JSON.stringify(view.toJSON());
         assert.match(json, /xinchao-capsule/, "the capsule is mounted inside the status bar");
         assert.match(json, /心潮|平静/, "the capsule carries the emotion label");
+
+        // 详情面板以前没有任何人渲染：点开胶囊必须能打开它。
+        assert.doesNotMatch(json, /xinchao-details/, "details stay closed until asked for");
+        const capsuleButton = view.root.findAllByType("button")[0];
+        await act(async () => capsuleButton.props.onClick());
+        assert.match(JSON.stringify(view.toJSON()), /xinchao-details/, "opening the capsule renders the details panel");
+        await act(async () => view.root.findAllByType("button")[0].props.onClick());
+        assert.doesNotMatch(JSON.stringify(view.toJSON()), /xinchao-details/, "clicking again closes it");
     } finally {
         if (view) await act(async () => view.unmount());
     }
