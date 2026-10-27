@@ -2,17 +2,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
-import { FEATURE_LABELS } from "../src/feature-navigation.js";
+import { FEATURE_LABELS, navItems } from "../src/feature-navigation.js";
 
 const app = fs.readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const titleStart = app.indexOf("  const viewTitle = ");
 const titleEnd = app.indexOf("  const showStartupRecovery =", titleStart);
 assert.ok(titleStart >= 0 && titleEnd > titleStart, "use the actual App title assignment");
 const titleAssignment = app.slice(titleStart, titleEnd);
-const navStart = app.indexOf("const navItems = [");
-const navEnd = app.indexOf("\n];", navStart);
-assert.ok(navStart >= 0 && navEnd > navStart, "use the actual navigation table");
-const navItems = vm.runInNewContext(`${app.slice(navStart, navEnd + 3)}\nnavItems;`);
+// navItems 已移到 feature-navigation.js，直接 import，不再切 App.jsx 源码。
 const renderedViews = [...app.matchAll(/activeView === "([a-z-]+)" && (?:render|\()/g)].map((match) => match[1]);
 const viewIds = [...new Set([...navItems.map((item) => item.id), ...renderedViews])];
 

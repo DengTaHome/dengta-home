@@ -119,8 +119,10 @@ assert.match(notificationsPlugin, /consumeLaunchTarget/);
 assert.match(notificationsPlugin, /notificationTarget/);
 
 const app = source("../src/App.jsx");
+// 侧边栏条目已搬到 feature-navigation.js，导航项的断言改看那个文件。
+const navSource = source("../src/feature-navigation.js");
 assert.match(app, /lazy\(\(\) => import\("\.\/Together\.jsx"\)\)/);
-assert.match(app, /id:\s*"together"/);
+assert.match(navSource, /id:\s*"together"/);
 assert.match(app, /<Together/);
 assert.match(app, /consumeLaunchTarget/);
 const startScreenGlanceStart = app.indexOf(

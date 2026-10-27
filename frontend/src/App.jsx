@@ -95,7 +95,7 @@ import { createCoWatchViewScope } from "./co-watch-view-scope.js";
 import LocalDiagnostics from "./LocalDiagnostics.jsx";
 import { diagnosticScopeKey } from "./operation-diagnostics.js";
 import FeatureNavigation from "./FeatureNavigation.jsx";
-import { FEATURE_LABELS, QUICK_FEATURES } from "./feature-navigation.js";
+import { FEATURE_LABELS, QUICK_FEATURES, navItems } from "./feature-navigation.js";
 import AchievementNotice from "./AchievementNotice.jsx";
 import FunLabsFeedback from "./FunLabsFeedback.jsx";
 import { emptyFunLabsState, refreshFunLabsSections, removeFunDate, FUN_LABS_ERROR_FEEDBACK } from "./fun-labs-refresh.js";
@@ -783,23 +783,6 @@ function storePromptReceipt(receipt, accountScope = "") {
   }
 }
 
-const navItems = [
-  { id: "chat", icon: "⌁", label: "Chat" },
-  { id: "moments", icon: "◌", label: "Moments" },
-  { id: "diary", icon: "▱", label: "Diary" },
-  { id: "art", icon: "✎", label: "涂鸦画室" },
-  { id: "nursery", icon: "♡", label: "Family" },
-  { id: "cotton", icon: "✿", label: "小棉花" },
-  { id: "together", icon: "▻", label: "Together" },
-  { id: "music", icon: "🎵", label: "听歌" },
-  { id: "duel", icon: "⚔", label: "Duel" },
-  { id: "memories", icon: "◇", label: "Memory" },
-  { id: "treasure", icon: "✉", label: "藏宝地图" },
-  { id: "takeout", icon: "🛵", label: "外卖" },
-  { id: "achievements", icon: "🏆", label: "成就" },
-  { id: "workspace", icon: "📁", label: "工作区" },
-  { id: "discover", icon: "🔭", label: "发现" },
-];
 
 function formatDateTime(value) {
   if (!value) return "刚刚";

@@ -87,14 +87,15 @@ const narrated = applyDuelNarration(finished.state, finished.event.id, "新的�
 assert.equal(narrated.logs.at(-1).text, "新的场景叙述");
 assert.equal(narrated.winner, "player", "narration cannot rewrite the result");
 
-const [appSource, componentSource, statusSource, cssSource] = await Promise.all([
+const [appSource, navSource, componentSource, statusSource, cssSource] = await Promise.all([
   readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
+  readFile(new URL("../src/feature-navigation.js", import.meta.url), "utf8"),
   readFile(new URL("../src/IntimateDuel.jsx", import.meta.url), "utf8"),
   readFile(new URL("../src/CompanionStatus.jsx", import.meta.url), "utf8"),
   readFile(new URL("../src/apple-ui.css", import.meta.url), "utf8"),
 ]);
 assert.match(appSource, /const IntimateDuel = lazy\(/);
-assert.match(appSource, /\{ id: "duel", icon: "⚔", label: "Duel" \}/);
+assert.match(navSource, /\{ id: "duel", icon: "⚔", label: "Duel" \}/);
 assert.match(componentSource, /\/api\/v2\/intimate-duel\/narrate/);
 assert.match(componentSource, /conversation_id: conversationId \|\| undefined/);
 assert.match(statusSource, /className="sun-glass-liquid-capsule-toggle"/);

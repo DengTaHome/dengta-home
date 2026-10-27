@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+// 侧边栏条目已搬到 feature-navigation.js
+const nav = await readFile(new URL("../src/feature-navigation.js", import.meta.url), "utf8");
 const nursery = await readFile(
   new URL("../src/Nursery.jsx", import.meta.url),
   "utf8",
@@ -13,7 +15,7 @@ const css = await readFile(
 
 assert.match(app, /lazy\(\(\) => import\("\.\/Nursery"\)\)/);
 assert.match(app, /<Suspense/);
-assert.match(app, /id: "nursery"/);
+assert.match(nav, /id: "nursery"/);
 assert.match(app, /<Nursery/);
 assert.match(nursery, /apiRequest\("\/api\/v2\/nursery", \{/);
 assert.match(nursery, /companion-actions/);

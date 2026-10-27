@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, test } from "node:test";
 import React, { act } from "react";
 import TestRenderer from "react-test-renderer";
 import { createServer } from "vite";
-import { filterFeatures } from "../src/feature-navigation.js";
+import { filterFeatures, navItems } from "../src/feature-navigation.js";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const requests = [];
@@ -22,11 +21,10 @@ const vite = await createServer({ configFile: false, envFile: false, appType: "c
 after(async () => { await vite.close(); delete globalThis.__artStudioRequest; });
 const text = node => typeof node === "string" ? node : (node?.children || []).map(text).join("");
 test("actual navigation includes a searchable independent drawing entry", () => {
-  const source = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
-  const start = source.indexOf("const navItems = ["), end = source.indexOf("\n];", start) + 3;
-  const items = new Function(`${source.slice(start, end)};return navItems;`)();
-  assert.equal(filterFeatures(items, "涂鸦")[0]?.id, "art");
-  assert.equal(filterFeatures(items, "自主")[0]?.id, "art");
+  // navItems 已经搬到 feature-navigation.js：直接 import，
+  // 不再切 App.jsx 的源码文本（那是 18 个测试文件共同的脆弱点）。
+  assert.equal(filterFeatures(navItems, "涂鸦")[0]?.id, "art");
+  assert.equal(filterFeatures(navItems, "自主")[0]?.id, "art");
 });
 test("a profile read failure cannot hide drawing library; opening it performs no image generation or permission write", async () => {
   const { default: Profile } = await vite.ssrLoadModule("/src/CompanionProfile.jsx");
