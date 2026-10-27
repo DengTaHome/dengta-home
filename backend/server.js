@@ -248,6 +248,7 @@ const {
     createStreamPersister,
     readStreamPartial
 } = require("./services/stream-persistence");
+const { createModelEventForwarder } = require("./services/stream-forwarder");
 const { buildRefusalLogRecord } = require("./services/refusal-diagnostics");
 const { createCoWatchRouter } = require("./routes/co-watch");
 const { createCoWatchRoomRouter, createJoinInfoHandler } = require("./routes/co-watch-rooms");
@@ -4943,37 +4944,20 @@ async function executeChatTurnOnce(
                   })
                 : null;
         const controlTokens = onModelEvent ? createControlTokenScrubber() : null;
-        // 累积已经发给前端的正文。流式函数在检测到拒答时会先抛异常，
-        // 那时候 generated 还没有值——只有这里能拿到模型究竟说了什么。
-        let streamedText = "";
-        let refusalFromStream = false;
-        const forwardModelEvent = onModelEvent
-            ? (event) => {
-                  stopModelWaitProgress();
-                  // 聊天流用的字段是 content（ai-service 的 generateReplyStream 发
-                  // { type: "text", content }，前端也读 event.content）。早先这里判断的是
-                  // event.text，导致清洗器和增量落库一次都没被调用过——两者都是空转。
-                  // 现在两种字段都认，统一按 content 转发。
-                  const delta =
-                      controlTokens && event?.type === "text"
-                          ? typeof event.content === "string"
-                              ? event.content
-                              : typeof event.text === "string"
-                                  ? event.text
-                                  : null
-                          : null;
-                  if (delta !== null) {
-                      const clean = controlTokens.push(delta);
-                      if (!clean) return;
-                      streamedText += clean;
-                      // 不 await：落库是保险，不能让它的延迟拖慢逐字显示。
-                      if (streamPersister) void streamPersister.push(clean);
-                      onModelEvent({ ...event, content: clean });
-                      return;
-                  }
-                  onModelEvent(event);
-              }
+        // 转发逻辑抽到 services/stream-forwarder.js：字段约定、清洗、累积、落库
+        // 四件事在里面一次定清楚，并有回归测试。以前内联在这里时，
+        // 一个字段名错配就让清洗器和落库器同时空转，而且没有任何测试能发现。
+        const streamForwarder = onModelEvent
+            ? createModelEventForwarder({
+                  onModelEvent,
+                  controlTokens,
+                  streamPersister,
+                  // 每收到一段可见文本就重置「等待模型」的进度提示
+                  onText: stopModelWaitProgress
+              })
             : null;
+        const forwardModelEvent = streamForwarder ? streamForwarder.forward : null;
+        let refusalFromStream = false;
         let generated;
         try {
             generated = forwardModelEvent
@@ -4988,6 +4972,7 @@ async function executeChatTurnOnce(
             // 并落一条可追溯的诊断（错误码 + 原文 + 模型 + 供应商）。
             // 早先这里直接抛出去，persistRefusalLog 永远跑不到，
             // 拒答标注和日志因此全部不可达。
+            const streamedText = streamForwarder ? streamForwarder.getStreamedText() : "";
             if (error?.code === "provider_boundary_residue" && streamedText.trim()) {
                 generated = {
                     text: streamedText,
@@ -5003,14 +4988,7 @@ async function executeChatTurnOnce(
         }
         // 收尾：把还挂在流里的半截标记丢掉；再对完整文本做一次清洗，
         // 保证落库的正文和界面上看到的一致。
-        if (controlTokens) {
-            const tail = controlTokens.flush();
-            if (tail) {
-                // 末尾这半句同样要落库，否则断线时它不在缓冲行里。
-                if (streamPersister) void streamPersister.push(tail);
-                onModelEvent({ type: "text", content: tail });
-            }
-        }
+        if (streamForwarder) streamForwarder.flushTail();
         const scrubbed = scrubControlTokens(generated.text);
         generated.text = scrubbed.text;
         if (scrubbed.removed.length) {
