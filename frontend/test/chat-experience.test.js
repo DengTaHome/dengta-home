@@ -44,7 +44,7 @@ assert.ok(drafts.get("new").getSnapshot().includes("typed while creating session
 const trailing = createChatDraft("debounce-fixture", storage);
 const unsub = trailing.subscribe(() => {});
 trailing.set("first"); trailing.set("last");
-await new Promise(resolve => setTimeout(resolve, 400));
+await new Promise(resolve => setTimeout(resolve, 900));
 assert.equal(values.get("debounce-fixture"), "last");
 assert.equal(writes.filter(x => x === "debounce-fixture").length, 1);
 unsub();

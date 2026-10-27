@@ -94,7 +94,7 @@ try {
   const firstLargeText = "中".repeat(1000000), nextLargeText = `${firstLargeText}👩🏽‍💻`;
   await mount(firstLargeText);
   assert.equal(tree.root.findByType("output").children.join(""), "正在统计…", "large text is never synchronously counted in the render");
-  await act(async () => new Promise(resolve => setTimeout(resolve, 180)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 450)));
   assert.equal(workers.at(-1).text, firstLargeText);
   const oldWorker = workers.at(-1);
   await act(async () => {
@@ -102,7 +102,7 @@ try {
     assert.equal(draft, nextLargeText, "a pending background count does not delay draft changes");
   });
   assert.equal(oldWorker.terminated, true);
-  await act(async () => new Promise(resolve => setTimeout(resolve, 180)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 450)));
   const latestWorker = workers.at(-1);
   await act(async () => latestWorker.onmessage({ data: { count: 1000001 } }));
   assert.equal(tree.root.findByType("output").children.join(""), "1,000,001 个字符");

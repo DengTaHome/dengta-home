@@ -76,22 +76,6 @@ function isProviderBoundaryResidue(value) {
     });
 }
 
-function createProviderBoundaryResidueGuard({ maxProbeLength = 1200 } = {}) {
-    void maxProbeLength;
-    return {
-        push(value) {
-            return { content: String(value || ""), blocked: false, pending: false };
-        },
-        finish() {
-            return { content: "", blocked: false, pending: false };
-        },
-        get blocked() { return false; }
-    };
-}
-
-function assertNoProviderBoundaryResidue(value) {
-    return value;
-}
 
 function filterProviderBoundaryMessages(messages) {
     return (Array.isArray(messages) ? messages : []).filter(
@@ -116,9 +100,9 @@ function screenGeneratedMemorySummary(value) {
 }
 
 module.exports = {
-    assertNoProviderBoundaryResidue,
+
     cleanMemorySummary,
-    createProviderBoundaryResidueGuard,
+
     filterMemoriesForContext,
     filterProviderBoundaryMessages,
     isProviderBoundaryResidue,

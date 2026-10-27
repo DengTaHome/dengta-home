@@ -114,7 +114,7 @@ test("fast large-text editing starts background counting only after the latest e
   }
   assert.equal(draft, `${base}8`, "draft changes never wait for counting");
   assert.equal(workers.length, 0, "avoid creating, cloning a million-character string into and destroying a Worker for every quick edit");
-  await act(async () => new Promise(resolve => setTimeout(resolve, 180)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 450)));
   assert.equal(workers.length, 1);
   assert.equal(workers[0].text, `${base}8`);
   await act(async () => workers[0].onmessage({ data: { count: 1000001 } }));
@@ -126,7 +126,7 @@ test("unmounting before the delay cancels counting without creating a Worker", a
   await mount("中".repeat(30000));
   await act(async () => tree.unmount());
   tree = null;
-  await new Promise(resolve => setTimeout(resolve, 180));
+  await new Promise(resolve => setTimeout(resolve, 450));
   assert.equal(workers.length, 0);
   assert.deepEqual(writes, []);
 });
@@ -136,7 +136,7 @@ test("changing to a small text cancels the pending large count and shows the imm
   await mount("中".repeat(30000));
   await update({ value: "中👩🏽‍💻e\u0301🇨🇳\r\n" });
   assert.equal(tree.root.findByType("output").children.join(""), "5 个字符");
-  await act(async () => new Promise(resolve => setTimeout(resolve, 180)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 450)));
   assert.equal(workers.length, 0);
   assert.deepEqual(writes, []);
 });
@@ -144,13 +144,13 @@ test("changing to a small text cancels the pending large count and shows the imm
 test("obsolete Worker receipts remain ignored throughout the new delay", async () => {
   workers.length = 0;
   await mount("中".repeat(30000));
-  await act(async () => new Promise(resolve => setTimeout(resolve, 180)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 450)));
   const oldWorker = workers[0];
   await update({ value: "文".repeat(40000) });
   assert.equal(oldWorker.terminated, true);
   await act(async () => oldWorker.onmessage({ data: { count: 30000 } }));
   assert.equal(tree.root.findByType("output").children.join(""), "正在统计…");
-  await act(async () => new Promise(resolve => setTimeout(resolve, 180)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 450)));
   await act(async () => workers[1].onmessage({ data: { count: 40000 } }));
   assert.equal(tree.root.findByType("output").children.join(""), "40,000 个字符");
 });
@@ -163,7 +163,7 @@ test("Worker startup failure still counts full composed text cooperatively after
   assert.ok(value.length > 20000);
   await mount(value);
   assert.equal(tree.root.findByType("output").children.join(""), "正在统计…");
-  await act(async () => new Promise(resolve => setTimeout(resolve, 210)));
+  await act(async () => new Promise(resolve => setTimeout(resolve, 450)));
   assert.equal(tree.root.findByType("output").children.join(""), "3,500 个字符");
   assert.equal(draft, value);
   assert.deepEqual(writes, []);

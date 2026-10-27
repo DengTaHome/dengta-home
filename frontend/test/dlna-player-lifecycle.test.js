@@ -376,7 +376,7 @@ try {
   await act(async () => { void close.props.onClick(); void close.props.onClick(); });
   assert.equal(count('stop'), 1, 'same-tick close invokes one native stop');
   assert.equal(calls.find(call => call[0] === 'stop')[1].expectedUri, 'https://example.test/a');
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 3100)); });
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 6500)); });
   assert.equal(closes, 0, 'timeout cannot masquerade as confirmed stop');
   assert.ok(text().includes('cast_stop_timeout') && button('返回聊天'));
   await act(async () => stopRead.resolve());

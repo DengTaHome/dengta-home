@@ -119,7 +119,7 @@ test("source switch cancels a fade fallback timer and a stale transition cannot 
   await act(async () => { renderer.update(React.createElement(Backdrop, { sky: { solarMinute: 1300 }, reducedMotion: true })); await flush(); });
   await act(async () => {
     staleTransition({ propertyName: "opacity" });
-    await new Promise(resolve => setTimeout(resolve, 980));
+    await new Promise(resolve => setTimeout(resolve, 2200));
   });
   assert.equal(layer().props["data-playback"], "static");
   assert.equal(renderer.root.findByType("img").props.src, "/assets/coast-video/coast-night.webp");

@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const {
-    assertNoProviderBoundaryResidue,
-    createProviderBoundaryResidueGuard,
+
+
     filterMemoriesForContext,
     filterProviderBoundaryMessages,
     isProviderBoundaryResidue,
@@ -37,7 +37,6 @@ for (const value of [
     ...narrativeCounterexamples
 ]) {
     assert.equal(isProviderBoundaryResidue(value), false);
-    assert.equal(assertNoProviderBoundaryResidue(value), value);
     assert.deepEqual(screenGeneratedMemorySummary(value), {
         text: value,
         skipped: false,
@@ -52,7 +51,6 @@ for (const value of [
     genericEnglishProviderRefusal
 ]) {
     assert.equal(isProviderBoundaryResidue(value), true);
-    assert.equal(assertNoProviderBoundaryResidue(value), value);
     assert.deepEqual(screenGeneratedMemorySummary(value), {
         text: "",
         skipped: true,
@@ -60,13 +58,6 @@ for (const value of [
     });
 }
 
-const guard = createProviderBoundaryResidueGuard();
-assert.deepEqual(guard.push(normalReflection), {
-    content: normalReflection,
-    blocked: false,
-    pending: false
-});
-assert.deepEqual(guard.finish(), { content: "", blocked: false, pending: false });
 
 const messages = [
     { id: "boundary", role: "assistant", content: providerRefusal },

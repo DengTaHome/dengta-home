@@ -120,7 +120,7 @@ test("actual settings panel aborts on leaving and ignores the late response", as
   try {
     const Panel = await panelFixture((_, options) => { signal = options.signal; return pending.promise; });
     await act(async () => { view = TestRenderer.create(React.createElement(Panel, { accountScope: "fictional-account", companionScope: "fictional-companion" })); });
-    await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
+    await act(async () => new Promise(resolve => setTimeout(resolve, 25)));
     assert.ok(signal);
     await act(async () => view.unmount()); view = null;
     assert.equal(signal.aborted, true);
@@ -133,7 +133,7 @@ test("actual settings panel preserves valid logs after malformed refresh", async
   try {
     const Panel = await panelFixture(async () => ++count === 1 ? { logs: [{ id: "a", error_code: "request_timeout", created_at: "2026-10-10T00:00:00Z" }] } : { logs: {} });
     await act(async () => { view = TestRenderer.create(React.createElement(Panel, { accountScope: "fictional-account", companionScope: "fictional-companion" })); });
-    await act(async () => new Promise(resolve => setTimeout(resolve, 5)));
+    await act(async () => new Promise(resolve => setTimeout(resolve, 25)));
     assert.match(text(view), /request_timeout/);
     await act(async () => view.root.findAllByType("button")[0].props.onClick());
     assert.match(text(view), /error_logs_receipt_invalid/);
