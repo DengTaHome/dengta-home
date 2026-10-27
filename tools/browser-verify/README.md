@@ -60,3 +60,27 @@ node tools/browser-verify/verify-local-build.mjs --json   # 机器读
 
 - 依赖生产后端可用（免费实例冷启动时首次会很慢，脚本已等 12 秒）
 - 只覆盖首屏与状态栏；聊天流、投屏、音乐播放需要真实动作，尚未纳入
+---
+
+# 流式渲染场景（verify-streaming.mjs）
+
+拦截 `/chat/stream`，喂一段合成 SSE（含 `meta` → `status` → 三段正文 → `done`，
+其中一段故意只用旧的 `text` 字段），验证渲染过程不产生 `undefined`、没有未捕获异常。
+
+```powershell
+node tools/browser-verify/verify-streaming.mjs
+```
+
+## 它能证明什么
+
+- 请求契约被真的走到（拦截计数 ≥ 1）
+- F-4 回归：末段用 `text` 字段时，界面**不会**出现字面量 `undefined`
+- 整轮没有未捕获异常
+
+## 它不能证明什么（重要）
+
+**无法验证「流式过程中逐字渲染」。** 原因：`done` 之后前端会用服务端真相校正消息列表，
+合成消息会被真实历史覆盖；而 Playwright 的 `route.fulfill` 只能一次性返回整段 body，
+无法模拟真实的慢速分块。要验证逐字显示，需要真实后端 + 真实发一条消息（会花额度）。
+
+这个限制是刻意写下来的：**不要用它冒充「逐字显示已验证」**。
