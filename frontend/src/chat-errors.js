@@ -170,11 +170,14 @@ export function dismissChatErrorMessage(messages, messageId) {
   );
 }
 
-export function temporaryReplyOnFailure(message, error) {
-  const code = String(error?.code || "");
-  // A failure is never a normal assistant message or a source for memory/TTS.
-  if (!["chat_stream_interrupted", "provider_stream_incomplete", "MODEL_STREAM_IDLE_TIMEOUT"].includes(code)) return "";
-  return String(message?.partialContent || (message?.chatError ? "" : message?.content) || "");
+export function temporaryReplyOnFailure(message) {
+  // 产品硬约束：已经显示在屏幕上的字绝不撤回。
+  // 早先这里只对三个错误码保留正文，其它错误（生成中、连接超时、供应商错误文档、
+  // 通用 request_failed）会把用户已经看到的整段回复抹掉。
+  // 现在一律保留：出错时这段文字进入「回复中断 · 以下是本轮已经生成并保留的片段」。
+  return String(
+    message?.partialContent || (message?.chatError ? "" : message?.content) || "",
+  );
 }
 
 export {

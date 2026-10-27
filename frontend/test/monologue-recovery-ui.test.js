@@ -62,7 +62,9 @@ try {
   delete globalThis.IS_REACT_ACT_ENVIRONMENT;
 }
 assert.equal(temporaryReplyOnFailure({ content: 'Partial body' }, { code: 'chat_stream_interrupted' }), 'Partial body');
-assert.equal(temporaryReplyOnFailure({ content: 'Should be removed' }, { code: 'provider_boundary_residue' }), '');
-assert.equal(temporaryReplyOnFailure({ content: 'Should be removed' }, { code: 'provider_error_document' }), '');
+// 产品决定：任何错误都保留已生成正文，包括拒答与供应商错误文档——
+// 拒答文字本身就是要给用户看的内容，撤掉它等于把已经显示的字吞回去。
+assert.equal(temporaryReplyOnFailure({ content: 'Refusal text' }, { code: 'provider_boundary_residue' }), 'Refusal text');
+assert.equal(temporaryReplyOnFailure({ content: 'Provider error body' }, { code: 'provider_error_document' }), 'Provider error body');
 assert.equal(temporaryReplyOnFailure({ content: 'Error label', partialContent: 'Partial body', chatError: true }, { code: 'provider_stream_incomplete' }), 'Partial body');
 console.log('monologue recovery UI and temporary reply tests passed');

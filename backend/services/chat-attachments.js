@@ -768,6 +768,13 @@ function publicMessage(message, options) {
     const safeToolCalls = {};
     const activityActions = message.role === "assistant" ? publicActivityActions(sourceToolCalls.activity_actions) : [];
     if (activityActions.length) safeToolCalls.activity_actions = activityActions;
+    // 拒答标注与「生成中断已保留」标记必须穿透白名单。
+    // 早先它们被这里过滤掉，导致前端两个标注条（chat-refusal-banner 与
+    // partial-reply-note）永远拿不到数据，看起来像功能不存在。
+    if (sourceToolCalls.refusal_detected && typeof sourceToolCalls.refusal_detected === "object") {
+        safeToolCalls.refusal_detected = sourceToolCalls.refusal_detected;
+    }
+    if (sourceToolCalls.partial_reply === true) safeToolCalls.partial_reply = true;
     if (sourceToolCalls.is_voice === true) safeToolCalls.is_voice = true;
     if (sourceToolCalls.voice_analysis && typeof sourceToolCalls.voice_analysis === "object") {
         const analysis = sourceToolCalls.voice_analysis;

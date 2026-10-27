@@ -4536,9 +4536,26 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     } catch (error) {
       if (activeSessionIdRef.current === sessionId) {
         messageLoadTokenRef.current += 1;
-        setMessages((current) =>
-          current.filter((item) => item.id !== localAssistantId),
-        );
+        setMessages((current) => {
+          const kept = [];
+          for (const item of current) {
+            if (item.id !== localAssistantId) {
+              kept.push(item);
+              continue;
+            }
+            const text = String(item.content || item.partialContent || "");
+            if (!text.trim()) continue;
+            kept.push({
+              ...item,
+              content: "",
+              partialContent: text,
+              chatError: true,
+              isStreaming: false,
+              tool_calls: { ...(item.tool_calls || {}), partial_reply: true },
+            });
+          }
+          return kept;
+        });
       }
       setNotice(
         error.message ||
@@ -5066,7 +5083,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
             setMessages((current) =>
               current.map((item) =>
                 item.id === localAssistantId
-                  ? { ...item, content: item.content + event.content }
+                  ? { ...item, content: item.content + (event.content ?? event.text ?? "") }
                   : item,
               ),
             );
@@ -5299,11 +5316,31 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         } else {
           releaseChatRequestAttachments(request);
         }
-        setMessages((current) =>
-          current.filter(
-            (item) => item.id !== localUserId && item.id !== localAssistantId,
-          ),
-        );
+        // 产品硬约束：已经显示出来的字绝不撤回。
+        // 早先这里把助手行整条删掉，用户点「停止等待」后看到的回复会凭空消失。
+        // 现在保留已生成正文，标记为「生成中断 · 已保留当时内容」。
+        setMessages((current) => {
+          const kept = [];
+          for (const item of current) {
+            if (item.id === localUserId) continue;
+            if (item.id === localAssistantId) {
+              const text = String(item.content || item.partialContent || "");
+              if (text.trim()) {
+                kept.push({
+                  ...item,
+                  content: "",
+                  partialContent: text,
+                  chatError: true,
+                  isStreaming: false,
+                  tool_calls: { ...(item.tool_calls || {}), partial_reply: true },
+                });
+              }
+              continue;
+            }
+            kept.push(item);
+          }
+          return kept;
+        });
         if (restoreDraft) {
           setNotice("发送已取消，文字和附件已保留，可以返回聊天页后重试。");
         }
