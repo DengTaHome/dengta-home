@@ -4943,6 +4943,10 @@ async function executeChatTurnOnce(
                   })
                 : null;
         const controlTokens = onModelEvent ? createControlTokenScrubber() : null;
+        // 累积已经发给前端的正文。流式函数在检测到拒答时会先抛异常，
+        // 那时候 generated 还没有值——只有这里能拿到模型究竟说了什么。
+        let streamedText = "";
+        let refusalFromStream = false;
         const forwardModelEvent = onModelEvent
             ? (event) => {
                   stopModelWaitProgress();
@@ -4961,6 +4965,7 @@ async function executeChatTurnOnce(
                   if (delta !== null) {
                       const clean = controlTokens.push(delta);
                       if (!clean) return;
+                      streamedText += clean;
                       // 不 await：落库是保险，不能让它的延迟拖慢逐字显示。
                       if (streamPersister) void streamPersister.push(clean);
                       onModelEvent({ ...event, content: clean });
@@ -4978,6 +4983,21 @@ async function executeChatTurnOnce(
                       onEvent: forwardModelEvent
                   })
                 : await generateReply(generationInput);
+        } catch (error) {
+            // 拒答不是「这一轮失败了」。产品要求：模型说了什么就显示什么，
+            // 并落一条可追溯的诊断（错误码 + 原文 + 模型 + 供应商）。
+            // 早先这里直接抛出去，persistRefusalLog 永远跑不到，
+            // 拒答标注和日志因此全部不可达。
+            if (error?.code === "provider_boundary_residue" && streamedText.trim()) {
+                generated = {
+                    text: streamedText,
+                    mode: null,
+                    visible_monologue: null
+                };
+                refusalFromStream = true;
+            } else {
+                throw error;
+            }
         } finally {
             stopModelWaitProgress();
         }
@@ -4999,7 +5019,9 @@ async function executeChatTurnOnce(
                 kinds: scrubbed.removed.map((item) => item.kind)
             });
         }
-        assertProviderOutputSafe(generated.text);
+        // 拒答文本本身就过不了这道断言；上面已经判定为拒答，这里跳过，
+        // 交给 persistRefusalLog 留档，而不是把整轮丢掉。
+        if (!refusalFromStream) assertProviderOutputSafe(generated.text);
         // 生成结束：把还没落库的最后一段写一次（阈值可能没到）。
         if (streamPersister) await streamPersister.flush();
 

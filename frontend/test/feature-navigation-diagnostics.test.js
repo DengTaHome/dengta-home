@@ -35,7 +35,13 @@ test("opening the current workspace or another feature does not ask to discard",
 test("new and existing chat selection guard before changing session state", () => {
   for (const [start, end, effect] of [["  async function createSession()", "  function chooseSession(", "createSessionPendingRef.current = true"], ["  function chooseSession(", "  async function confirmSessionDialog(", "chatScrollControllerRef.current?.open()"]]) {
     const first = source.indexOf(start), body = source.slice(first, source.indexOf(end, first));
-    assert.ok(body.indexOf('if (!canLeaveWorkspace("chat")) return;') < body.indexOf(effect));
+    const guard = body.indexOf('if (!canLeaveWorkspace("chat")) return;');
+    const effectIndex = body.indexOf(effect);
+    // 两个位置都必须真实存在。早先只比较大小：守卫被删掉后 indexOf 返回 -1，
+    // 而 -1 < 93 依然成立——这个测试根本拦不住它本该拦的回归。
+    assert.ok(guard >= 0, `canLeaveWorkspace guard missing before ${effect}`);
+    assert.ok(effectIndex >= 0, `expected effect "${effect}" not found`);
+    assert.ok(guard < effectIndex, "the guard must run before the session state changes");
   }
 });
 test("a cancelled native cast leaves its payload pending and does not change the page", async () => {
