@@ -594,6 +594,10 @@ app.use(
         validateMediaUrl: require("./services/direct-media-url").validateDirectMediaUrl,
         encryptMediaUrl: castReceiver.encryptMediaUrl,
         database: supabase,
+        // 只挂接收端。配对码不走这里：控制端在
+        // POST /api/v2/co-watch/sessions/:sessionId/pairing-code 生成（见 routes/co-watch.js），
+        // 接收端拿配对码来 POST /api/v2/cast/pair。所以 cast-receiver.js 里那段
+        // includeControl 分支在这个进程里永不挂载——它是历史遗留，不要当成 404 bug 去修。
         includeControl: false
     })
 );

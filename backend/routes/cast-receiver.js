@@ -88,7 +88,11 @@ function createCastReceiverRouter({ receiver, database, limiter, includeControl 
             res.json({ receiver: receiver.publicReceiverState(updated.data) });
         } catch (e) { next(e); }
     });
-    if (includeControl) router.post("/sessions/:sessionId/pairing-code", async (req, res, next) => {
+    // 注意：server.js 以 includeControl: false 挂载本路由，这段控制端接口在
+// 线上进程里不会被注册。配对码的真实入口是
+// POST /api/v2/co-watch/sessions/:sessionId/pairing-code（routes/co-watch.js）。
+// 保留代码是为了将来可能切回 receiver-only 之外的用法；改动前先确认调用方。
+if (includeControl) router.post("/sessions/:sessionId/pairing-code", async (req, res, next) => {
         try { const scope = requireRequestScope(req); const id = normalizeSessionId(req.params.sessionId); const found = await scope.db.from("co_watch_sessions").select("id, status, session_mode").eq("id", id).maybeSingle(); if (found.error) throw found.error; if (!found.data || found.data.status !== "active" || found.data.session_mode !== "direct_media") throw error(409, "cast_pair_unavailable", "该会话不可配对。"); noStore(res); res.json({ pairing_code: receiver.pairingCode(id), session_id: id, expires_at: receiver.pairingExpiresAt() }); } catch (e) { next(e); }
         });
     return router;
