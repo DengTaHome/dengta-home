@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import React, { act } from "react";
 import TestRenderer from "react-test-renderer";
-import { createServer, transformWithOxc } from "vite";
+import { createServer } from "vite";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const previousWindow = globalThis.window;
@@ -23,40 +22,11 @@ const fixture = {
   fetch(limit) { const request = deferred(); this.calls.push({ limit, ...request }); return request.promise; },
 };
 globalThis.__errorLogExplanationFixture = fixture;
-const appSource = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8").replaceAll("\r\n", "\n");
-const start = appSource.indexOf("function ErrorLogsPanel(");
-const end = appSource.indexOf("\nfunction MemoryImportCard(", start);
-assert.ok(start >= 0 && end > start, "extract the actual ErrorLogsPanel function from App.jsx");
-const panelSource = appSource.slice(start, end);
+// ErrorLogsPanel 已经是可注入依赖的独立组件：直接加载真实组件，
+// 通过 props 换掉请求层，不再从 App.jsx 切源码。
 const vite = await createServer({
   root: fileURLToPath(new URL("..", import.meta.url)), appType: "custom", logLevel: "silent",
   server: { middlewareMode: true },
-  plugins: [{
-    name: "actual-error-logs-panel",
-    resolveId(id) { if (id === "virtual:error-logs-panel") return "\0virtual:error-logs-panel.jsx"; },
-    async load(id) {
-      if (id !== "\0virtual:error-logs-panel.jsx") return;
-      const code = `
-        import {useState as realUseState,useRef,useEffect,useCallback} from "react";
-        import OperationErrorHelp from "/src/OperationErrorHelp.jsx";
-        import {diagnosticScopeKey,recordOperationFailure} from "/src/operation-diagnostics.js";
-        import {describeOperationError} from "/src/operation-error-help.js";
-        import {requestErrorLogs} from "/src/error-log-request.js";
-        import {createScopedSettingsSession,settingsSaveScope} from "/src/settings-save-scope.js";
-        const fixture=globalThis.__errorLogExplanationFixture;
-        function useState(initial) {
-          const [value,setValue]=realUseState(initial);
-          return [value,next=>{fixture.stateWrites++;setValue(next);}];
-        }
-        const apiRequest=async(path,options)=>({logs:await fixture.fetch(Number(new URL(path,"https://example.test").searchParams.get("limit")))});
-        const authSession={getSnapshot:()=>({user:{id:fixture.accountScope},activeCompanionId:"fictional-companion-a"})};
-        const LocalDiagnostics=()=>null;
-        ${panelSource}
-        export default ErrorLogsPanel;
-      `;
-      return (await transformWithOxc(code, "error-logs-panel.jsx", { lang: "jsx", jsx: { runtime: "automatic" } })).code;
-    },
-  }],
 });
 const privateBody = "FICTIONAL_PRIVATE_UPSTREAM_BODY_NEVER_DISPLAY";
 const balanceLog = {
@@ -73,7 +43,7 @@ const routes = [];
 const text = node => typeof node === "string" ? node : (node?.children || []).map(text).join("");
 const snapshot = () => JSON.stringify(tree.toJSON());
 try {
-  const { default: ErrorLogsPanel } = await vite.ssrLoadModule("virtual:error-logs-panel");
+  const { default: ErrorLogsPanel } = await vite.ssrLoadModule("/src/ErrorLogsPanel.jsx");
   const mount = async (accountScope = "fictional-account-a") => {
     fixture.accountScope = accountScope;
     fixture.calls = []; fixture.stateWrites = 0; routes.length = 0;
@@ -81,6 +51,9 @@ try {
       tree = TestRenderer.create(React.createElement(ErrorLogsPanel, {
         key: accountScope, accountScope, companionScope: "fictional-companion-a",
         onOpenSettings: category => routes.push(category),
+        request: async (path) => ({ logs: await fixture.fetch(Number(new URL(path, "https://example.test").searchParams.get("limit"))) }),
+        auth: { getSnapshot: () => ({ user: { id: fixture.accountScope }, activeCompanionId: "fictional-companion-a" }) },
+        Diagnostics: () => null,
       }));
     });
   };

@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import React, { act } from "react";
 import TestRenderer from "react-test-renderer";
-import { createServer, transformWithOxc } from "vite";
+import { createServer } from "vite";
 import * as logRequests from "../src/error-log-request.js";
-import { describeOperationError } from "../src/operation-error-help.js";
 import { recordOperationFailure, readOperationFailures, clearOperationFailures } from "../src/operation-diagnostics.js";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -98,28 +96,37 @@ test("invalid detail receipt keeps local diagnostics and offers retry", async ()
 });
 
 async function panelFixture(request) {
-  const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
-  const start = app.indexOf("function ErrorLogsPanel("), end = app.indexOf("\nfunction MemoryImportCard(", start);
-  assert.ok(start >= 0 && end > start);
-  const { code } = await transformWithOxc(app.slice(start, end), "log-panel.jsx", { lang: "jsx", jsx: { runtime: "classic", pragma: "React.createElement", pragmaFrag: "React.Fragment" } });
+  // 直接挂载真实的 ErrorLogsPanel，只替换「请求层」和「账号范围」。
+  // 回执校验、错误码描述、本地诊断记录全都用真实现——这样测的是行为，不是文本。
+  const { default: Panel } = await vite.ssrLoadModule("/src/ErrorLogsPanel.jsx");
   const scope = JSON.stringify(["fictional-account", "fictional-companion"]);
-  const authSession = { getSnapshot: () => ({ user: { id: "fictional-account" }, activeCompanionId: "fictional-companion" }) };
-  const { createScopedSettingsSession } = await import("../src/settings-save-scope.js");
-  const wrapper = (path, options) => request(path, options);
-  const hooks = ["useState", "useRef", "useEffect", "useLayoutEffect", "useCallback"];
-  const Panel = new Function("React", ...hooks, "fetchErrorLogs", "requestErrorLogs", "apiRequest", "authSession", "createScopedSettingsSession", "settingsSaveScope", "diagnosticScopeKey", "recordOperationFailure", "describeOperationError", "LocalDiagnostics", "OperationErrorHelp", code + "\nreturn ErrorLogsPanel;")(
-    React, ...hooks.map(key => React[key]), async () => { const data = await wrapper("/api/errors", {}); return Array.isArray(data?.logs) ? data.logs : []; },
-    logRequests.requestErrorLogs, wrapper, authSession, createScopedSettingsSession, () => scope, () => scope, recordOperationFailure, describeOperationError,
-    () => null, ({ diagnostic }) => React.createElement("span", null, diagnostic.code || "unknown"));
-  return Panel;
+  return {
+    Panel,
+    props: {
+      accountScope: "fictional-account",
+      companionScope: "fictional-companion",
+      onOpenSettings: () => {},
+      request: (path, options) => request(path, options),
+      auth: { getSnapshot: () => ({ user: { id: "fictional-account" }, activeCompanionId: "fictional-companion" }) },
+      readScopeKey: () => scope,
+      readSaveScope: () => scope,
+      // 本机诊断面板会渲染自己的按钮，这里替掉，保证「刷新」是第一个按钮。
+      Diagnostics: () => null,
+      // 桥接：面板是经 Vite 加载的，它内部的 operation-diagnostics 与测试直接
+      // import 的那份是两个模块实例、两张内存表。不桥接就读不到记录。
+      recordFailure: (...args) => recordOperationFailure(...args),
+      // 用一个只渲染错误码的替身：真实现的文案里不一定带原始 code，
+      // 而这几条测试关心的是「哪个错误码被记录/被展示」。
+      ErrorHelp: ({ diagnostic: error }) => React.createElement("span", null, error?.code || "unknown")
+    }
+  };
 }
-
 test("actual settings panel aborts on leaving and ignores the late response", async () => {
   const pending = deferred(); let signal, view;
   const oldWindow = globalThis.window; globalThis.window = globalThis;
   try {
-    const Panel = await panelFixture((_, options) => { signal = options.signal; return pending.promise; });
-    await act(async () => { view = TestRenderer.create(React.createElement(Panel, { accountScope: "fictional-account", companionScope: "fictional-companion" })); });
+    const { Panel, props } = await panelFixture((_, options) => { signal = options.signal; return pending.promise; });
+    await act(async () => { view = TestRenderer.create(React.createElement(Panel, props)); });
     await act(async () => new Promise(resolve => setTimeout(resolve, 25)));
     assert.ok(signal);
     await act(async () => view.unmount()); view = null;
@@ -131,8 +138,8 @@ test("actual settings panel aborts on leaving and ignores the late response", as
 test("actual settings panel preserves valid logs after malformed refresh", async () => {
   let count = 0, view; const oldWindow = globalThis.window; globalThis.window = globalThis;
   try {
-    const Panel = await panelFixture(async () => ++count === 1 ? { logs: [{ id: "a", error_code: "request_timeout", created_at: "2026-10-10T00:00:00Z" }] } : { logs: {} });
-    await act(async () => { view = TestRenderer.create(React.createElement(Panel, { accountScope: "fictional-account", companionScope: "fictional-companion" })); });
+    const { Panel, props } = await panelFixture(async () => ++count === 1 ? { logs: [{ id: "a", error_code: "request_timeout", created_at: "2026-10-10T00:00:00Z" }] } : { logs: {} });
+    await act(async () => { view = TestRenderer.create(React.createElement(Panel, props)); });
     await act(async () => new Promise(resolve => setTimeout(resolve, 25)));
     assert.match(text(view), /request_timeout/);
     await act(async () => view.root.findAllByType("button")[0].props.onClick());
