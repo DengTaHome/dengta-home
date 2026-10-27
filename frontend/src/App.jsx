@@ -91,6 +91,7 @@ import { authSession } from "./auth-session.js";
 import { createScopedSettingsSession, registerSettingsSaveGuard, settingsSaveScope } from "./settings-save-scope.js";
 import { createCoWatchViewScope } from "./co-watch-view-scope.js";
 import ErrorLogsPanel from './ErrorLogsPanel.jsx';
+import { confirmSessionDialogMutation } from './session-dialog-mutation.js';
 import { diagnosticScopeKey } from "./operation-diagnostics.js";
 import FeatureNavigation from "./FeatureNavigation.jsx";
 import { FEATURE_LABELS, QUICK_FEATURES, navItems } from "./feature-navigation.js";
@@ -3899,66 +3900,36 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     setSessionDialogFeedback("");
   }
 
-  async function confirmSessionDialog(event) {
-    event.preventDefault();
-    if (!dialog?.session || sessionDialogPendingRef.current || !sessionDialogRequest.isCurrent()) return;
-    const submitted = dialog;
-    const title = String(submitted.value || "").trim();
-    if (submitted.type === "rename" && (!title || title.length > MAX_SESSION_TITLE)) return;
-    const pending = {};
-    const path = `/api/v2/sessions/${encodeURIComponent(submitted.session.id)}`;
-    sessionDialogPendingRef.current = pending;
-    setSessionDialogBusy(true);
-    setSessionDialogFeedback("");
-
-    try {
-      if (submitted.type === "rename") {
-        const saved = await sessionDialogRequest.request(path, {
-          method: "PATCH",
-          body: { title },
-          responseReader: (response) => readSessionRename(response, submitted.session.id, title),
-        });
-        if (!sessionDialogRequest.isCurrent()) return;
-        setSessions((current) =>
-          current.map((item) =>
-            item.id === submitted.session.id ? { ...item, ...saved } : item,
-          ),
-        );
-      } else {
-        await sessionDialogRequest.request(path, {
-          method: "DELETE",
-          responseReader: readSessionDelete,
-        });
-        if (!sessionDialogRequest.isCurrent()) return;
-        storeSessionChatModel(submitted.session.id, "");
-        clearStoredMessageReferencesForSession(submitted.session.id);
-        const remaining = sessionsRef.current.filter(
-          (item) => item.id !== submitted.session.id,
-        );
-        setSessions((current) => current.filter((item) => item.id !== submitted.session.id));
-        if (activeSessionIdRef.current === submitted.session.id) {
-          abortChatRequest(chatRequestRef, "session-deleted");
-          activeSessionIdRef.current = remaining[0]?.id || null;
-          setActiveSessionId(activeSessionIdRef.current);
-          setMessages([]);
-        }
-      }
-      if (dialogRef.current === submitted) setDialog(null);
-    } catch (error) {
-      if (sessionDialogRequest.isCurrent()) {
-        recordOperationFailure(privateMediaScope, path, error);
-        const feedback = sessionDialogFailure(error);
-        if (dialogRef.current === submitted) setSessionDialogFeedback(feedback);
-        else setNotice(feedback);
-      }
-    } finally {
-      if (sessionDialogPendingRef.current === pending) {
-        sessionDialogPendingRef.current = null;
-        if (sessionDialogRequest.isCurrent()) setSessionDialogBusy(false);
-      }
-    }
+  function confirmSessionDialog(event) {
+    return confirmSessionDialogMutation(
+      {
+        dialog,
+        dialogRef,
+        sessionsRef,
+        activeSessionIdRef,
+        sessionDialogPendingRef,
+        sessionDialogRequest,
+        setSessions,
+        setDialog,
+        setSessionDialogBusy,
+        setSessionDialogFeedback,
+        setNotice,
+        setActiveSessionId,
+        setMessages,
+        storeSessionChatModel,
+        clearStoredMessageReferencesForSession,
+        abortChatRequest,
+        chatRequestRef,
+        recordOperationFailure,
+        privateMediaScope,
+        readSessionRename,
+        readSessionDelete,
+        sessionDialogFailure,
+        MAX_SESSION_TITLE
+      },
+      event
+    );
   }
-
   function scheduleCompanionInteraction(
     delay = COMPANION_INTERACTION_DEBOUNCE_MS,
   ) {

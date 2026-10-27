@@ -33,7 +33,7 @@ test("opening the current workspace or another feature does not ask to discard",
   navigation("workspace", unexpected).changeView("workspace"); navigation("chat", unexpected).changeView("music");
 });
 test("new and existing chat selection guard before changing session state", () => {
-  for (const [start, end, effect] of [["  async function createSession()", "  function chooseSession(", "createSessionPendingRef.current = true"], ["  function chooseSession(", "  async function confirmSessionDialog(", "chatScrollControllerRef.current?.open()"]]) {
+  for (const [start, end, effect] of [["  async function createSession()", "  function chooseSession(", "createSessionPendingRef.current = true"], ["  function chooseSession(", "  function confirmSessionDialog(", "chatScrollControllerRef.current?.open()"]]) {
     const first = source.indexOf(start), body = source.slice(first, source.indexOf(end, first));
     const guard = body.indexOf('if (!canLeaveWorkspace("chat")) return;');
     const effectIndex = body.indexOf(effect);

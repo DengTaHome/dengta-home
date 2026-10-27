@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import test from "node:test";
-
-const source = fs.readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
-const start = source.indexOf("  async function confirmSessionDialog(");
-const end = source.indexOf("  function scheduleCompanionInteraction(", start);
-assert.ok(start >= 0 && end > start);
-const body = source.slice(start, end);
+import { confirmSessionDialogMutation } from "../src/session-dialog-mutation.js";
 const A = "10000000-0000-4000-8000-000000000001";
 const B = "10000000-0000-4000-8000-000000000002";
 const C = "10000000-0000-4000-8000-000000000003";
@@ -41,7 +35,8 @@ function fixture(type = "rename") {
     recordOperationFailure() { state.diagnoses++; }, privateMediaScope: "fictional scope",
     readSessionRename, readSessionDelete, sessionDialogFailure: error => `safe failure ${error.code}`, MAX_SESSION_TITLE: 60,
   };
-  const confirm = new Function(...Object.keys(context), body + "return confirmSessionDialog;")(...Object.values(context));
+  // 直接调用抽出来的真实实现：不再从 App.jsx 切源码、也不再 new Function 注入 22 个变量。
+  const confirm = (event) => confirmSessionDialogMutation(context, event);
   const click = () => confirm({ preventDefault() {} });
   const respond = (index, data, status = type === "rename" ? 200 : 204) => {
     const response = new Response(status === 204 ? null : JSON.stringify(data), { status });
