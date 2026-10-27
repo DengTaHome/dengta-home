@@ -134,6 +134,36 @@ try {
     notes.error = String(error).slice(0, 160);
 }
 
+
+// 音乐界面：侧边栏在移动端是抽屉，先点「打开菜单」再点「听歌」。
+// 顺带记录 <audio> 的播放状态——用户提过「自动播放音乐」，要事实不要猜测。
+try {
+    const menuButton = page.locator('.menu-button, [aria-label*="打开菜单"]').first();
+    if (await menuButton.count()) {
+        await menuButton.evaluate((node) => node.click()).catch(() => {});
+        await page.waitForTimeout(1_000);
+    }
+    const musicEntry = page.locator('button', { hasText: "听歌" }).first();
+    if (await musicEntry.count()) {
+        // 抽屉里的元素可能在视口外，直接派发 DOM 点击更稳。
+        await musicEntry.evaluate((node) => node.click());
+        await page.waitForTimeout(3_000);
+        surfaces.music = await measure("main");
+        const audioState = await page.evaluate(() => Array.from(document.querySelectorAll("audio")).map((node) => ({
+            src: (node.currentSrc || node.src || "").slice(0, 60),
+            paused: node.paused,
+            muted: node.muted,
+            autoplay: node.autoplay
+        })));
+        notes.musicAudio = JSON.stringify(audioState).slice(0, 400);
+        await page.screenshot({ path: `${OUT}\\touch-music.png`, timeout: 120_000 });
+    } else {
+        notes.music = "侧边栏里没找到听歌入口";
+    }
+} catch (error) {
+    notes.musicError = String(error).slice(0, 140);
+}
+
 await fs.writeFile(`${OUT}\\touch-targets.json`, JSON.stringify({ ranAt: new Date().toISOString(), surfaces, notes }, null, 2), "utf8");
 
 let offenders = 0;
