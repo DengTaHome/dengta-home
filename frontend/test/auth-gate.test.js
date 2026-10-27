@@ -32,10 +32,13 @@ assert.match(
   "the authenticated application must not inflate the login/loading bundle",
 );
 assert.match(main, /<App[\s\S]*accountControl=\{accountControl\}/);
-assert.match(main, /<LoadedApp key=\{JSON\.stringify\(\[snapshot\.user\?\.id, snapshot\.activeCompanionId\]\)\}/,
+assert.match(main, /<LoadedApp key=\{JSON\.stringify\(\[snapshot\.user\.id, snapshot\.activeCompanionId\]\)\}/,
   "the application must remount when either the account or companion changes");
-assert.match(main, /accountScope=\{snapshot\.user\?\.id \|\| ""\}/);
-assert.match(main, /userName=\{snapshot\.user\?\.displayName\}/);
+assert.match(main, /accountScope=\{snapshot\.user\.id\}/);
+assert.match(main, /userName=\{snapshot\.user\.displayName\}/);
+// 关键约束：解析出用户之前不能挂载 App。
+// 否则 user.id 从空变成真实值时 key 改变、App 重挂，启动请求会整波重复。
+assert.match(main, /snapshot\.user\?\.id \? \(/, "the app must not mount before the user identity is known");
 assert.match(
   app,
   /function App\(\{ accountControl = null, accountScope = "", userName = "" \}\)/,

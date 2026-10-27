@@ -72,16 +72,24 @@ createRoot(document.getElementById("root")).render(
     {isReceiverRoute ? <ReceiverApp /> : <>
       <DengTaPrelude />
       <AuthGate>
-        {({ accountControl, snapshot }) => (
-          <AppStartupBoundary
-            accountScope={snapshot.user?.id || ""}
-            sessionManager={authSession}
-          >
-            <Suspense fallback={<AppLoadingScreen />}>
-              <LoadedApp key={JSON.stringify([snapshot.user?.id, snapshot.activeCompanionId])} accountControl={accountControl} accountScope={snapshot.user?.id || ""} userName={snapshot.user?.displayName} companionScope={snapshot.activeCompanionId || ""} />
-            </Suspense>
-          </AppStartupBoundary>
-        )}
+        {({ accountControl, snapshot }) =>
+          // 关键：解析出用户之前不要挂载 App。
+          // 早先这里用空快照先挂一次，鉴权完成后 user.id 从 "" 变成真实值，
+          // LoadedApp 的 key 随之改变 → 整个 App 卸载重挂 → 启动请求（bootstrap/
+          // 成就/纪念日/推荐…）整波重复一遍。实测首屏 26 个请求里有近三分之一是这么来的。
+          snapshot.user?.id ? (
+            <AppStartupBoundary
+              accountScope={snapshot.user.id}
+              sessionManager={authSession}
+            >
+              <Suspense fallback={<AppLoadingScreen />}>
+                <LoadedApp key={JSON.stringify([snapshot.user.id, snapshot.activeCompanionId])} accountControl={accountControl} accountScope={snapshot.user.id} userName={snapshot.user.displayName} companionScope={snapshot.activeCompanionId || ""} />
+              </Suspense>
+            </AppStartupBoundary>
+          ) : (
+            <AppLoadingScreen />
+          )
+        }
       </AuthGate>
     </>}
   </StrictMode>,
