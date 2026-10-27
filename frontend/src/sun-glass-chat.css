@@ -1626,8 +1626,9 @@
 
   .sun-glass-status-window-actions > button {
     display: grid;
-    width: 38px;
-    height: 38px;
+    /* 触摸目标下限 44px（原来 38px，手机上难点） */
+    width: 44px;
+    height: 44px;
     padding: 0;
     place-items: center;
     border: 1px solid rgb(255 255 255 / 0.55);
@@ -2358,7 +2359,7 @@
 
 .sun-glass-countdown-controls select,
 .sun-glass-countdown-controls button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 11px;
   border: 0;
   border-radius: 14px;

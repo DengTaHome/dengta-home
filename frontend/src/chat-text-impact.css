@@ -1,5 +1,5 @@
 .text-impact-control { position: relative; display: inline-flex; align-items: center; gap: 4px; }
-.text-impact-trigger { display: inline-flex; align-items: center; gap: 3px; min-height: 28px; min-width: 44px; }
+.text-impact-trigger { display: inline-flex; align-items: center; gap: 3px; min-height: 44px; min-width: 44px; }
 .text-impact-menu { position: fixed; z-index: 160; display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line, #eadfda); border-radius: 18px; background: var(--paper, #fffdfb); color: var(--ink, #3d3338); box-shadow: 0 8px 26px #261b241c; text-align: left; font: 13px/1.5 system-ui, sans-serif; }
 .text-impact-menu-heading { display: flex; align-items: center; justify-content: space-between; }
 .text-impact-menu-heading button { display: inline-grid; place-items: center; min-width: 28px; min-height: 28px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }

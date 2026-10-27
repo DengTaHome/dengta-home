@@ -7425,7 +7425,7 @@ body,
 .reply-suggestions button {
   display: inline-flex;
   min-width: max-content;
-  min-height: 38px;
+  min-height: 44px;
   align-items: center;
   gap: 8px;
   padding: 8px 11px;

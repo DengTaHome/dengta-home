@@ -1100,10 +1100,11 @@ button:active:not(:disabled) {
 
 .message-error-dismiss {
   display: grid;
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
-  min-height: 30px;
+  /* 触摸目标下限 44px；图标本身小，靠尺寸撑开热区 */
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   margin-right: auto;
   padding: 0;
   place-items: center;
