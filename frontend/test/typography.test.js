@@ -132,4 +132,7 @@ test("the web shell defers the heavy font and rotates the PWA cache", () => {
   const mainSource = fs.readFileSync(new URL("../src/main.jsx", import.meta.url), "utf8");
   assert.match(mainSource, /\/font-late\.css/, "main.jsx mounts the deferred font stylesheet");
   assert.doesNotMatch(mainSource, /requestIdleCallback\s*\(/, "idle callbacks fire too early to keep the font off the critical path");
+  // 选了系统字体 / 开了省流量模式的用户不该为 7.42 MB 付费下载。
+  assert.match(mainSource, /dataset\.dengtaFontMode === "system"/, "the deferred font must be skipped for system-font users");
+  assert.match(mainSource, /connection\?\.saveData/, "the deferred font must be skipped when data saver is on");
 });

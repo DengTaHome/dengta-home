@@ -99,6 +99,10 @@ createRoot(document.getElementById("root")).render(
 // 实测这么做能让接口请求先拿到带宽，缩短「第一条消息渲染」的时间。
 function scheduleLateFont() {
   const attach = () => {
+    // 用户选了「系统字体」就不要下载这 7.42 MB：
+    // 字体模式由 index.html 早早在 html[data-dengta-font-mode] 上标好。
+    if (document.documentElement.dataset.dengtaFontMode === "system") return;
+    if (globalThis.navigator?.connection?.saveData === true) return; // 省流量模式同样跳过
     if (document.querySelector('link[data-late-font="dengta-sans"]')) return;
     const link = document.createElement("link");
     link.rel = "stylesheet";
