@@ -1,3 +1,4 @@
+import XinchaoBadge from "./XinchaoBadge.jsx";
 import {
   memo,
   useCallback,
@@ -386,6 +387,7 @@ function CompanionStatus({
         ) : (
           <button type="button" className="sun-glass-liquid-capsule-toggle" aria-label={expanded ? "收起动态状态" : `展开${displayName}的动态状态`} aria-expanded={expanded} onClick={togglePanel}>
             <span className="sun-glass-capsule-decoration" aria-hidden="true"><Heart /><MessageCircle /><Sparkles /></span>
+            <XinchaoBadge enabled={Boolean(displayName)} />
           </button>
         )}
       </section>
