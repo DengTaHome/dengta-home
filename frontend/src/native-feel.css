@@ -1,9 +1,22 @@
+/* 字体加载策略：中文装饰字体一律 optional。
+ *
+ * 原因（实测）：这几个字体文件很大——
+ *   DengTaSans-cjk-v2.woff2  7.42 MB
+ *   ChillRoundF-v3.0.ttf     5.88 MB
+ * 在手机上它们要几秒才到。如果用 font-display: swap，字体到达的瞬间会替换
+ * 回退字体、触发整页重新排版——这就是顶部状态栏看起来"闪烁 + 错位"的来源。
+ *
+ * optional 的行为：字体没能在极短时间内拿到，本轮就**不替换**、直接用回退字体，
+ * 因此永远不会发生迟到字体导致的回流。字体仍会被缓存，第二次打开就直接用上了。
+ *
+ * Roboto Mono 只有 34 KB，保留 swap 没有影响。
+ */
 @font-face {
   font-family: "Noto Sans SC";
   src: url("/fonts/NotoSansSC-ui.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -11,7 +24,7 @@
   src: url("/fonts/NotoSerifSC-ui.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -19,7 +32,7 @@
   src: url("/fonts/LXGWWenKaiLite-ui.woff2") format("woff2");
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -27,7 +40,7 @@
   src: url("/fonts/ChillRoundF-v3.0.ttf") format("truetype");
   font-style: normal;
   font-weight: 400 900;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {

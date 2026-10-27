@@ -1,0 +1,242 @@
+/* 心潮 (xinchao) 样式
+ *
+ * 规则提取自生产前端产物 assets/App-*.css，逐条还原，选择器与声明保持一致。
+ * 与生产的两处刻意差异：
+ *   1. 补了 --theme-ink-rgb 的本地回退值（原项目靠别处定义）。
+ *   2. 把 reduced-motion 从「动画变慢」改成「直接关掉」——减少动效偏好应当真的取消动画。
+ */
+
+:root {
+  /* 生产环境由主题层提供；这里给一个中性墨色兜底，避免边框色算不出来。 */
+  --theme-ink-rgb: 48 43 42;
+}
+
+.xinchao-capsule {
+  width:100%;
+  min-width:0;
+  height:100%;
+  color:inherit;
+  text-align:left;
+  align-items:center;
+  gap:9px;
+  padding:0 8px;
+  display:flex;
+}
+
+.xinchao-capsule-petals {
+  flex:0 0 72px;
+  justify-content:center;
+  align-items:flex-end;
+  gap:4px;
+  width:72px;
+  height:42px;
+  display:flex;
+  position:relative;
+}
+
+.xinchao-capsule-petal {
+  width:8px;
+  height:calc(10px + 28px * var(--xinchao-level,.2));
+  opacity:calc(.38 + var(--xinchao-level,.2) * .62);
+  box-shadow:0 0 10px rgb(209 139 231/calc(.18 + var(--xinchao-level,.2) * .35));
+  transform-origin:bottom;
+  animation:3.4s ease-in-out infinite xinchao-petal-breathe;
+  animation-delay:calc(var(--xinchao-index,0) * -.38s);
+  background:linear-gradient(#ffd6ea,#d18be7 38%,#7bb7ff 72%,#9ce9d1);
+  border-radius:999px;
+}
+
+.xinchao-capsule-copy {
+  flex-direction:column;
+  flex:auto;
+  gap:1px;
+  min-width:0;
+  display:flex;
+  overflow:hidden;
+}
+
+.xinchao-capsule-copy small,.xinchao-capsule-copy strong {
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  display:block;
+  overflow:hidden;
+}
+
+.xinchao-capsule-copy small {
+  color:currentColor;
+  opacity:.66;
+  font-size:10px;
+}
+
+.xinchao-capsule-copy strong {
+  letter-spacing:.01em;
+  font-size:13px;
+  font-weight:700;
+}
+
+.xinchao-capsule-revision {
+  color:currentColor;
+  opacity:.36;
+  flex:none;
+  font-size:9px;
+}
+
+.xinchao-details.is-inline {
+  width:100%;
+  max-height:none;
+  color:inherit;
+  box-shadow:none;
+  -webkit-backdrop-filter:none;
+  background:0 0;
+  border:0;
+  border-radius:0;
+  animation:none;
+  position:static;
+  overflow:visible;
+}
+
+.xinchao-details.is-inline .xinchao-details-header,.xinchao-details.is-inline .xinchao-details-drives {
+  padding:0 0 8px;
+}
+
+.xinchao-details.is-inline .xinchao-details-meta {
+  border-top:1px solid rgb(var(--theme-ink-rgb) / .1);
+  padding:8px 0 0;
+}
+
+.xinchao-details {
+  z-index:2147482000;
+  color:#2d2b33;
+  -webkit-backdrop-filter:blur(18px)saturate(1.2);
+  background:#f8f6f4f5;
+  border:1px solid #ffffffad;
+  border-radius:22px;
+  width:min(338px,100vw - 24px);
+  max-height:min(420px,100dvh - 90px);
+  animation:.18s cubic-bezier(.16,.86,.26,1.08) both xinchao-details-in;
+  display:grid;
+  position:fixed;
+  overflow:hidden auto;
+  box-shadow:0 22px 60px #0000004d,inset 0 1px #ffffffe6;
+}
+
+.xinchao-details-header {
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  padding:16px 16px 10px;
+  display:flex;
+}
+
+.xinchao-details-header small,.xinchao-details-header strong {
+  display:block;
+}
+
+.xinchao-details-header small {
+  color:#8a7f78;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  font-size:10px;
+  font-weight:650;
+}
+
+.xinchao-details-header strong {
+  color:#302b2a;
+  margin-top:3px;
+  font-size:20px;
+  font-weight:720;
+}
+
+.xinchao-details-header button {
+  color:#81766f;
+  cursor:pointer;
+  background:#0000000b;
+  border:0;
+  border-radius:50%;
+  flex:0 0 30px;
+  place-items:center;
+  width:30px;
+  height:30px;
+  display:grid;
+}
+
+.xinchao-details-header button svg {
+  width:15px;
+  height:15px;
+}
+
+.xinchao-details-drives {
+  gap:9px;
+  padding:2px 16px 12px;
+  display:grid;
+}
+
+.xinchao-details-drive {
+  color:#6f625d;
+  grid-template-columns:54px minmax(0,1fr) 26px;
+  align-items:center;
+  gap:8px;
+  font-size:11px;
+  display:grid;
+}
+
+.xinchao-details-drive>span:first-child {
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  overflow:hidden;
+}
+
+.xinchao-details-drive b {
+  color:#8a7f78;
+  text-align:right;
+  font-size:10px;
+  font-weight:650;
+}
+
+.xinchao-details-track {
+  background:#7864581c;
+  border-radius:999px;
+  height:5px;
+  display:block;
+  overflow:hidden;
+}
+
+.xinchao-details-track>span {
+  border-radius:inherit;
+  background:linear-gradient(90deg,#d7a0c4,#b38be7 48%,#8fc6f0);
+  height:100%;
+  display:block;
+}
+
+.xinchao-details-meta {
+  color:#9a8e87;
+  border-top:1px solid #50423a14;
+  flex-wrap:wrap;
+  gap:6px 10px;
+  padding:10px 16px 14px;
+  font-size:10px;
+  display:flex;
+}
+
+:root[data-dengta-reduced-motion=true] .main-panel.view-chat .xinchao-capsule-petal {
+  animation:8s ease-in-out infinite xinchao-petal-breathe!important;
+}
+
+@keyframes xinchao-petal-breathe {
+  0%, 100% { opacity: 0.62; transform: scaleY(0.9); }
+  50% { opacity: 0.95; transform: scaleY(1.08); }
+}
+
+@keyframes xinchao-details-in {
+  from { opacity: 0; transform: translateY(-5px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 减少动效偏好：生产只是把呼吸动画放慢到 8s，这里直接停掉。 */
+@media (prefers-reduced-motion: reduce) {
+  .xinchao-capsule-petal { animation: none !important; }
+  .xinchao-details { animation: none !important; }
+}
+
+:root[data-dengta-reduced-motion="true"] .xinchao-capsule-petal { animation: none !important; }
+:root[data-dengta-reduced-motion="true"] .xinchao-details { animation: none !important; }

@@ -18,7 +18,7 @@ assert.deepEqual(migrationNames.slice(0, 3), [
 ]);
 assert.equal(
     migrationNames.at(-1),
-    "061_music_upload_aac.sql"
+    "064_stream_partials.sql"
 );
 
 const db = new PGlite();

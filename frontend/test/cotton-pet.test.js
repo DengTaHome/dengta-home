@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
@@ -45,7 +46,7 @@ assert.equal(controller.request('wake').accepted, true);
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.localStorage = storage;
-const vite = await createServer({ root: new URL('..', import.meta.url).pathname.replace(/^\/(\w:)/, '$1'), appType: 'custom', logLevel: 'silent', server: { middlewareMode: true } });
+const vite = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), appType: 'custom', logLevel: 'silent', server: { middlewareMode: true } });
 try {
   const { default: CottonPet } = await vite.ssrLoadModule('/src/CottonPet.jsx');
   let tree;

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import React, { act } from "react";
 import TestRenderer from "react-test-renderer";
 import { createServer } from "vite";
@@ -54,7 +55,7 @@ await runNowPlayingControl({ ...options, action: "play", control: async () => ({
 assert.match(messages.at(-1), /等待播放器更新/, "unknown state cannot confirm playback");
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-const vite = await createServer({ root: new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), server: { middlewareMode: true }, appType: "custom" });
+const vite = await createServer({ root: fileURLToPath(new URL("..", import.meta.url)), server: { middlewareMode: true }, appType: "custom" });
 let tree;
 try {
   const { default: Card } = await vite.ssrLoadModule("/src/NowPlayingCard.jsx");

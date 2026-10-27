@@ -45,3 +45,6 @@ jobs:
       - run: npm run typecheck
       - if: matrix.component == 'backend'
         run: npm run check
+      - if: matrix.component == 'backend'
+        name: Replay all migrations into an embedded database
+        run: npm run audit:migrations

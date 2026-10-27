@@ -1,0 +1,36 @@
+/* 「生成中断 · 已保留当时内容」提示条。
+ * 结构与线上产物一致（partial-reply-note）。
+ * 独立成文件是因为 App.css 在整个 src 下没有被 import，写在那里不会生效。
+ */
+
+.partial-reply-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border: 1px dashed rgba(214, 160, 92, 0.45);
+  border-radius: 12px;
+  background: rgba(214, 160, 92, 0.08);
+  color: var(--text-2, #6b5f59);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.partial-reply-note > span {
+  flex: 1 1 auto;
+}
+
+.partial-reply-note button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(214, 160, 92, 0.5);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-1, #3a2f2b);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

@@ -237,6 +237,18 @@ const { createNurseryRouter } = require("./routes/nursery");
 const { createIntimateDuelRouter } = require("./routes/intimate-duel");
 const { handleNurseryEvent } = require("./services/nursery-events");
 const { createChatSkinRouter } = require("./routes/chat-skin");
+const { createXinchaoRouter } = require("./routes/xinchao");
+const { createXinchaoService } = require("./services/xinchao");
+const { createHealthDeepRouter } = require("./routes/health-deep");
+const {
+    createControlTokenScrubber,
+    scrubControlTokens
+} = require("./services/control-token-guard");
+const {
+    createStreamPersister,
+    readStreamPartial
+} = require("./services/stream-persistence");
+const { buildRefusalLogRecord } = require("./services/refusal-diagnostics");
 const { createCoWatchRouter } = require("./routes/co-watch");
 const { createCoWatchRoomRouter, createJoinInfoHandler } = require("./routes/co-watch-rooms");
 const { createCastReceiverRouter } = require("./routes/cast-receiver");
@@ -755,6 +767,13 @@ app.use("/api/v2/music", createMusicRouter({ mcpDeviceCenter, neteaseQr: netease
 app.use("/api/v2/device", createDeviceSignalsRouter({ getSettings: (database) => getSettings(database) }));
 app.use("/api/v2/takeout", createTakeoutRouter({ channel: createTakeoutChannel({ database: supabase }) }));
 app.use("/api/v2/special-dates", createSpecialDatesRouter({ dates: createSpecialDatesService({ database: supabase }) }));
+app.use(
+    "/api/v2/xinchao",
+    createXinchaoRouter({ xinchao: createXinchaoService({ database: supabase }) })
+);
+// 深度健康检查：需要登录，做一次真实数据库往返，结果缓存 60 秒。
+// 公开的 /health 保持为纯 liveness，不查任何依赖。
+app.use("/api/v2/health", createHealthDeepRouter({ database: supabase }));
 app.use(
     "/api/v2/fun-labs",
     createFunLabsRouter({
@@ -4905,9 +4924,32 @@ async function executeChatTurnOnce(
 
         onStatus({ type: "status", stage: "calling_model" });
         const stopModelWaitProgress = startModelWaitProgress({ onStatus });
+        // 流式清洗器：模型会把内部工具标记写进正文（<|selectcompanionsticker: …|>），
+        // 标记还会跨分片断开、最后一个还可能没闭合。必须带状态地过滤，
+        // 否则用户会在气泡里看到整段机器标记。
+        // 增量落库：边生成边把已生成的正文写进 stream_partials。
+        // 产品要求「已生成的立刻保存」，所以这里不是等生成结束才写。
+        // 只有拿到租户 scope 时才启用——scoped client 会补 user_id / companion_id。
+        const streamPersister =
+            input.requestScope && input.clientMessageId && conversationId
+                ? createStreamPersister({
+                      database,
+                      conversationId,
+                      clientMessageId: input.clientMessageId
+                  })
+                : null;
+        const controlTokens = onModelEvent ? createControlTokenScrubber() : null;
         const forwardModelEvent = onModelEvent
             ? (event) => {
                   stopModelWaitProgress();
+                  if (controlTokens && event?.type === "text" && typeof event.text === "string") {
+                      const clean = controlTokens.push(event.text);
+                      if (!clean) return;
+                      // 不 await：落库是保险，不能让它的延迟拖慢逐字显示。
+                      if (streamPersister) void streamPersister.push(clean);
+                      onModelEvent({ ...event, text: clean });
+                      return;
+                  }
                   onModelEvent(event);
               }
             : null;
@@ -4923,7 +4965,23 @@ async function executeChatTurnOnce(
         } finally {
             stopModelWaitProgress();
         }
+        // 收尾：把还挂在流里的半截标记丢掉；再对完整文本做一次清洗，
+        // 保证落库的正文和界面上看到的一致。
+        if (controlTokens) {
+            const tail = controlTokens.flush();
+            if (tail) onModelEvent({ type: "text", text: tail });
+        }
+        const scrubbed = scrubControlTokens(generated.text);
+        generated.text = scrubbed.text;
+        if (scrubbed.removed.length) {
+            console.warn("[control-token] stripped from reply", {
+                count: scrubbed.removed.length,
+                kinds: scrubbed.removed.map((item) => item.kind)
+            });
+        }
         assertProviderOutputSafe(generated.text);
+        // 生成结束：把还没落库的最后一段写一次（阈值可能没到）。
+        if (streamPersister) await streamPersister.flush();
 
         onStatus({ type: "status", stage: "saving" });
         // 拒答检测：必须在保存消息前完成，refusal_detected 随 tool_calls 写入消息。
@@ -4937,7 +4995,8 @@ async function executeChatTurnOnce(
                   companionId: settings.companion_id,
                   conversationId,
                   message: assistantText,
-                  model: effectiveModel || ""
+                  model: effectiveModel || "",
+                  provider: settings.provider || ""
               })
             : null;
         const finalizedReplySuggestions = finalizeReplySuggestions({
@@ -4996,6 +5055,8 @@ async function executeChatTurnOnce(
             );
         }
         assistantCommitted = true;
+        // 正式消息已经在 messages 里了，缓冲行可以删掉。
+        if (streamPersister) await streamPersister.finish();
         await touchConversation(conversationId, database);
         await tryScheduleProactiveMessageEvaluation({
             database,
@@ -5161,6 +5222,7 @@ app.get("/health", async (req, res) => {
             companion_image_provider: true,
             companion_surprise_reveal: true,
             companion_chat_skin: true,
+            xinchao_configured: true,
             dynamic_composer_hint: true,
             safe_chat_error_boundary: true,
             dynamic_reply_suggestions: true,
@@ -5521,7 +5583,18 @@ app.get("/sessions/:id/messages", async (req, res, next) => {
             throw error;
         }
 
-        res.json({ messages: (data ?? []).map(publicMessage) });
+        // 断点续看：如果这一轮只写进了 stream_partials、正式消息还没落库
+        // （生成中被刷新/断线），把已生成的部分单独返回，客户端可以接着显示。
+        // 放在独立字段里而不是塞进 messages，避免影响既有的消息数组语义。
+        const streamingPartial = await readStreamPartial({
+            database,
+            conversationId: req.params.id
+        });
+
+        res.json({
+            messages: (data ?? []).map(publicMessage),
+            ...(streamingPartial ? { streaming_partial: streamingPartial } : {})
+        });
     } catch (error) {
         next(error);
     }
@@ -6480,33 +6553,31 @@ app.post("/chat/stream", acceptChatBody, async (req, res, next) => {
     }
 });
 
-async function persistRefusalLog({ userId, companionId, conversationId }) {
-    // 成功响应的拒答也落日志（供聊天页顶部标注条'查看日志'），
+async function persistRefusalLog({ userId, companionId, conversationId, message, model, provider }) {
+    // 成功响应的拒答也落日志（供聊天页那条记录下的展示），
     // 与请求失败的 chat_error_logs 同一张表、同一错误码。
+    //
+    // 这里刻意保留拒答原文：之前只写死一句「诊断不保留回复正文」，等于用户
+    // 看到一句拒绝却拿不到任何原因。现在原因、原文、模型、供应商、错误码
+    // 一起进日志，并把同一份信息返回给调用方挂到消息上。
+    const { row, info } = buildRefusalLogRecord({
+        userId,
+        companionId,
+        conversationId,
+        text: message,
+        model,
+        provider
+    });
     try {
         const { data, error } = await supabase
             .from("chat_error_logs")
-            .insert({
-                user_id: userId || null,
-                companion_id: companionId || null,
-                conversation_id: conversationId || null,
-                path: "/chat",
-                method: "POST",
-                error_code: "provider_boundary_residue",
-                message: "供应商回复未保存，诊断不保留回复正文。",
-                error_source: "upstream_provider_or_gateway",
-                provider_phase: "response",
-                request_summary: { stream: true, refusal: true }
-            })
+            .insert(row)
             .select("id")
             .single();
-        return {
-            code: "provider_boundary_residue",
-            source: "upstream",
-            error_log_id: data?.id || null
-        };
+        if (error) throw error;
+        return { ...info, error_log_id: data?.id || null };
     } catch {
-        return { code: "provider_boundary_residue", source: "upstream", error_log_id: null };
+        return { ...info, error_log_id: null };
     }
 }
 

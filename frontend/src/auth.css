@@ -197,7 +197,7 @@
 }
 
 .web-install-button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 9px 14px;
   border: 1px solid #d7c6c3;
   border-radius: 7px;
@@ -255,6 +255,9 @@
 
 .auth-text-button {
   justify-self: center;
+  /* 触摸目标下限：原来只有 17px 高，手机上基本点不中 */
+  min-height: 44px;
+  padding: 12px 10px;
   border: 0;
   color: #8a4960;
   background: transparent;

@@ -9,12 +9,17 @@ import {
   messageReferenceFromMessage,
 } from "./message-reference";
 import { getStickerById } from "./sticker-catalog";
+import { refusalDisplayFields } from "./refusal-diagnostic.js";
+import "./refusal-diagnostic.css";
 import { formatVoiceConfidence } from "./voice";
 import ChatSkinOrnament from "./ChatSkinOrnament";
 import { privateMediaAsset, privateMediaContentPath } from "./private-media";
 import ChatErrorLog from "./ChatErrorLog";
 import { readChatDisplayContent } from "./chat-display-content.js";
 import ChatTextImpact from "./ChatTextImpact.jsx";
+import PartialReplyNote from './PartialReplyNote.jsx';
+import { shouldShowPartialReplyNote } from './partial-reply.js';
+import './partial-reply.css';
 
 const messageTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
   hour: "2-digit",
@@ -248,16 +253,26 @@ function ChatMessage({
               mood={companionMood}
             />
           )}
-          {!isUser && item.tool_calls?.refusal_detected && (
-            <div className="chat-refusal-banner" role="alert">
-              <span className="chat-refusal-badge">⚠ 拒绝回答</span>
-              <span className="chat-refusal-source">
-                来源: {item.tool_calls.refusal_detected.source === "upstream" ? "上游模型（DengTa 提示词已允许成人内容，为模型自身/中转站审核拦截）" : "DengTa 自身过滤"}
-              </span>
-              <span className="chat-refusal-code">错误码: {item.tool_calls.refusal_detected.code || "provider_boundary_residue"}</span>
-              <ChatErrorLog key={refusalLogId || "local"} logId={refusalLogId} diagnostic={item} />
-            </div>
-          )}
+          {!isUser && item.tool_calls?.refusal_detected && (() => {
+            const refusal = refusalDisplayFields(item.tool_calls.refusal_detected);
+            return (
+              <div className="chat-refusal-banner" role="alert">
+                <span className="chat-refusal-badge">⚠ 拒绝回答</span>
+                <span className="chat-refusal-source">来源: {refusal.sourceLabel}</span>
+                {refusal.reason ? (
+                  <span className="chat-refusal-reason">{refusal.reason}</span>
+                ) : null}
+                {refusal.excerpt ? (
+                  <span className="chat-refusal-excerpt">原文: {refusal.excerpt}</span>
+                ) : null}
+                {refusal.provenance ? (
+                  <span className="chat-refusal-provenance">{refusal.provenance}</span>
+                ) : null}
+                <span className="chat-refusal-code">错误码: {refusal.code}</span>
+                <ChatErrorLog key={refusalLogId || "local"} logId={refusalLogId} diagnostic={item} />
+              </div>
+            );
+          })()}
           {quotedMessage && (
             <div className="message-reference-block">
               <strong>引用 {quotedDisplayName}</strong>
@@ -281,9 +296,12 @@ function ChatMessage({
               onCancelInnerMonologue={onCancelInnerMonologue}
             />
           )}
+          {shouldShowPartialReplyNote(item.tool_calls, item.content) && (
+            <PartialReplyNote content={item.content} />
+          )}
           {item.chatError && item.partialContent && (
             <div className="message-content" role="note">
-              <small>回复中断 · 以下片段仅临时显示，尚未确认保存</small>
+              <small>回复中断 · 以下是本轮已经生成并保留的片段</small>
               <p>{item.partialContent}</p>
             </div>
           )}

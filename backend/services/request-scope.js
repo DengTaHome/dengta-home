@@ -86,7 +86,9 @@ const TABLE_SCOPES = immutableCopy({
     user_achievements: { kind: "user", companion: true },
     compatibility_records: { kind: "user", companion: true },
     ai_music_play_requests: { kind: "user", companion: true },
-    chat_error_logs: { kind: "user", companion: true }
+    chat_error_logs: { kind: "user", companion: true },
+    companion_xinchao_state: { kind: "user", companion: true },
+    stream_partials: { kind: "user", companion: true }
 });
 
 function ownershipFor(table, scope) {
@@ -161,7 +163,11 @@ function createScopedDatabase(adminSupabase, scope) {
                 allowUpsert:
                     table === "memories" ||
                     table === "whereabouts_state" ||
-                    table === "music_understandings",
+                    table === "music_understandings" ||
+                    // 心潮状态是 (user, companion) 唯一的一行缓存，读到即回写。
+                    table === "companion_xinchao_state" ||
+                    // 流式回复的增量落库：同一轮反复覆盖同一行快照。
+                    table === "stream_partials",
                 upsertOnConflict: table === "music_understandings"
                     ? "user_id,companion_id,provider_track_id"
                     : undefined

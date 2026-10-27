@@ -1,0 +1,82 @@
+/* 拒答诊断标注条。
+ *
+ * 注意：原来的 .chat-refusal-* 规则写在 App.css 里，而 App.css 在整个 src 下
+ * 没有任何 import——那些规则从来没生效过。这里放一份真正会被加载的样式，
+ * 并在 ChatMessage.jsx 里 import 本文件。
+ */
+
+.chat-refusal-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 6px 0 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(214, 122, 92, 0.38);
+  border-radius: 14px;
+  background: rgba(214, 122, 92, 0.1);
+  color: var(--text-1, #3a2f2b);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.chat-refusal-badge {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(214, 122, 92, 0.22);
+  color: var(--text-1, #3a2f2b);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.chat-refusal-source,
+.chat-refusal-provenance {
+  color: var(--text-2, #6b5f59);
+  font-size: 11px;
+}
+
+/* 原因：整行显示，用户第一眼要看到的就是它。 */
+.chat-refusal-reason {
+  flex: 1 0 100%;
+  color: var(--text-1, #3a2f2b);
+  font-weight: 600;
+}
+
+/* 拒答原文：等宽、可换行，长文本不撑破气泡。 */
+.chat-refusal-excerpt {
+  flex: 1 0 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-1, #3a2f2b);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-refusal-code {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-2, #6b5f59);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
+.chat-refusal-log-toggle {
+  margin-inline-start: auto;
+}
+
+.chat-refusal-banner .chat-error-log-detail {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-refusal-banner {
+    scroll-behavior: auto;
+  }
+}
