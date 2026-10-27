@@ -134,3 +134,30 @@ node tools/browser-verify/verify-touch-targets.mjs
 
 投屏接收端（`/receive`）、音乐面板、涂鸦画室等需要更多交互步骤才能打开的界面，
 尚未纳入。如果后续出现「某个页面点不动」，照现有结构加一个 `surface` 阶段即可。
+---
+
+# 头像设置端到端（verify-avatar-e2e.mjs）
+
+回答一个具体抱怨：「在设置里换了头像，聊天里没变」。
+
+```powershell
+node tools/browser-verify/verify-avatar-e2e.mjs
+```
+
+完整链路并断言：
+
+1. 上传一张临时头像（`public/app-icon-192.png`）→ 201
+2. 设为 `user_avatar` 偏好 → 200，且目录读回时偏好指向新资产
+3. 真浏览器加载 → 聊天里出现 `img.message-avatar-image`，`naturalWidth > 0`，
+   并且确实请求了 `/api/v2/private-media/assets/<id>/content`
+4. **清理**：清空偏好 + 永久删除临时资产，目录回到 0 个 active
+
+实测结论：**头像链路是通的**（请求了内容，渲染出 192×192 的 blob 图片）。
+
+## 这个脚本最该记住的一件事
+
+第一版把静态服务器放在 **5188 端口**，结果浏览器里消息一条都没渲染、
+头像请求一个都没有，看起来像「重大 bug」。真实原因是
+**后端 CORS 白名单只放行 5173**，所有接口被浏览器拦掉了。
+
+> 端口不对 → 假 bug。测出来的「异常」先检查测试环境本身。
