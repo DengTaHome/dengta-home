@@ -1,7 +1,8 @@
-// 真机验证 · 触摸目标
+// 真机验证 · 触摸目标（多界面）
 //
-// 用户反复说「触屏点不动」。之前只能靠审查员读 CSS 推测，这里改成在真浏览器里
-// 逐个量可交互元素的实际命中框，把小于 44×44 的列出来。
+// 用户反复说「触屏点不动」。这里在真浏览器里逐个量可交互元素的实际命中框：
+// 主界面 → 状态面板（点胶囊展开）→ 设置（点状态面板里的齿轮），
+// 任何界面只要有一个小于 44×44 就退出码 1。
 import http from "node:http";
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
@@ -10,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-
+// 仓库内版本：路径可覆盖，默认按仓库结构推导。
 const REPO = path.resolve(fileURLToPath(new URL("../../frontend", import.meta.url)));
 const DIST = path.join(REPO, "dist");
 const OUT = process.env.DENGTA_BROWSER_VERIFY_OUT || path.resolve(REPO, "..", "..", "_audit", "browser");
@@ -66,66 +67,86 @@ const server = await new Promise((resolve) => {
 const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--no-sandbox"], proxy: { server: "http://127.0.0.1:10809" } });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const page = await context.newPage();
-const session = { access_token: auth.access_token, token_type: "bearer", expires_in: auth.expires_in, expires_at: Math.floor(Date.now() / 1000) + auth.expires_in - 60, refresh_token: auth.refresh_token, user: auth.user };
-await page.addInitScript(([k, v]) => { try { globalThis.localStorage.setItem(k, v); } catch {} }, ["dengta_home_auth_v1", JSON.stringify(session)]);
+const session = {
+    access_token: auth.access_token, token_type: "bearer", expires_in: auth.expires_in,
+    expires_at: Math.floor(Date.now() / 1000) + auth.expires_in - 60,
+    refresh_token: auth.refresh_token, user: auth.user
+};
+await page.addInitScript(([key, value]) => { try { globalThis.localStorage.setItem(key, value); } catch {} }, ["dengta_home_auth_v1", JSON.stringify(session)]);
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
 await page.waitForSelector(".main-panel", { timeout: 180_000 }).catch(() => {});
 await page.waitForTimeout(10_000);
 
-// 打开侧边栏 → 设置
-const opened = { sidebar: false, settings: false };
-for (const selector of ['[aria-label*="菜单"]', '[aria-label*="导航"]', ".mobile-command-trigger", 'button:has-text("☰")']) {
-    try {
-        const trigger = page.locator(selector).first();
-        if (await trigger.count()) { await trigger.click({ timeout: 5_000 }); opened.sidebar = true; await page.waitForTimeout(1_500); break; }
-    } catch {}
-}
-for (const selector of ['button:has-text("设置")', '[aria-label*="设置"]', 'a:has-text("设置")']) {
-    try {
-        const entry = page.locator(selector).first();
-        if (await entry.count()) { await entry.click({ timeout: 5_000 }); opened.settings = true; await page.waitForTimeout(2_500); break; }
-    } catch {}
+async function measure(scopeSelector) {
+    return page.evaluate((selector) => {
+        const MIN = 44;
+        const root = selector ? (document.querySelector(selector) || document) : document;
+        const nodes = Array.from(root.querySelectorAll('button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"]'));
+        const undersized = [];
+        for (const el of nodes) {
+            const style = getComputedStyle(el);
+            if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) < 0.05) continue;
+            if (el.tagName === "INPUT" && el.type === "file") continue;
+            if (String(el.className || "").includes("visually-hidden")) continue;
+            const rect = el.getBoundingClientRect();
+            if (rect.width < 1 || rect.height < 1) continue;
+            if (rect.width >= MIN && rect.height >= MIN) continue;
+            undersized.push({
+                tag: el.tagName.toLowerCase(),
+                cls: (typeof el.className === "string" ? el.className : "").trim().split(/\s+/).filter(Boolean).slice(0, 2).join(".").slice(0, 60),
+                kind: [el.getAttribute("type") || "", el.getAttribute("placeholder") || ""].filter(Boolean).join(":"),
+                label: (el.getAttribute("aria-label") || el.getAttribute("placeholder") || el.textContent || "").trim().slice(0, 24),
+                w: Math.round(rect.width),
+                h: Math.round(rect.height)
+            });
+        }
+        return { total: nodes.length, undersized };
+    }, scopeSelector);
 }
 
-const measure = () => page.evaluate(() => {
-    const MIN = 44;
-    const items = [];
-    const nodes = Array.from(document.querySelectorAll('button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"]'));
-    for (const el of nodes) {
-        const style = getComputedStyle(el);
-        if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) < 0.05) continue;
-        const rect = el.getBoundingClientRect();
-        if (rect.width < 1 || rect.height < 1) continue;
-        // 隐藏的文件输入不算触摸目标：靠外部 label 触发，本身 1×1 且视觉隐藏
-        if (el.tagName === "INPUT" && el.type === "file") continue;
-        if (String(el.className || "").includes("visually-hidden")) continue;
-        const small = rect.width < MIN || rect.height < MIN;
-        if (!small) continue;
-        const cls = (typeof el.className === "string" ? el.className : "").trim().split(/\s+/).filter(Boolean).slice(0, 2).join(".");
-        items.push({
-            tag: el.tagName.toLowerCase(),
-            cls: cls.slice(0, 60),
-            label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 24),
-            w: Math.round(rect.width),
-            h: Math.round(rect.height)
-        });
-    }
-    return { total: nodes.length, undersized: items };
-});
+const surfaces = {};
+const notes = {};
 
-const mainSurface = await measure();
+surfaces.main = await measure(null);
 await page.screenshot({ path: `${OUT}\\touch-main.png`, timeout: 120_000 });
 
-const report = { ranAt: new Date().toISOString(), opened, mainSurface };
-await fs.writeFile(`${OUT}\\touch-targets.json`, JSON.stringify(report, null, 2), "utf8");
+try {
+    const capsule = page.locator(".sun-glass-liquid-capsule-toggle").first();
+    if (await capsule.count()) {
+        await capsule.click({ timeout: 8_000 });
+        await page.waitForTimeout(1_500);
+        surfaces.statusPanel = await measure(".status-panel");
+        await page.screenshot({ path: `${OUT}\\touch-status.png`, timeout: 120_000 });
 
-console.log(`侧边栏打开: ${opened.sidebar}  设置打开: ${opened.settings}`);
-console.log(`\n=== 主界面触摸目标 ===`);
-console.log(`  可交互元素 ${mainSurface.total} 个，其中 ${mainSurface.undersized.length} 个小于 44×44`);
-for (const item of mainSurface.undersized.slice(0, 20)) {
-    console.log(`  ${String(item.w).padStart(3)}×${String(item.h).padStart(3)}  ${item.tag}.${item.cls}  "${item.label}"`);
+        const gear = page.locator('.status-panel [title="设置"], .status-panel [aria-label*="设置"]').first();
+        if (await gear.count()) {
+            await gear.click({ timeout: 8_000 });
+            await page.waitForTimeout(2_500);
+            surfaces.settings = await measure("main");
+            await page.screenshot({ path: `${OUT}\\touch-settings.png`, timeout: 120_000 });
+        } else {
+            notes.settings = "状态面板里没找到设置齿轮";
+        }
+    } else {
+        notes.statusPanel = "没找到状态胶囊";
+    }
+} catch (error) {
+    notes.error = String(error).slice(0, 160);
 }
+
+await fs.writeFile(`${OUT}\\touch-targets.json`, JSON.stringify({ ranAt: new Date().toISOString(), surfaces, notes }, null, 2), "utf8");
+
+let offenders = 0;
+for (const [name, surface] of Object.entries(surfaces)) {
+    offenders += surface.undersized.length;
+    console.log(`\n=== ${name} ===`);
+    console.log(`  可交互元素 ${surface.total} 个，其中 ${surface.undersized.length} 个小于 44×44`);
+    for (const item of surface.undersized.slice(0, 15)) {
+        console.log(`  ${String(item.w).padStart(3)}×${String(item.h).padStart(3)}  ${item.tag}.${item.cls}  ${item.kind}  "${item.label}"`);
+    }
+}
+for (const [key, value] of Object.entries(notes)) console.log(`\n[note] ${key}: ${value}`);
 
 await browser.close();
 server.close();
-process.exit(mainSurface.undersized.length > 0 ? 1 : 0);
+process.exit(offenders > 0 ? 1 : 0);
