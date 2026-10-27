@@ -1,11 +1,8 @@
-/* Keep dynamic copy on one complete CJK face. Decorative faces stay decorative. */
-@font-face {
-  font-family: "DengTa Sans CJK";
-  src: url("/fonts/DengTaSans-cjk-v2.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: optional;
-}
+/* Keep dynamic copy on one complete CJK face. Decorative faces stay decorative.
+ *
+ * 字体面本身搬到 public/font-late.css，由 main.jsx 在空闲时挂载：
+ * 那个文件 7.42 MB，实测会和应用接口抢带宽。这里只保留字体族变量。
+ */
 
 :root {
   --dengta-font-standard:

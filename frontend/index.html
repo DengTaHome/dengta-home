@@ -12,21 +12,20 @@
     <link rel="icon" type="image/png" href="/app-icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- 后端在境外，首个请求要付一次 TCP+TLS 往返。提前建连可以省掉这段等待，
+         实测直连 /health 约 1.0 秒，握手占了其中可观的一部分。 -->
+    <link rel="preconnect" href="https://dengta-home-backend-rkmq.onrender.com" crossorigin />
+    <link rel="dns-prefetch" href="https://dengta-home-backend-rkmq.onrender.com" />
     <script>
       try {
         const mode = localStorage.getItem("dengta.font-mode.v1") || "standard";
         document.documentElement.dataset.dengtaFontMode = mode;
-        if (mode !== "system") {
-          const preload = document.createElement("link");
-          preload.rel = "preload";
-          preload.href = "/fonts/DengTaSans-cjk-v2.woff2";
-          preload.as = "font";
-          preload.type = "font/woff2";
-          preload.crossOrigin = "anonymous";
-          document.head.append(preload);
-        }
+        // 这里曾经用 rel="preload" 抢载 DengTaSans-cjk-v2.woff2（7.42 MB）。
+        // 实测那一份字体和接口请求抢带宽，把「第一条消息渲染」拖到 9 秒量级。
+        // 字体面现在由 main.jsx 在浏览器空闲时挂载（public/font-late.css），
+        // 不再进关键路径。保留 dataset 供样式区分字体模式。
       } catch {
-        // The standard font still loads from CSS when private storage is unavailable.
+        // 私有存储不可用时不影响任何功能：字体本来就有系统回退。
       }
     </script>
     <title>DengTa home</title>

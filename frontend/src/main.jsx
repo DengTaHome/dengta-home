@@ -87,6 +87,22 @@ createRoot(document.getElementById("root")).render(
   </StrictMode>,
 );
 
+// 大字体（7.42 MB）不占关键路径：等浏览器空闲再挂载样式表。
+// 实测这么做能让接口请求先拿到带宽，缩短「第一条消息渲染」的时间。
+function scheduleLateFont() {
+  const attach = () => {
+    if (document.querySelector('link[data-late-font="dengta-sans"]')) return;
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/font-late.css";
+    link.dataset.lateFont = "dengta-sans";
+    document.head.appendChild(link);
+  };
+  // 不能用 requestIdleCallback：实测它在 ~600 ms 就触发，等于还在关键路径上。
+  // 首屏内容出现之后 8 秒再挂载，字体下载就不会和启动期的接口请求抢带宽。
+  globalThis.setTimeout?.(attach, 8000);
+}
+scheduleLateFont();
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch((error) => {

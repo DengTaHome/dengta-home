@@ -26,6 +26,11 @@ const css = fs.readFileSync(
   new URL("../src/typography.css", import.meta.url),
   "utf8",
 );
+// 字体面搬到 public/font-late.css（7.42 MB 不占关键路径），契约跟着搬。
+const lateFontCss = fs.readFileSync(
+  new URL("../public/font-late.css", import.meta.url),
+  "utf8",
+);
 const nativeCss = fs.readFileSync(
   new URL("../src/native-feel.css", import.meta.url),
   "utf8",
@@ -81,7 +86,7 @@ test("font preference persists per account and reaches the document root", () =>
 });
 
 test("dynamic chat surfaces share the versioned DengTa CJK family", () => {
-  assert.match(css, /DengTaSans-cjk-v2\.woff2/);
+  assert.match(lateFontCss, /DengTaSans-cjk-v2\.woff2/);
   assert.match(css, /:root\[data-dengta-font-mode="system"\]/);
   assert.match(css, /--font-display:\s*var\(--dengta-font\)/);
   assert.match(css, /--apple-font-text:\s*var\(--dengta-font\)/);
@@ -107,11 +112,13 @@ test("dynamic chat surfaces share the versioned DengTa CJK family", () => {
   );
 });
 
-test("the web shell preloads the versioned font and rotates the PWA cache", () => {
+test("the web shell defers the heavy font and rotates the PWA cache", () => {
   assert.match(html, /dengta\.font-mode\.v1/);
   assert.match(html, /document\.documentElement\.dataset\.dengtaFontMode = mode/);
-  assert.match(html, /mode !== "system"/);
-  assert.match(html, /preload\.href = "\/fonts\/DengTaSans-cjk-v2\.woff2"/);
+  // 曾经这里用 rel="preload" 抢载 7.42 MB 字体，实测把「第一条消息渲染」拖到 9 秒量级；
+  // 现在字体面由 main.jsx 在首屏之后挂载，外壳只负责字体模式标记与后端预连接。
+  assert.doesNotMatch(html, /preload\.href = "\/fonts\/DengTaSans-cjk-v2\.woff2"/, "the shell must not preload the heavy font");
+  assert.match(html, /rel="preconnect" href="https:\/\/dengta-home-backend-rkmq\.onrender\.com"/);
   assert.match(sw, /dengta-home-v16-coast-keeper-icon/);
   assert.ok(
     fs.statSync(bundledFontPath).size > 7_000_000,
@@ -122,4 +129,7 @@ test("the web shell preloads the versioned font and rotates the PWA cache", () =
     "wOF2",
     "the standard font asset must remain a valid WOFF2 file",
   );
+  const mainSource = fs.readFileSync(new URL("../src/main.jsx", import.meta.url), "utf8");
+  assert.match(mainSource, /\/font-late\.css/, "main.jsx mounts the deferred font stylesheet");
+  assert.doesNotMatch(mainSource, /requestIdleCallback\s*\(/, "idle callbacks fire too early to keep the font off the critical path");
 });

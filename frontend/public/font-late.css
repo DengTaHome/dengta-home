@@ -1,0 +1,14 @@
+/* 延迟加载的字体面。
+ *
+ * 为什么单独拆出来：DengTaSans-cjk-v2.woff2 是 7.42 MB，实测它和接口请求抢带宽，
+ * 把「第一条消息渲染」从期望的 1~2 秒拖到 10 秒以上。
+ * 主样式表里去掉这个 @font-face，改由 main.jsx 在浏览器空闲时再挂进来，
+ * 这样字体不会占关键路径；字体到达时若已过 optional 窗口，就这轮不替换（本来就是这样）。
+ */
+@font-face {
+  font-family: "DengTa Sans CJK";
+  src: url("/fonts/DengTaSans-cjk-v2.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: optional;
+}
