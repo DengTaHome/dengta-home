@@ -44,6 +44,7 @@ import {
 import { MUSIC_PLAYBACK_MODES, musicPlaybackIsInternal, resolveMusicPlayback } from "./music-playback.js";
 import { openNeteasePlayback } from "./netease-playback.js";
 import { browserLauncherAvailable, openBuiltInBrowser, readBrowserCookie } from "./browser-launcher.js";
+import { isNeteaseCookieInvalid, neteaseCookieStatus } from "./netease-cookie-status.js";
 import MusicUnderstandingPanel from "./MusicUnderstandingPanel.jsx";
 
 import { createMusicQueueRequests } from "./music-queue-requests.js";
@@ -721,7 +722,15 @@ export default function TogetherMusic({ session, busy = false, onStart, onEnd, o
         if (kind === "detail") setCookiePlaylistDetail(null);
       },
       onSuccess: data => { apply(data); setCookieReads(current => ({ ...current, [kind]: { phase: "ready", resourceId } })); },
-      onError: caught => setCookieReads(current => ({ ...current, [kind]: { phase: "error", resourceId, message: musicErrorMessage(caught, COOKIE_READ_FEEDBACK[kind][1]) } })),
+      onError: caught => {
+        // 实机证据：cookie 失效时后端返回 netease_cookie_invalid，
+        // 但状态一直是「已连接」，用户以为能用。这里把状态翻成「登录已失效」。
+        if (isNeteaseCookieInvalid(caught)) {
+          cookieIdentityRef.current.connected = false;
+          setCookieStatus({ checking: false, connected: false, account_name: "", expired: true });
+        }
+        setCookieReads(current => ({ ...current, [kind]: { phase: "error", resourceId, message: musicErrorMessage(caught, COOKIE_READ_FEEDBACK[kind][1]) } }));
+      },
       onFinish: () => setCookieOpBusy(musicScope.busy("cookie-browse") || musicScope.busy("cookie-write")),
     });
   };
@@ -939,11 +948,7 @@ export default function TogetherMusic({ session, busy = false, onStart, onEnd, o
             <div>
               <strong>内置浏览器登录网易云</strong>
               <span>
-                {cookieStatus.checking
-                  ? "正在检查登录状态…"
-                  : cookieStatus.connected
-                  ? `已连接：${cookieStatus.account_name || "网易云账号"}`
-                  : "用内置浏览器打开网易云网页，登录后点「提取登录态」再返回。手机版不方便操作时可用桌面版，双指放大二维码。"}
+                {neteaseCookieStatus(cookieStatus).title}
               </span>
             </div>
             <div className="music-cookie-connect-actions">
@@ -965,8 +970,8 @@ export default function TogetherMusic({ session, busy = false, onStart, onEnd, o
           </div>
           {!cookieStatus.connected && (
             <p className="music-cookie-desktop-hint">
-              提取后会保存登录状态。网易云可能让登录过期；提示失效时重新登录即可。桌面版支持扫码，二维码可双指放大。
-            </p>
+                {neteaseCookieStatus(cookieStatus).detail}
+              </p>
           )}
           </section>
       )}
