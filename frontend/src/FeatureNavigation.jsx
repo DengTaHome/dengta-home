@@ -3,12 +3,17 @@ import { Search, X } from "lucide-react";
 import "./feature-navigation.css";
 
 import { FEATURE_GROUPS, FEATURE_LABELS, FEATURE_DETAILS, filterFeatures } from "./feature-navigation.js";
+import SlidingIndicator from './SlidingIndicator.jsx';
 
 const groupedFeatureIds = new Set(FEATURE_GROUPS.flatMap(group => group.ids));
 
 export default function FeatureNavigation({ items = [], activeView, onNavigate }) {
   const [search, setSearch] = useState("");
   const searchRef = useRef(null);
+  // 滑动高亮块：容器 ref + 当前激活项 ref。组件内部用 getBoundingClientRect
+  // 量位置，所以必须指向真实 DOM，不能用选择器去查。
+  const groupsRef = useRef(null);
+  const activeItemRef = useRef(null);
   const searchId = useId();
   const visible = filterFeatures(items, search);
   const isSearching = search.trim().length > 0;
@@ -44,12 +49,20 @@ export default function FeatureNavigation({ items = [], activeView, onNavigate }
     </div>
     {isSearching ? <p id={`${searchId}-results`} className="feature-navigation-results" role="status">{visible.length ? `找到 ${visible.length} 个玩法` : "没有找到匹配的玩法"}</p> : null}
     <nav className="primary-nav" aria-label="主要功能">
+      <div className="feature-navigation-groups has-sliding-indicator" ref={groupsRef}>
+      <SlidingIndicator
+        containerRef={groupsRef}
+        activeRef={activeItemRef}
+        activeKey={activeView}
+        revision={visible.length}
+      />
       {groups.map((group, index) => {
         return group.entries.length ? <div className="feature-navigation-group" key={group.label} role="group" aria-labelledby={`${searchId}-group-${index}`}>
           <p id={`${searchId}-group-${index}`}>{group.label}</p>
-          {group.entries.map(item => <button type="button" className={activeView === item.id ? "active" : ""} aria-current={activeView === item.id ? "page" : undefined} key={item.id} onClick={() => onNavigate?.(item.id)}><span aria-hidden="true">{item.icon}</span><span>{FEATURE_LABELS[item.id] || item.label}{FEATURE_DETAILS[item.id]?.hint ? <small>{FEATURE_DETAILS[item.id].hint}</small> : null}</span></button>)}
+          {group.entries.map(item => <button type="button" ref={activeView === item.id ? activeItemRef : undefined} className={activeView === item.id ? "active" : ""} aria-current={activeView === item.id ? "page" : undefined} key={item.id} onClick={() => onNavigate?.(item.id)}><span aria-hidden="true">{item.icon}</span><span>{FEATURE_LABELS[item.id] || item.label}{FEATURE_DETAILS[item.id]?.hint ? <small>{FEATURE_DETAILS[item.id].hint}</small> : null}</span></button>)}
         </div> : null;
       })}
+      </div>
       {!visible.length && <p className="feature-navigation-empty">{isSearching ? "换个词试试，或清空搜索查看全部玩法。" : "暂时没有可用玩法。"}</p>}
     </nav>
   </div>;
