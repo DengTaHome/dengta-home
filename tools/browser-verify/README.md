@@ -136,12 +136,12 @@ node tools/browser-verify/verify-touch-targets.mjs
 尚未纳入。如果后续出现「某个页面点不动」，照现有结构加一个 `surface` 阶段即可。
 ---
 
-# 头像设置端到端（verify-avatar-e2e.mjs）
+# 私密媒体设置端到端（verify-media-e2e.mjs）
 
 回答一个具体抱怨：「在设置里换了头像，聊天里没变」。
 
 ```powershell
-node tools/browser-verify/verify-avatar-e2e.mjs
+node tools/browser-verify/verify-media-e2e.mjs
 ```
 
 完整链路并断言：
@@ -161,3 +161,25 @@ node tools/browser-verify/verify-avatar-e2e.mjs
 **后端 CORS 白名单只放行 5173**，所有接口被浏览器拦掉了。
 
 > 端口不对 → 假 bug。测出来的「异常」先检查测试环境本身。
+## 用途可配置
+
+```powershell
+# 头像
+node tools/browser-verify/verify-media-e2e.mjs
+# 聊天背景
+$env:DENGTA_MEDIA_PURPOSE="chat_background"; node tools/browser-verify/verify-media-e2e.mjs
+```
+
+| 环境变量 | 默认 | 作用 |
+| --- | --- | --- |
+| `DENGTA_MEDIA_PURPOSE` | `user_avatar` | 上传与偏好的用途 |
+| `DENGTA_MEDIA_SELECTOR` | 按用途推断 | 断言哪个元素应该出现 |
+
+## 两种用途的实测结果（都通过）
+
+| 用途 | 断言选择器 | 结果 |
+| --- | --- | --- |
+| `user_avatar` | `img.message-avatar-image` | 请求了内容，渲染 192×192 |
+| `chat_background` | `.private-chat-background img` | 请求了内容，渲染 192×192 |
+
+每种用途跑完都会把账号恢复到原状（清空偏好 + 永久删除临时资产）。

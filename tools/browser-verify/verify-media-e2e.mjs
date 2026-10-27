@@ -1,6 +1,6 @@
-// 真机验证 · 头像设置端到端
+// 真机验证 · 私密媒体设置端到端（头像 / 伴侣头像 / 聊天背景）
 //
-// 回答一个具体的抱怨：「在设置里换了头像，聊天里没变」。
+// 回答一个具体的抱怨：「在设置里换了头像或背景，聊天里没变」。
 //
 // 完整链路：上传一张临时头像 → 设为 user_avatar 偏好 → 真浏览器加载应用 →
 // 断言聊天里出现 blob 图片头像（naturalWidth > 0）且确实请求了资产内容。
@@ -18,6 +18,10 @@ const AUTH = process.env.DENGTA_BROWSER_VERIFY_AUTH || "D:\\GZdeepseek\\_audit\\
 const BASE = "https://dengta-home-backend-rkmq.onrender.com";
 const APIFY = "sb_publishable_8igj37ucC_HG98LSFwnkHA_6QBtcE8F";
 const UPLOAD_FILE = path.join(REPO, "public", "app-icon-192.png");
+// 用途可配置：user_avatar / companion_avatar / chat_background
+const PURPOSE = process.env.DENGTA_MEDIA_PURPOSE || "user_avatar";
+const ASSERT_SELECTOR = process.env.DENGTA_MEDIA_SELECTOR
+    || (PURPOSE === "chat_background" ? ".private-chat-background img" : "img.message-avatar-image");
 const OUT = process.env.DENGTA_BROWSER_VERIFY_OUT || "D:\\GZdeepseek\\_audit\\browser";
 
 const auth = JSON.parse(fs.readFileSync(AUTH, "utf8"));
@@ -35,14 +39,14 @@ let createdAssetId = null;
 try {
     // 1) 上传临时头像
     const uploaded = curl(["-X", "POST", `${BASE}/api/v2/private-media/assets`,
-        "-F", `file=@${UPLOAD_FILE};type=image/png`, "-F", "purpose=user_avatar"]);
+        "-F", `file=@${UPLOAD_FILE};type=image/png`, "-F", `purpose=${PURPOSE}`]);
     createdAssetId = uploaded?.asset?.id || null;
     record("上传临时头像", { ok: !!createdAssetId, id: createdAssetId ? createdAssetId.slice(0, 8) : null, error: uploaded?.message });
 
     if (createdAssetId) {
         // 2) 设为 user_avatar
         const bodyPath = path.join(OUT, "_pref-set.json");
-        fs.writeFileSync(bodyPath, JSON.stringify({ purpose: "user_avatar", asset_id: createdAssetId }), "utf8");
+        fs.writeFileSync(bodyPath, JSON.stringify({ purpose: PURPOSE, asset_id: createdAssetId }), "utf8");
         const setResult = curl(["-X", "PUT", `${BASE}/api/v2/private-media/preferences`,
             "-H", "Content-Type: application/json", "--data-binary", `@${bodyPath}`]);
         record("设为头像偏好", setResult);
@@ -119,8 +123,15 @@ try {
                 bgImages
             };
         });
-        record("浏览器里的头像资源", avatarState);
-        record("头像相关的网络请求", mediaRequests.slice(0, 8));
+        record("浏览器里的媒体资源", avatarState);
+        record("媒体相关的网络请求", mediaRequests.slice(0, 8));
+        const rendered = await page.evaluate((selector) => {
+            const nodes = Array.from(document.querySelectorAll(selector));
+            return nodes.map((el) => ({ tag: el.tagName.toLowerCase(), naturalWidth: el.naturalWidth ?? null, complete: el.complete ?? null })).slice(0, 4);
+        }, ASSERT_SELECTOR);
+        record("目标元素是否渲染", { selector: ASSERT_SELECTOR, count: rendered.length, rendered });
+        const ok = rendered.length > 0 && (rendered[0].naturalWidth === null || rendered[0].naturalWidth > 0);
+        record(ok ? ">>> 结论：设置已生效" : ">>> 结论：设置未生效", { ok });
         await page.screenshot({ path: `${OUT}\\avatar-after-set.png`, timeout: 120_000 });
         await browser.close();
         server.close();
@@ -131,7 +142,7 @@ try {
     // 5) 清理：先清偏好，再永久删除临时资产
     if (createdAssetId) {
         const clearPath = path.join(OUT, "_pref-clear.json");
-        fs.writeFileSync(clearPath, JSON.stringify({ purpose: "user_avatar", asset_id: null }), "utf8");
+        fs.writeFileSync(clearPath, JSON.stringify({ purpose: PURPOSE, asset_id: null }), "utf8");
         const cleared = curl(["-X", "PUT", `${BASE}/api/v2/private-media/preferences`,
             "-H", "Content-Type: application/json", "--data-binary", `@${clearPath}`]);
         record("清空偏好", cleared);
