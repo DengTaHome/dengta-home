@@ -131,13 +131,13 @@ assert.ok(
 
 assert.equal(
     deriveEmotionLabel([{ key: "curiosity", value: 0.55 }]),
-    "想分享",
-    "dominant curiosity surfaces as 想分享"
+    "好奇",
+    "dominant curiosity surfaces as 好奇"
 );
 assert.equal(
     deriveEmotionLabel([
-        { key: "longing", value: 0.2 },
-        { key: "tenderness", value: 0.19 }
+        { key: "crave", value: 0.2 },
+        { key: "monitor", value: 0.19 }
     ]),
     CALM_EMOTION_LABEL,
     "everything below the threshold reads as 平静"
@@ -166,7 +166,7 @@ assert.equal(deriveConsciousness(null, NOW), null, "no history means null");
 
 const previousRow = {
     drives: { curiosity: 0.5 },
-    emotion_label: "想分享",
+    emotion_label: "好奇",
     consciousness: "awake",
     revision: 3
 };
@@ -177,10 +177,10 @@ assert.equal(
 );
 assert.equal(
     hasMaterialChange(
-        { ...previousRow, drives: { curiosity: 0.5 }, emotion_label: "想分享", consciousness: "awake" },
+        { ...previousRow, drives: { curiosity: 0.5 }, emotion_label: "好奇", consciousness: "awake" },
         {
             drives: [{ key: "curiosity", value: 0.5 }],
-            emotionLabel: "想分享",
+            emotionLabel: "好奇",
             consciousness: "awake"
         }
     ),
@@ -190,7 +190,7 @@ assert.equal(
 assert.equal(
     hasMaterialChange(previousRow, {
         drives: [{ key: "curiosity", value: 0.5 + MATERIAL_DELTA }],
-        emotionLabel: "想分享",
+        emotionLabel: "好奇",
         consciousness: "awake"
     }),
     true,

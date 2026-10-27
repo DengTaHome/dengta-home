@@ -1,6 +1,6 @@
 /* 「生成中断 · 已保留当时内容」提示条。
  * 结构与线上产物一致（partial-reply-note）。
- * 独立成文件是因为 App.css 在整个 src 下没有被 import，写在那里不会生效。
+ * 独立成文件是因为 App.css 只被预览脚手架 import、不进正式应用，写在那里不会生效。
  */
 
 .partial-reply-note {

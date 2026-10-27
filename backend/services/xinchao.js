@@ -26,22 +26,50 @@ const TABLE = "companion_xinchao_state";
 // baseline 是「安静一整天之后」会回到的水位。
 // 所有 baseline 都刻意压在 CALM_THRESHOLD 之下 —— 不聊天时状态就是「平静」，
 // 只有刚聊过天（抬升 +0.25）才会越过阈值显出具体情绪。
+// 键名与标签逐字对齐线上：GET /api/v2/xinchao/state 实际返回的
+// drives 就是这 13 个键，前端 App 包里的标签表是
+//   possess 想靠近 / monitor 惦记 / share 想分享 / libido 渴望 /
+//   curiosity 好奇 / social 想聊 / crave 馋 / boredom 空落 /
+//   reflection 想心事 / grieve 难过 / anger 生气 /
+//   safety 安全感 / confidence 自信
+// 其中 duty 与 favored 在标签表里没有条目，线上一律回退成键名本身，
+// 这里保持一致（label 直接写成键名）。
+//
+// 对齐键名不只是好看：线上的真实数据就是用这些键存的，键名不一致会导致
+// 读不到用户已有的心潮水位。
+//
+// 注意：线上是服务端模型，具体的衰减曲线无法从打包产物里还原，
+// 下面的 baseline / halfLifeHours 是本实现自己的近似，不是线上原值。
 const DRIVE_DEFINITIONS = Object.freeze([
-    Object.freeze({ key: "attachment", label: "想靠近", baseline: 0.3, halfLifeHours: 72 }),
-    Object.freeze({ key: "curiosity", label: "想分享", baseline: 0.3, halfLifeHours: 16 }),
-    Object.freeze({ key: "longing", label: "惦记", baseline: 0.16, halfLifeHours: 90 }),
-    Object.freeze({ key: "tenderness", label: "温柔", baseline: 0.26, halfLifeHours: 48 }),
-    Object.freeze({ key: "closeness", label: "亲近", baseline: 0.24, halfLifeHours: 32 }),
-    Object.freeze({ key: "restlessness", label: "躁动", baseline: 0.1, halfLifeHours: 8 })
+    Object.freeze({ key: "possess", label: "想靠近", baseline: 0.3, halfLifeHours: 72 }),
+    Object.freeze({ key: "monitor", label: "惦记", baseline: 0.22, halfLifeHours: 48 }),
+    Object.freeze({ key: "share", label: "想分享", baseline: 0.28, halfLifeHours: 16 }),
+    Object.freeze({ key: "libido", label: "渴望", baseline: 0.2, halfLifeHours: 24 }),
+    Object.freeze({ key: "curiosity", label: "好奇", baseline: 0.3, halfLifeHours: 16 }),
+    Object.freeze({ key: "social", label: "想聊", baseline: 0.26, halfLifeHours: 20 }),
+    Object.freeze({ key: "crave", label: "馋", baseline: 0.18, halfLifeHours: 12 }),
+    Object.freeze({ key: "boredom", label: "空落", baseline: 0.14, halfLifeHours: 8 }),
+    Object.freeze({ key: "reflection", label: "想心事", baseline: 0.2, halfLifeHours: 40 }),
+    Object.freeze({ key: "grieve", label: "难过", baseline: 0.1, halfLifeHours: 120 }),
+    Object.freeze({ key: "anger", label: "生气", baseline: 0.08, halfLifeHours: 6 }),
+    Object.freeze({ key: "duty", label: "duty", baseline: 0.22, halfLifeHours: 48 }),
+    Object.freeze({ key: "favored", label: "favored", baseline: 0.24, halfLifeHours: 60 })
 ]);
 
 const EMOTION_BY_DRIVE = Object.freeze({
-    attachment: "想靠近",
-    curiosity: "想分享",
-    longing: "惦记",
-    tenderness: "温柔",
-    closeness: "亲近",
-    restlessness: "躁动"
+    possess: "想靠近",
+    monitor: "惦记",
+    share: "想分享",
+    libido: "渴望",
+    curiosity: "好奇",
+    social: "想聊",
+    crave: "馋",
+    boredom: "空落",
+    reflection: "想心事",
+    grieve: "难过",
+    anger: "生气",
+    duty: "踏实",
+    favored: "被偏爱"
 });
 
 const CALM_EMOTION_LABEL = "平静";

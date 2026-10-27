@@ -4946,12 +4946,24 @@ async function executeChatTurnOnce(
         const forwardModelEvent = onModelEvent
             ? (event) => {
                   stopModelWaitProgress();
-                  if (controlTokens && event?.type === "text" && typeof event.text === "string") {
-                      const clean = controlTokens.push(event.text);
+                  // 聊天流用的字段是 content（ai-service 的 generateReplyStream 发
+                  // { type: "text", content }，前端也读 event.content）。早先这里判断的是
+                  // event.text，导致清洗器和增量落库一次都没被调用过——两者都是空转。
+                  // 现在两种字段都认，统一按 content 转发。
+                  const delta =
+                      controlTokens && event?.type === "text"
+                          ? typeof event.content === "string"
+                              ? event.content
+                              : typeof event.text === "string"
+                                  ? event.text
+                                  : null
+                          : null;
+                  if (delta !== null) {
+                      const clean = controlTokens.push(delta);
                       if (!clean) return;
                       // 不 await：落库是保险，不能让它的延迟拖慢逐字显示。
                       if (streamPersister) void streamPersister.push(clean);
-                      onModelEvent({ ...event, text: clean });
+                      onModelEvent({ ...event, content: clean });
                       return;
                   }
                   onModelEvent(event);
@@ -4973,7 +4985,11 @@ async function executeChatTurnOnce(
         // 保证落库的正文和界面上看到的一致。
         if (controlTokens) {
             const tail = controlTokens.flush();
-            if (tail) onModelEvent({ type: "text", text: tail });
+            if (tail) {
+                // 末尾这半句同样要落库，否则断线时它不在缓冲行里。
+                if (streamPersister) void streamPersister.push(tail);
+                onModelEvent({ type: "text", content: tail });
+            }
         }
         const scrubbed = scrubControlTokens(generated.text);
         generated.text = scrubbed.text;

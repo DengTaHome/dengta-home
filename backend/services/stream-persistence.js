@@ -48,8 +48,18 @@ function createStreamPersister({
     let revisions = 0;
     let written = 0;
     let failed = 0;
+    // 写入串行化。push 是 fire-and-forget，如果不排队，
+    // flush/finish 可能在 upsert 还在飞的时候就跑完——finish 的删除会被
+    // 迟到的 upsert 干掉，缓冲行又复活。所有写操作都挂在这条链上。
+    let writeChain = Promise.resolve();
 
-    async function write(snapshot) {
+    function write(snapshot) {
+        const task = writeChain.then(() => writeNow(snapshot));
+        writeChain = task.catch(() => {});
+        return task;
+    }
+
+    async function writeNow(snapshot) {
         const row = {
             content: snapshot,
             updated_at: new Date(now()).toISOString(),
@@ -104,6 +114,7 @@ function createStreamPersister({
 
     /** 无论阈值如何，把当前内容写一次（用于生成刚结束时）。 */
     async function flush() {
+        await writeChain;
         if (!latest) return false;
         if (latest.length === lastWrittenChars) return false;
         lastWrittenChars = latest.length;
@@ -114,6 +125,7 @@ function createStreamPersister({
 
     /** 正式消息已落库，删掉这一行缓冲。失败不影响主流程。 */
     async function finish() {
+        await writeChain;
         try {
             const { error } = await database
                 .from("stream_partials")
