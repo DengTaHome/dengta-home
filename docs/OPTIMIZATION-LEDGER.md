@@ -1233,3 +1233,14 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - X：`test_server.py` 删除 cookie 打印；deploy Wait-Run 对 conclusion=null 抛错；stale music tunnel 标记已删。
 - 未闭环：X `/connections/:id/test` 400（原始 MCP 握手/工具调用正常）；twikit 补丁/ondemand URL 可复现性；
   全量前端测试此前已 exit 0（本轮改动后只做 build/lint）；CNB/Amap/凭据轮换。
+
+## 轮次 45（2026-10-29 · P0 导出修复 + 并发胶囊 + 真机布局初验）
+
+- P0 `service.songUrl` 导出别名修复；运行时测试通过；backend 121/121；Render `53ca5db9`。
+- 时间胶囊并发：`applyCapsuleJobs` 应用到最新 capsules；并发新增/完成测试通过；qq-bridge save 不再用快照。
+- 前端 QR：过期 return、confirmed/risk 不被主动换新、`loginAttemptRef` 作废旧 begin；build/lint 通过；
+  Vercel `f2cd03e4` READY。
+- X `test_server.py` 删除 cookie 打印；deploy 脚本 conclusion=null 抛错。
+- 真机多尺寸布局验证（6 个 Android 视口）已启动：360x640、360x780 前两项“未发现布局问题”，
+  单视口约 272s（真实登录/网络等待），后台继续跑其余 4 个。
+- 未闭环：X `/connections/:id/test` 400；twikit 补丁可复现性；CNB/Amap/凭据轮换；全量前端测试本轮改动后未重跑。
