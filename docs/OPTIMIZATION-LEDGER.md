@@ -734,3 +734,29 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 用户提供 SSH 登录方式（root 密码或私钥）→ 我执行部署；或用户自行运行 3 条命令。
 - 部署后观察 daily_digest 的 MMTR 巩固日志与 `/memory/status`。
 - 下一轮：把语音/导入改动移植到 0.29.76 生产后端并部署；QQ↔DengTa 适配器；分块蒸馏。
+
+### P1 生产部署完成（2026-10-28，用户服务器）
+- 服务器：`ubuntu@124.223.164.212`，kiwi 目录 `/home/ubuntu/kiwi-mem`，
+  Ubuntu 24.04，Docker 29.6.1 / Compose v5.3.1；端口 8080 经 Cloudflare Tunnel 暴露为
+  `https://kiwi.dengtahome.com`。
+- 部署流程：SFTP 上传自包含 bundle → `git apply --check` 通过 → 备份
+  `/root/kiwi-p1-backup/kiwi-db-20261028-224915.sql`（3.5MB）与仓库 tar →
+  应用 patch + `mmtr_brain/` → `.env` 加两个开关 → `docker compose up -d --build`
+  → 容器内 `migrate` + `backfill` → dry-run/真实 consolidate。
+- 迁移与数据：**44 个 schema**（public 模板 + 43 个租户）全部有 15 个 P1 列、3 张脑层表、
+  3 个索引；`mmtr_p1_meta` 44 行；**149/149 条历史记忆完成回填**（最大租户 72 条）。
+- 巩固：真实 `consolidate` 成功，每个 schema 写入审计行、`relation_state` revision=1；
+  每日 0:05（东八区）调度器日志已出现；服务 `restart_count=0`，外部
+  `https://kiwi.dengtahome.com/` 返回 200。
+- **事故与修复（重要）**：首次重建因 requirements 未锁版本，pip 解析到
+  `pydantic 2.14.1 + mcp 1.12.4`，新版 pydantic 移除 `eval_type_backport` 导致
+  FastMCP 导入失败、容器崩溃循环。已在服务器 `requirements.txt` 固定
+  `mcp==1.12.4` / `pydantic==2.11.7`（备份 `requirements.txt.bak-p1`）并重建恢复；
+  本地 fork 提交 `8e435bc` 把钉版写入 patch，bundle 已更新（sha256 前缀
+  `814faf64d417dee1`），以后部署不会再踩。
+- 服务器当前未提交改动：P1 文件 + Dockerfile pip 镜像 + requirements 钉版；
+  远端 `buyaocaowo555-collab/kiwi-mem-dengta` 未推送（无该账号写权限），
+  以 `tools/kiwi-deploy/p1-bundle.tar.gz` 为部署事实源；后续升级需基于新基线重做 patch。
+- 安全提醒：本轮为部署使用了用户提供的 SSH 密码（已在对话中出现），建议部署后
+  改密码/改用密钥；生产 `MEMORY_API_TOKEN` 曾出现在本机只读排查输出中，如需彻底
+  安心可在 Render env 与服务器 `.env` 同步轮换。

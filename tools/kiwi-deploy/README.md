@@ -1,8 +1,17 @@
 # kiwi-mem P1 部署包（MMTR 脑层：落库 / 回填 / 每日巩固）
 
 > 目标服务器：用户自建 VPS + Docker Compose，线上地址 **https://kiwi.dengtahome.com**
-> 线上版本（2026-10-28 探测）：**Kiwi-Mem v1.6.2**，与本地 P1 基线一致。
+> 线上版本：**Kiwi-Mem v1.6.2**，与本地 P1 基线一致。
 > 生产后端 Render 的 `KIWI_MEM_URL` 已指向该域名，所以 kiwi 升级后 DengTa 无需改配置。
+>
+> ✅ **2026-10-28 已在这台服务器完成 P1 部署并验证**：
+> - 服务器 `ubuntu@124.223.164.212`，目录 `/home/ubuntu/kiwi-mem`（Ubuntu 24.04 / Docker 29.6.1）
+> - 44 个 schema 全部补齐 15 个 P1 列 + 3 张脑层表；149 条历史记忆全部回填
+> - 真实 consolidate 跑通，每日 0:05 调度器已启动；容器健康、restart_count=0
+> - 数据库/仓库备份：`/root/kiwi-p1-backup/kiwi-db-20261028-224915.sql` 等
+> - 部署中遇到一次**依赖漂移**：重建拉取了 pydantic 2.14.1 + mcp 1.12.4，FastMCP 因
+>   `eval_type_backport` 被移除而崩溃循环；已把 `mcp==1.12.4`、`pydantic==2.11.7`
+>   写入 requirements（本 bundle 的 patch 已包含）并重建成 2.11.7，服务恢复。
 
 ## 目录内容
 
@@ -54,6 +63,10 @@ bash /tmp/kiwi-p1/deploy-p1.sh
 # 容器名不同：KIWI_SERVICE=kiwi KIWI_DB_SERVICE=postgres bash /tmp/kiwi-p1/deploy-p1.sh
 ```
 
+> 服务器上该仓库现在有 P1 改动、Dockerfile 的 pip 镜像改动和 requirements 钉版改动；
+> 重新运行脚本会因 patch 已应用而失败。以后再升级请基于新基线重新生成 patch；
+> Dockerfile 的本地改动会让脚本的干净检查失败，可加 `FORCE=1`。
+
 脚本会依次：
 
 1. 校验 `main.py` 的 `VERSION = 1.6.2`
@@ -96,6 +109,19 @@ docker compose up -d --build
 cat /root/kiwi-p1-backup/kiwi-db-<时间戳>.sql | docker compose exec -T db \
   sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
+
+## 部署记录（2026-10-28）
+
+| 项 | 值 |
+|---|---|
+| 服务器 | `ubuntu@124.223.164.212`，`/home/ubuntu/kiwi-mem` |
+| 部署前版本 | 1.6.2，HEAD `cf56c73`（含 Dockerfile pip 镜像的本地改动） |
+| 迁移结果 | 44 schemas × 15 列 / 3 表 / 3 索引；`mmtr_p1_meta` 44 行 |
+| 回填 | 149/149 条记忆（最大租户 72 条） |
+| 真实巩固 | 成功，每个 schema 写入 `mmtr_consolidate_runs`，`relation_state` revision=1 |
+| 健康 | `https://kiwi.dengtahome.com/` 200，容器 restart_count=0 |
+| 备份 | `/root/kiwi-p1-backup/kiwi-db-20261028-224915.sql`（3.5MB）、`repo-20261028-224915.tar.gz` |
+| bundle sha256 | `814faf64d417dee1` |
 
 ## 已知边界
 
