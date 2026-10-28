@@ -142,6 +142,17 @@ async function previewInput(req) {
             sourceName,
             trustExtension: true
         });
+        // 世界书导入必须保留原始 JSON/JSONL 结构；其余文本/聊天导出先经过自适应解析器
+        const textLike = /\.(json|txt|text|md|markdown|log|jsonl|ndjson|mht|mhtml|html?|csv|tsv|srt|vtt|xml|yaml|yml)$/i.test(sourceName);
+        if (textLike && req.body?.source_type !== "world_book") {
+            const parsed = await extractText(sourceName, req.file.buffer);
+            return {
+                sourceType: req.body?.source_type,
+                sourceName,
+                mediaType: "text/plain",
+                bytes: Buffer.from(parsed.text, "utf8")
+            };
+        }
         if (!/\.(json|txt|text|md|markdown|log)$/i.test(sourceName) && !(mediaType === "application/json" && !/\.(jsonl|ndjson)$/i.test(sourceName))) {
             if (/\.(jsonl|ndjson)$/i.test(sourceName)) {
                 let rows;

@@ -27,6 +27,9 @@ test("uses authenticated tenant database and default provider without mutating s
             assert.equal(request.settings.unified_system_prompt, settings.unified_system_prompt);
             assert.deepEqual(request.messages.map(m => m.role), ["user"]);
             assert.equal(request.runtimeContext, DISTILL_SYSTEM_PROMPT);
+            // 确定性统计证据必须进入 prompt（零 token 证据层）
+            assert.ok(request.messages[0].content.includes("材料统计"));
+            assert.ok(request.messages[0].content.includes("代表性原句"));
             const prompt = resolveGenerationPrompt(request);
             const assembled = buildOpenAiMessages(prompt.messages, prompt.systemInstructions);
             assert.ok(assembled.some(m => m.role === "system" && m.content.includes(DISTILL_SYSTEM_PROMPT)));
@@ -38,6 +41,9 @@ test("uses authenticated tenant database and default provider without mutating s
     assert.deepEqual(seen, [a.db, b.db]);
     assert.equal(result.distilled, output.repeat(60));
     assert.equal(result.model, "fixture-default");
+    assert.ok(result.stats.message_count >= 1);
+    assert.ok(result.stats.sender_count >= 1);
+    assert.ok(Array.isArray(result.stats.top_phrases));
 });
 
 test("validates source, auth, model and empty generation", async () => {

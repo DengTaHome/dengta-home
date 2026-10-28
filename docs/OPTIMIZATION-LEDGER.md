@@ -617,3 +617,76 @@ P1 代码在 fork 与 DengTa 镜像/patch 中；真正上线需要在部署环�
     NapCat/Docker 备选；qq-bridge-dsh 在 0.2.1 上因 `{{cwd}}` 硬伤暂不推荐。
 - QQ ↔ DengTa 的业务桥接尚未做：qq-bridge 负责 QQ↔DSH；让 QQ 直接和 DengTa 聊天需要单独适配
   （OneBot → DengTa `/api/v2`），列入下一轮。
+
+---
+
+## 轮次 17（2026-10-28 · 导入格式扩展 + 蒸馏证据层（零 token 统计））
+
+### 实现
+- 重写 `backend/services/adaptive-file-parser.js`：
+  - 新增 **微信/QQ TXT**（时间行 + 发送者、QQ 号码）、**WhatsApp**（`[date, time] name:` /
+    `date, time - name:`）、**Telegram JSON**（`from`/`date`/富文本数组）、
+    **Discord JSON**（`author.username`/`content`/`timestamp`）；
+  - 新增 **DSH 会话**：`session.v4.jsonl` / `session.v4.jsonl.zstd`（Node 24 内置
+    `zlib.zstdDecompressSync`），只取 user/assistant 消息、忽略 tool 事件；
+  - 新增 **MHT/MHTML**（multipart 解析 + quoted-printable/base64 + charset）与
+    **XLSX**（jszip 解包 sharedStrings/sheet1，按表头识别时间/发送者/内容列）；
+  - 纯文本内容嗅探（伪装成 txt 的 JSON）；zstd 魔数识别；加密微信库仍拒绝解密。
+- 新增 `backend/services/chat-style-stats.js`：确定性统计（发言分布、平均长度、句子/长句、
+  中文 2/3-gram + 英文高频词、emoji/颜文字、称呼词、标点习惯、代表性原句），并渲染
+  “证据层”提示词。
+- `style-distill.js`：蒸馏前注入统计证据，返回 `stats` 摘要（消息数/人数/高频短语/emoji/称呼词）。
+- 依赖：`jszip` 加入 backend dependencies（锁文件同步）。
+- 测试：`chat-import-formats.test.js`（10 类格式 + DSH zstd + MHT + XLSX）、
+  `chat-style-stats.test.js`；`style-distill` 增统计断言；既有 parser/content-import/
+  attachments/world-book/takeout 测试全绿。
+
+### 验证命令
+```powershell
+cd backend
+node --test test/chat-import-formats.test.js test/chat-style-stats.test.js
+node --test test/adaptive-file-parser.test.js test/content-import.test.js
+node --test test/chat-attachments.test.js test/style-distill.test.js
+```
+
+### 未完成 / 下轮
+- 分块 map-reduce（60k 截断仍未解决）、结构化 persona JSON + 写回世界书/角色卡、
+  前端展示统计与分块进度、质量评估（rubric/A-B）；xlsx 多 sheet 与飞书/钉钉字段映射。
+
+---
+
+## 轮次 18（2026-10-28 · Goldfish 复审后的语音/导入硬化）
+
+### 语音（cf70881 复审 blocker 修复）
+- Edge TTS 升到 **Sec-MS-GEC v2 + `2-143.0.3650.75`**，5 分钟时间桶；CS64+SHA256 算法
+  与 node-edge-tts(MIT)/rany2 edge-tts 的已知向量逐字节一致（测试内置 2 个向量）。
+- 改用 `ws` 包：可设置 Edge 的 Host/Origin/UA 头，二进制帧直接是 Buffer
+  （Node 内置 WebSocket 默认 Blob 会崩）；补 close 事件、音频体积上限、超时清理。
+- 修复 SSML X-Timestamp 双 `Z`、方言音色（`zh-CN-liaoning-XiaobeiNeural`）校验、
+  未知 provider 静默降级、非法 method 静默降级、Deepgram model 校验丢失。
+- SSRF：运行时 DNS 解析 + 私网拒绝；重定向逐跳校验且**禁止跨源**（防 Key/文本外泄）；
+  响应体改**流式限额**（15MB 音频 / 2MB JSON），Edge 音频也计入上限。
+- 迁移 065：新增 12 列 + 放宽 `speed` 约束到 0.25–4.00（Deepgram 仍代码 clamp 0.7–1.5）。
+- 前端/中心：切换 provider 时默认清空旧密钥，避免 Deepgram Key 被发到新地址。
+
+### 导入/蒸馏硬化（复审新问题）
+- 导入路由把 `.txt/.json/.jsonl/.md/.html/.csv/.mht` 等文本导出接入自适应解析器
+  （世界书 JSON 例外保留原始结构）。
+- DSH 只取 user/assistant text 段；zstd 多帧拼接、MHT GBK charset、普通日志误判、
+  XLSX 线性解析与联系人表误判、流式响应限制均修复/加测。
+- 统计层先规范化原始微信/QQ 文本，并给发送者启发式加守卫（纯数字/时间/URL 不算发送者）。
+
+### 验证
+```powershell
+cd backend
+node --test test/custom-speech.test.js test/voice-provider-custom.test.js `
+  test/voice-provider-center.test.js test/voice-output-route.test.js
+node --test test/chat-import-formats.test.js test/chat-style-stats.test.js `
+  test/adaptive-file-parser.test.js test/content-import.test.js test/style-distill.test.js
+cd ../frontend && node --test test/voice-output.test.js && node node_modules/vite/bin/vite.js build
+```
+结果：全部通过（详见下一节命令输出）；jszip/ws 均已进 package.json + lock。
+
+### 仍未做
+- 真实 Edge 外呼（本机网络不可达，只有协议夹具 + 已知向量）；部署后需在服务器实测。
+- 分块 map-reduce、结构化 persona JSON、前端统计展示、质量评估；QQ↔DengTa 适配器。

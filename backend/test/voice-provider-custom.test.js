@@ -10,7 +10,9 @@ const {
 } = require("../services/voice-provider-center");
 
 const env = {
-    MCP_ENCRYPTION_KEY: "voice-provider-encryption-secret-long-enough"
+    MCP_ENCRYPTION_KEY: "voice-provider-encryption-secret-long-enough",
+    // 单测不发外网 DNS：允许私网后 resolveSafeHost 直接跳过解析
+    VOICE_CUSTOM_ALLOW_PRIVATE: "1"
 };
 
 function createDatabase() {
@@ -77,32 +79,37 @@ function audioResponse(bytes = "audio-bytes") {
 
 function fakeSocketClass() {
     return class FakeWebSocket {
-        constructor(url) {
+        constructor(url, options) {
             this.url = url;
-            this.listeners = {};
+            this.options = options;
+            this.handlers = {};
             setTimeout(() => this.emit("open"), 0);
         }
-        addEventListener(name, handler) {
-            (this.listeners[name] ||= []).push(handler);
+        on(event, handler) {
+            (this.handlers[event] ||= []).push(handler);
+            return this;
         }
-        emit(name, event) {
-            for (const handler of this.listeners[name] || []) handler(event);
+        emit(event, ...args) {
+            for (const handler of this.handlers[event] || []) handler(...args);
         }
         send(payload) {
             if (!payload.includes("Path:speech.config")) return;
             setTimeout(() => {
                 const header = Buffer.from("Path:audio\r\n");
-                this.emit("message", {
-                    data: Buffer.concat([
+                this.emit(
+                    "message",
+                    Buffer.concat([
                         Buffer.from([(header.length >> 8) & 0xff, header.length & 0xff]),
                         header,
                         Buffer.from("edge-voice")
-                    ])
-                });
-                this.emit("message", { data: "Path:turn.end\r\n" });
+                    ]),
+                    true
+                );
+                this.emit("message", "Path:turn.end\r\n", false);
             }, 5);
         }
         close() {}
+        terminate() {}
     };
 }
 

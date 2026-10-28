@@ -9,13 +9,13 @@ DengTa 不再只能等服务器配置 MiniMax：每个账号都可以把自己�
 |---|---|---|---|
 | `server_default` | 服务器默认语音（当前 MiniMax，需部署者配 `MINIMAX_API_KEY`/`MINIMAX_TTS_VOICE_ID`） | 否（服务器配） | 否 |
 | `deepgram` | Deepgram Aura-2（原有能力） | 是 | 否（内置区域） |
-| `edge` | **微软 Edge Read Aloud 免费神经语音**，中文自然、无需 Key | 否 | 否（内置音色） |
+| `edge` | **微软 Edge Read Aloud 免费神经语音**，中文自然、无需 Key（v2 协议 + `ws` 依赖） | 否 | 否（内置音色） |
 | `openai_compatible` | 任何兼容 `POST /v1/audio/speech` 的服务（OpenAI 官方、硅基流动、自建网关、Fish Audio 网关等） | 可选 | 是 |
 | `custom_http` | 任意 HTTP TTS API：自定义方法/请求头/请求体模板，返回二进制、JSON base64 或 JSON 音频 URL | 可选 | 是 |
 
 代码位置：`backend/services/custom-speech.js`（合成）、`backend/services/voice-provider-center.js`
 （租户配置/加密/校验/试听）、`frontend/src/VoiceProviderSettings.jsx`（设置 UI）、
-`backend/supabase/065_custom_voice_providers.sql`（表结构迁移，部署前需执行）。
+`backend/supabase/065_custom_voice_providers.sql`（迁移新增 12 个字段并放宽 speed 约束；部署前需执行）。
 
 ## 自定义 HTTP 模板
 
@@ -39,9 +39,16 @@ DengTa 不再只能等服务器配置 MiniMax：每个账号都可以把自己�
   `VOICE_CUSTOM_ALLOW_HTTP=1`（放行 http）、`VOICE_CUSTOM_ALLOW_PRIVATE=1`（放行私网）。
 - API Key 走与 MCP 设备中心相同的 AES-256-GCM 加密（`MCP_ENCRYPTION_KEY`），接口只返回
   `credential_configured`，不回读明文。
-- 音频响应有 15MB 上限、合成有超时；Edge/自定义请求不会把文字发给未配置的服务。
-- 免费 Edge 依赖服务器能直连 `speech.platform.bing.com`。若部署环境网络受限，
-  改用 `openai_compatible`/`custom_http` 接自己的服务即可。
+- 音频响应有 15MB 上限（流式读取，不会先整包进内存再判断）；JSON 响应另限 2MB；
+  合成有超时；Edge/自定义请求不会把文字发给未配置的服务。
+- SSRF：除字面地址校验外，运行时还会做 DNS 解析并拒绝解析到内网/回环的域名
+  （`localtest.me`/`nip.io` 类）；重定向逐跳校验且**禁止跨源重定向**，避免 API Key 与
+  文本被带到别的域。仍有极小的 DNS TOCTOU 窗口，生产建议使用可信的语音服务地址。
+- 免费 Edge 走 `wss://api.msedgeservices.com` + Sec-MS-GEC v2（5 分钟桶），需要服务器能
+  直连微软端点（`ws` 包会带上 Edge 的 Host/Origin/UA 头）。本机网络无法验证真实外呼，
+  单测用协议夹具覆盖；若部署环境网络受限，改用 `openai_compatible`/`custom_http` 即可。
+- 语速范围：Deepgram 仍限制 0.70–1.50；Edge/OpenAI 兼容/自定义 HTTP 允许 0.25–4.00，
+  数据库约束已在 065 中放宽。
 
 ## 运行时链路
 
@@ -61,10 +68,10 @@ node --test test/voice-provider-center.test.js test/voice-output-route.test.js `
   test/voice-provider-isolation.test.js test/expressive-speech.test.js
 ```
 
-覆盖：Edge WebSocket 帧解析/空音频/超时、OpenAI 兼容请求体与鉴权、自定义 HTTP 三种返回、
-模板占位符、SSRF 拦截、体积上限、中心保存/不覆盖旧密钥/试听。真实网络不可用时用
-`custom_http` 接本地 mock 服务即可端到端验证（本轮已实测本地 HTTP TTS 返回音频并写入
-`last_status=connected`）。
+覆盖：Edge v2 Token 已知向量、WebSocket 帧解析/空音频/超时、OpenAI 兼容请求体与鉴权、
+自定义 HTTP 三种返回、模板占位符、SSRF（字面地址 + DNS 解析 + 跨源重定向）、响应体积上限、
+中心保存/切换 provider 清空旧密钥/试听。真实网络不可用时用 `custom_http` 接本地 mock 服务
+即可端到端验证（已实测本地 HTTP TTS 返回音频并写入 `last_status=connected`）。
 
 ## 与 QQ 接入的关系
 

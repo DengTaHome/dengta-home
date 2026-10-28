@@ -1,6 +1,10 @@
 "use strict";
 
 const { resolveTurnModel } = require("./model-catalog");
+const {
+    computeChatStyleStats,
+    renderStyleStatsHint
+} = require("./chat-style-stats");
 
 // 风格提纯:用户粘贴目标 AI/角色的聊天记录,蒸馏出可直接粘贴到
 // "个性化指令"的提示词文档。维度借鉴开源 dot-skill 思路,面向 AI 伴侣场景改造。
@@ -79,6 +83,9 @@ function createStyleDistillService({ generateReplyImpl, getSettingsImpl, resolve
         if (!settings.model) {
             throw requestError(503, "style_distill_model_unconfigured", "请先配置当前账号的模型和 API 接口，再开始提纯。");
         }
+        // 先用零 token 的确定性统计抽取「证据层」，再交给模型做归纳，减少编造。
+        const styleStats = computeChatStyleStats(source);
+        const statsHint = renderStyleStatsHint(styleStats);
         const generated = await generateReplyImpl({
             settings,
             runtimeContext: DISTILL_SYSTEM_PROMPT,
@@ -89,6 +96,10 @@ function createStyleDistillService({ generateReplyImpl, getSettingsImpl, resolve
                         "目标角色名称:" + (name || "未命名"),
                         "材料类型:" + kind,
                         note ? "用户备注:" + note : "",
+                        statsHint
+                            ? "以下是根据原始材料自动统计的证据（只作参考，口头禅/称呼必须能在原文中找到）:\n" +
+                              statsHint
+                            : "",
                         "以下是要蒸馏的原始材料:",
                         "---",
                         source,
@@ -109,7 +120,15 @@ function createStyleDistillService({ generateReplyImpl, getSettingsImpl, resolve
             kind,
             distilled,
             model: settings.model,
-            source_characters: source.length
+            source_characters: source.length,
+            stats: {
+                message_count: styleStats.messageCount,
+                sender_count: styleStats.senderCount,
+                average_chars_per_message: styleStats.averageCharsPerMessage,
+                top_phrases: styleStats.topPhrases.slice(0, 8),
+                emoji: styleStats.emoji.slice(0, 6),
+                address_terms: styleStats.addressTerms.slice(0, 6)
+            }
         };
     }
 

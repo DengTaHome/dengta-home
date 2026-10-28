@@ -56,3 +56,12 @@ comment on column public.voice_provider_profiles.body_template is
     'Custom HTTP body template with {{text}} / {{text_json}} / {{voice}} / {{api_key}} placeholders.';
 
 notify pgrst, 'reload schema';
+
+alter table public.voice_provider_profiles
+    drop constraint if exists voice_provider_profiles_speed_check;
+alter table public.voice_provider_profiles
+    add constraint voice_provider_profiles_speed_check
+    check (speed between 0.25 and 4.00);
+
+comment on column public.voice_provider_profiles.speed is
+    'Playback speed. Deepgram keeps 0.70-1.50 in code; other providers may use 0.25-4.00.';

@@ -114,3 +114,38 @@
 - 现有导入/蒸馏不是“不能用”，而是**单次、易截断、缺统计证据、格式覆盖偏通用**；
 - 最划算的第一步是 **阶段 A（零 token 统计）+ 格式嗅探增强 + 分块**，能明显提升精细度；
 - 加密的微信数据库不做解密；只支持官方/第三方**已导出**的 txt/html/csv 等格式，并在 UI 明确提示。
+
+## 6. 实施进度（2026-10-28 更新）
+
+已完成（本轮提交）：
+- ✅ `backend/services/chat-style-stats.js`：零 token 风格统计（消息数/发言分布/平均长度/
+  句长/高频中文 n-gram 与英文词/emoji/颜文字/称呼词/标点习惯/代表性原句），
+  并渲染为蒸馏 prompt 的“证据层”。
+- ✅ `backend/services/style-distill.js`：蒸馏前自动注入统计证据，接口额外返回
+  `stats`（消息数、人数、高频短语、emoji、称呼词），降低编造。
+- ✅ `backend/services/adaptive-file-parser.js` 重写扩展：
+  - 微信/QQ TXT（时间行+发送者）、WhatsApp（两种时间格式）、Telegram JSON、
+    Discord JSON、DSH 会话 `jsonl` / `session.v4.jsonl.zstd`（Node 内置 zstd）、
+    MHT/MHTML（quoted-printable/base64）、XLSX 聊天表（表头/列识别）；
+  - 纯文本伪装 JSON、zstd 二进制的魔数识别；加密微信数据库仍明确拒绝解密。
+- ✅ 测试：`backend/test/chat-import-formats.test.js`（10 类格式 + DSH zstd + MHT + XLSX）、
+  `backend/test/chat-style-stats.test.js`、`style-distill.test.js` 统计断言；
+  既有 `adaptive-file-parser/content-import/chat-attachments/world-book/takeout` 测试全绿。
+- 依赖：`jszip`（XLSX 解析）显式加入 backend dependencies，package-lock 已更新。
+- 复审后的硬化（同轮补）：
+  - `.txt/.json/.jsonl/.md/.html/.csv/.mht` 导入路由现在都会走自适应解析器
+    （世界书 JSON 保留原始结构），微信/QQ/DSH/Telegram 导出可直接进入预览；
+  - DSH 只取 user/assistant 的 text 段（系统提示词、reasoning 段不导入）；
+  - zstd 多帧拼接可完整解压（Node `zstdDecompressSync` 原生支持，已有双帧测试）；
+  - MHT 按原始字节 + charset 解码一次（GBK/GB2312 不再乱码）；
+  - 普通日志/会议纪要不会被误判成聊天（首行非聊天头就回退原文）；
+  - XLSX 改为线性扫描、列号/行列数/输入大小上限；只有「内容列 + 发送者/时间列」
+    才当作聊天，联系人表不会误判；解压声明大小与读取后大小双重限制；
+  - 聊天气泡内 `12:30 老地方` 这类内容不再被当成发送者，原始微信/QQ 文本先规范化再统计。
+
+未完成（下一轮）：
+- 分块 map-reduce（当前仍单次 60k 字，超过会截断）；
+- 结构化 persona JSON 输出与一键写回世界书/角色卡；
+- 前端展示 stats 与分块进度；
+- 蒸馏质量评估（自动 rubric / A-B 对比）；
+- xlsx 多 sheet、更多平台字段映射（飞书/钉钉/企业微信）。

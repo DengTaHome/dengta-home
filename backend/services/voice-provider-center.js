@@ -19,6 +19,7 @@ const {
     OUTPUT_FORMATS,
     assertSafeOutboundUrl,
     customProviderCatalog,
+    edgeVoiceAllowed,
     customSpeechError,
     isCustomProvider,
     normalizeFormat,
@@ -46,11 +47,12 @@ function clampNumber(value, fallback, min, max) {
 }
 
 function normalizeProvider(value) {
-    const provider = String(value || "").trim().toLowerCase();
-    if (["server_default", "deepgram", "edge", "openai_compatible", "custom_http"].includes(provider)) {
-        return provider;
+    const raw = String(value ?? "").trim().toLowerCase();
+    if (!raw) return "server_default";
+    if (["server_default", "deepgram", "edge", "openai_compatible", "custom_http"].includes(raw)) {
+        return raw;
     }
-    return "server_default";
+    return "unsupported";
 }
 
 function publicVoiceProfile(row) {
@@ -210,13 +212,8 @@ function createVoiceProviderCenter({
 
     function normalizeDraft(input = {}, existing = null) {
         const provider = normalizeProvider(input.provider ?? existing?.provider ?? "server_default");
-        if (
-            !["server_default", "deepgram", "edge", "openai_compatible", "custom_http"].includes(provider)
-        ) {
-            throw voiceProviderError(
-                "发声来源不受支持。",
-                "VOICE_PROVIDER_UNSUPPORTED"
-            );
+        if (provider === "unsupported") {
+            throw voiceProviderError("发声来源不受支持。", "VOICE_PROVIDER_UNSUPPORTED");
         }
         const enabled =
             input.enabled === undefined
@@ -247,24 +244,26 @@ function createVoiceProviderCenter({
                     : provider === "openai_compatible"
                       ? clampNumber(input.speed ?? existing?.speed, 1, 0.25, 4)
                       : clampNumber(input.speed ?? existing?.speed, 1, 0.25, 4),
-            method: ["GET", "POST", "PUT", "PATCH"].includes(
-                String(input.method ?? existing?.method ?? "POST").toUpperCase()
-            )
-                ? String(input.method ?? existing?.method ?? "POST").toUpperCase()
-                : "POST",
+            method: String(input.method ?? existing?.method ?? "POST").toUpperCase(),
             headers_template: cleanText(input.headers_template ?? existing?.headers_template ?? "", 4000),
             body_template: cleanText(input.body_template ?? existing?.body_template ?? "", 8000),
             response_mode: normalizeResponseMode(input.response_mode ?? existing?.response_mode),
             audio_path: cleanText(input.audio_path ?? existing?.audio_path ?? "", 200),
             mime_type: cleanText(input.mime_type ?? existing?.mime_type ?? "", 120)
         };
+        if (provider === "deepgram") {
+            draft.speed = clampSpeed(draft.speed);
+            draft.model = normalizeDeepgramModel(draft.model);
+        }
         if (provider === "edge") {
             if (!draft.voice_id) draft.voice_id = EDGE_DEFAULT_VOICE;
-            if (!edgeVoiceLike(draft.voice_id)) {
-                throw voiceProviderError(
-                    "Edge 音色名称不合法。",
-                    "VOICE_PROVIDER_VOICE_INVALID"
-                );
+            if (!edgeVoiceAllowed(draft.voice_id)) {
+                throw voiceProviderError("Edge 音色名称不合法。", "VOICE_PROVIDER_VOICE_INVALID");
+            }
+        }
+        if (provider === "custom_http") {
+            if (!["GET", "POST", "PUT", "PATCH"].includes(draft.method)) {
+                throw voiceProviderError("自定义接口方法不受支持。", "VOICE_PROVIDER_METHOD_INVALID");
             }
         }
         if (provider === "openai_compatible" || provider === "custom_http") {
@@ -303,10 +302,6 @@ function createVoiceProviderCenter({
         return draft;
     }
 
-    function edgeVoiceLike(value) {
-        return /^[a-z]{2,3}(-[A-Za-z]{2,4})?-[A-Za-z0-9]{2,40}Neural$/.test(String(value || ""));
-    }
-
     function toCustomRuntime(draft, apiKey) {
         return {
             provider: draft.provider,
@@ -334,6 +329,14 @@ function createVoiceProviderCenter({
         const draft = normalizeDraft(input, existing);
         const credential = cleanText(input.api_key ?? input.credential, 8000);
         let secretCiphertext = existing?.secret_ciphertext || null;
+        if (
+            existing &&
+            !credential &&
+            normalizeProvider(existing.provider) !== draft.provider
+        ) {
+            // 不同服务商的 Key 不通用：切换时默认清空，避免旧 Key 被发给新地址
+            secretCiphertext = null;
+        }
         if (credential) {
             if (!hasCredentialEncryption(env)) {
                 throw voiceProviderError(
@@ -428,7 +431,7 @@ function createVoiceProviderCenter({
             };
         }
         let apiKey = "";
-        if (row.secret_ciphertext) {
+        if (provider !== "edge" && row.secret_ciphertext) {
             try {
                 apiKey = decryptCredential(row.secret_ciphertext, env);
             } catch {

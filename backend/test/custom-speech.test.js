@@ -10,10 +10,14 @@ const {
     EDGE_VOICES,
     assertSafeOutboundUrl,
     customProviderCatalog,
+    fetchWithSafeRedirects,
+    isPrivateHostname,
+    isPrivateIpAddress,
+    resolveSafeHost,
     customSpeechError,
     normalizeFormat,
     normalizeResponseMode,
-    secMsGec,
+    secMsGecV2,
     synthesizeCustomHttpSpeech,
     synthesizeCustomSpeech,
     synthesizeEdgeSpeech,
@@ -62,20 +66,21 @@ function audioResponse(bytes, { status = 200, contentType = "audio/mpeg" } = {})
 
 function fakeSocketClass({ audio = Buffer.from("edge-audio"), empty = false } = {}) {
     return class FakeWebSocket {
-        constructor(url) {
+        constructor(url, options) {
             this.url = url;
-            this.sent = [];
-            this.listeners = {};
+            this.options = options;
+            this.handlers = {};
+            this.closed = false;
             setTimeout(() => this.emit("open"), 0);
         }
-        addEventListener(name, handler) {
-            (this.listeners[name] ||= []).push(handler);
+        on(event, handler) {
+            (this.handlers[event] ||= []).push(handler);
+            return this;
         }
-        emit(name, event) {
-            for (const handler of this.listeners[name] || []) handler(event);
+        emit(event, ...args) {
+            for (const handler of this.handlers[event] || []) handler(...args);
         }
         send(payload) {
-            this.sent.push(payload);
             if (!payload.includes("Path:speech.config")) return;
             setTimeout(() => {
                 if (!empty) {
@@ -85,12 +90,15 @@ function fakeSocketClass({ audio = Buffer.from("edge-audio"), empty = false } = 
                         header,
                         audio
                     ]);
-                    this.emit("message", { data: frame });
+                    this.emit("message", frame, true);
                 }
-                this.emit("message", { data: "X-RequestId:1\r\nPath:turn.end\r\n" });
+                this.emit("message", "X-RequestId:1\r\nPath:turn.end\r\n", false);
             }, 5);
         }
         close() {
+            this.closed = true;
+        }
+        terminate() {
             this.closed = true;
         }
     };
@@ -123,18 +131,43 @@ async function testEdgeSynthesis() {
         (error) => error.code === "CUSTOM_TTS_VOICE_INVALID"
     );
     await assert.rejects(
-        () => synthesizeEdgeSpeech({ text: "hi", WebSocketImpl: null }),
-        (error) => error.code === "CUSTOM_TTS_EDGE_UNAVAILABLE"
+        () =>
+            synthesizeEdgeSpeech({
+                text: "hi",
+                WebSocketImpl: class {
+                    constructor() {
+                        throw new Error("no ws");
+                    }
+                }
+            }),
+        (error) => error.code === "CUSTOM_TTS_EDGE_CONNECT"
     );
 
     // 所有内置 Edge 音色都必须通过服务端校验
     for (const voice of EDGE_VOICES) {
         assert.ok(voice.id.endsWith("Neural"));
     }
-    const gec = secMsGec(Date.parse("2026-10-28T00:00:00Z"));
-    assert.equal(gec.length, 64);
-    assert.equal(gec, gec.toUpperCase());
-    assert.equal(gec, secMsGec(Date.parse("2026-10-28T00:01:00Z")));
+    // 已知向量（与 rany2/edge-tts / node-edge-tts v2 参考实现逐字节一致）
+    assert.equal(
+        secMsGecV2(1761600000 * 1000),
+        "2E35E683F6E3EEF9-ACC6E18CDE9E31DD20FA1F06D71A048C2E12A47C007A19FA4FD78E3F1550DD0F"
+    );
+    assert.equal(
+        secMsGecV2(1761600300 * 1000),
+        "6F4A77904967B04A-8C80B22CC1C9374A9DA5256CB46A06FD16DBF28629960D19779C604B33BCAC30"
+    );
+    // 5 分钟一个桶：00:00 与 00:04 相同，00:05 不同
+    assert.equal(secMsGecV2(1761600000 * 1000), secMsGecV2(1761600240 * 1000));
+    assert.notEqual(secMsGecV2(1761600000 * 1000), secMsGecV2(1761600300 * 1000));
+
+    // 方言音色必须被允许（zh-CN-liaoning-XiaobeiNeural 等）
+    await assert.doesNotReject(() =>
+        synthesizeEdgeSpeech({
+            text: "你好",
+            voice: "zh-CN-liaoning-XiaobeiNeural",
+            WebSocketImpl: fakeSocketClass({ audio: Buffer.from("dialect") })
+        })
+    );
 }
 
 async function testOpenAiSynthesis() {
@@ -147,6 +180,7 @@ async function testOpenAiSynthesis() {
         voice: "alloy",
         format: "opus",
         speed: 1.2,
+        env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
         fetchImpl: async (url, options) => {
             captured = { url, options };
             return audioResponse("openai-audio", { contentType: "audio/ogg" });
@@ -167,7 +201,8 @@ async function testOpenAiSynthesis() {
             synthesizeOpenAiSpeech({
                 text: "hi",
                 apiBaseUrl: "https://tts.example.com/v1",
-                fetchImpl: async () => {
+                env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
+        fetchImpl: async () => {
                     throw Object.assign(new Error("boom"), { name: "AbortError" });
                 }
             }),
@@ -178,7 +213,8 @@ async function testOpenAiSynthesis() {
             synthesizeOpenAiSpeech({
                 text: "hi",
                 apiBaseUrl: "https://tts.example.com/v1",
-                fetchImpl: async () => jsonResponse({ error: "nope" }, { status: 401 })
+                env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
+        fetchImpl: async () => jsonResponse({ error: "nope" }, { status: 401 })
             }),
         (error) => error.code === "CUSTOM_TTS_UPSTREAM" && error.status === 502
     );
@@ -194,6 +230,7 @@ async function testCustomHttp() {
             '{"input":"{{text_json}}","speaker":"{{voice}}","token":"{{api_key}}"}',
         headersTemplate: '{"X-Client":"dengta"}',
         responseMode: "binary",
+        env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
         fetchImpl: async (url, options) => {
             captured = { url, options };
             return audioResponse("custom-binary", { contentType: "audio/wav" });
@@ -212,6 +249,7 @@ async function testCustomHttp() {
         apiBaseUrl: "https://tts.example.com/speak",
         responseMode: "json_base64",
         audioPath: "data.audio",
+        env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
         fetchImpl: async () =>
             jsonResponse({ data: { audio: Buffer.from("base64-audio").toString("base64") } })
     });
@@ -222,6 +260,7 @@ async function testCustomHttp() {
         text: "hi",
         apiBaseUrl: "https://tts.example.com/speak",
         responseMode: "json_url",
+        env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
         fetchImpl: async (url) => {
             calls += 1;
             if (calls === 1) return jsonResponse({ data: { url: "https://cdn.example.com/a.mp3" } });
@@ -238,7 +277,8 @@ async function testCustomHttp() {
                 text: "hi",
                 apiBaseUrl: "https://tts.example.com/speak",
                 headersTemplate: "[]",
-                fetchImpl: async () => audioResponse("x")
+                env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
+        fetchImpl: async () => audioResponse("x")
             }),
         (error) => error.code === "CUSTOM_TTS_HEADERS_INVALID"
     );
@@ -248,7 +288,8 @@ async function testCustomHttp() {
                 text: "hi",
                 apiBaseUrl: "https://tts.example.com/speak",
                 responseMode: "json_base64",
-                fetchImpl: async () => jsonResponse({ data: {} })
+                env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
+        fetchImpl: async () => jsonResponse({ data: {} })
             }),
         (error) => error.code === "CUSTOM_TTS_RESPONSE_MISSING"
     );
@@ -256,6 +297,13 @@ async function testCustomHttp() {
 
 async function testUrlSafety() {
     assert.ok(assertSafeOutboundUrl("https://tts.example.com/v1"));
+    // 私网变体：尾部点、十进制、IPv4-mapped IPv6
+    assert.equal(isPrivateHostname("127.0.0.1."), true);
+    assert.equal(isPrivateHostname("2130706433"), true);
+    assert.equal(isPrivateHostname("::ffff:127.0.0.1"), true);
+    assert.equal(isPrivateHostname("::ffff:7f00:1"), true);
+    assert.equal(isPrivateHostname("10.0.0.1"), true);
+    assert.equal(isPrivateHostname("tts.example.com"), false);
     assert.throws(
         () => assertSafeOutboundUrl("http://tts.example.com/v1"),
         (error) => error.code === "CUSTOM_TTS_URL_INSECURE"
@@ -278,6 +326,92 @@ async function testUrlSafety() {
         () => assertSafeOutboundUrl("not a url"),
         (error) => error.code === "CUSTOM_TTS_URL_INVALID"
     );
+    assert.equal(isPrivateIpAddress("::127.0.0.1"), true);
+    assert.equal(isPrivateIpAddress("64:ff9b::7f00:1"), true);
+
+    // DNS 解析：域名指向回环/私网必须拒绝（localtest.me / nip.io 类）
+    await assert.rejects(
+        () =>
+            resolveSafeHost(
+                "https://tts.example.com/v1",
+                {},
+                async () => [{ address: "127.0.0.1", family: 4 }]
+            ),
+        (error) => error.code === "CUSTOM_TTS_DNS_PRIVATE"
+    );
+    const safe = await resolveSafeHost(
+        "https://tts.example.com/v1",
+        {},
+        async () => [{ address: "93.184.216.34", family: 4 }]
+    );
+    assert.equal(safe.hostname, "tts.example.com");
+}
+
+async function testRedirectSafety() {
+    const redirect = (location, status = 302) => ({
+        ok: false,
+        status,
+        headers: { get: (name) => (String(name).toLowerCase() === "location" ? location : null) },
+        async arrayBuffer() { return new ArrayBuffer(0); }
+    });
+
+    const noDnsEnv = { VOICE_CUSTOM_ALLOW_PRIVATE: "1" };
+    // 302 到 http 私网必须拒绝（即使首地址合法）
+    await assert.rejects(
+        () =>
+            fetchWithSafeRedirects(
+                async () => redirect("http://127.0.0.1:8080/secret"),
+                "https://tts.example.com/v1",
+                {},
+                noDnsEnv
+            ),
+        (error) => ["CUSTOM_TTS_URL_INSECURE", "CUSTOM_TTS_URL_PRIVATE"].includes(error.code)
+    );
+
+    // 跨源重定向必须拒绝（防止 Authorization / 文本被带到别的域）
+    await assert.rejects(
+        () =>
+            fetchWithSafeRedirects(
+                async () => redirect("https://cdn.attacker.example/steal"),
+                "https://tts.example.com/v1",
+                { headers: { Authorization: "Bearer SECRET-KEY" } },
+                noDnsEnv
+            ),
+        (error) => error.code === "CUSTOM_TTS_REDIRECT_CROSS_ORIGIN"
+    );
+
+    // 同源 302 允许继续
+    let calls = 0;
+    const final = await fetchWithSafeRedirects(
+        async (url) => {
+            calls += 1;
+            if (calls === 1) return redirect("https://tts.example.com/speech.mp3");
+            assert.equal(url, "https://tts.example.com/speech.mp3");
+            return audioResponse("redirected-audio");
+        },
+        "https://tts.example.com/v1",
+        {},
+        noDnsEnv
+    );
+    assert.equal(calls, 2);
+    assert.equal(Buffer.from(await final.arrayBuffer()).toString(), "redirected-audio");
+
+    // 重定向循环上限
+    let loops = 0;
+    await assert.rejects(
+        () =>
+            fetchWithSafeRedirects(
+                async () => {
+                    loops += 1;
+                    return redirect("https://tts.example.com/again");
+                },
+                "https://tts.example.com/v1",
+                {},
+                noDnsEnv
+            ),
+        (error) => error.code === "CUSTOM_TTS_REDIRECT_LOOP"
+    );
+    assert.ok(loops >= 4);
 }
 
 async function testDispatch() {
@@ -292,6 +426,7 @@ async function testDispatch() {
             outputFormat: "mp3"
         },
         text: "hello",
+        env: { VOICE_CUSTOM_ALLOW_PRIVATE: "1" },
         fetchImpl: async () => audioResponse("dispatched")
     });
     assert.equal(result.provider, "openai_compatible");
@@ -320,6 +455,7 @@ async function main() {
     await testEdgeSynthesis();
     await testOpenAiSynthesis();
     await testCustomHttp();
+    await testRedirectSafety();
     await testDispatch();
     console.log("custom-speech tests passed");
 }
