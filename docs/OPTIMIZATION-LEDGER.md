@@ -1321,3 +1321,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 当前 hash：backend `59af43d`、frontend `b8240bd`（art flake 修复后另有一个提交）。
 - 真机布局：393、412 两个视口通过；480/800 仍在跑。
 - ledger 旧“121/121”已过时，以 124/124 为准。
+
+## 轮次 54（2026-10-29 · full6 全绿 + 布局 5/6）
+
+- 全量前端测试 `npm test`（含 QR 卸载/取消修复）：**exit 0**，3924 行，**0 failure 标记**；
+  上一轮 full5 的 `art-studio` ENOTEMPTY 已加 `maxRetries/retryDelay` 修复。
+- backend module coverage **124/124**；backend `59af43d`；frontend 最新提交（art flake 修复）。
+- 真机剩余视口：393x873、412x915、480x1040 均“未发现布局问题”；800x1280 运行中。
+- X `/test` 200、12 工具、get_user_info 正常；protocol=2024-11-05。
+- 未闭环：800x1280 布局、CNB/Amap/凭据轮换。
