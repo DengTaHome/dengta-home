@@ -1,0 +1,45 @@
+--- a/server.py+++ b/server.py@@ -3,10 +3,10 @@ import json
+ from pathlib import Path
+ from typing import Optional
+-from mcp.server.mcpserver import MCPServer
++from mcp.server.fastmcp import FastMCP
+ from twikit import Client
+ 
+-mcp = MCPServer("twitter-twikit")
++mcp = FastMCP("twitter-twikit")
+ 
+ 
+ def _resolve_cookies() -> dict[str, str]:
+@@ -17,6 +17,15 @@     2. Path specified in TWITTER_COOKIES_PATH environment variable
+     3. Default local file: ./cookies.json
+     """
++    raw_json = os.environ.get("TWITTER_COOKIES_JSON", "").strip()
++    if raw_json:
++        try:
++            data = json.loads(raw_json)
++            if isinstance(data, dict) and data.get("auth_token") and data.get("ct0"):
++                return {str(k): str(v) for k, v in data.items()}
++        except Exception as e:
++            print(f"[Warning] TWITTER_COOKIES_JSON parse failed: {e}", file=sys.stderr)
++
+     env_auth = os.environ.get("TWITTER_AUTH_TOKEN", "").strip()
+     env_ct0 = os.environ.get("TWITTER_CT0", "").strip()
+     if env_auth and env_ct0:
+@@ -41,7 +50,7 @@                     auth_token = data.get("auth_token", "")
+                     ct0 = data.get("ct0", "")
+                     if auth_token and ct0:
+-                        return {"auth_token": auth_token, "ct0": ct0}
++                        return {str(k): str(v) for k, v in data.items()}
+                 
+                 # Support list format exported by browser extensions (e.g. EditThisCookie)
+                 if isinstance(data, list):
+@@ -68,7 +77,9 @@             "as environment variables, or create a 'cookies.json' file with {\"auth_token\": \"...\", \"ct0\": \"...\"}."
+         )
+     
+-    client = Client("en-US")
++    proxy = os.environ.get("TWITTER_PROXY", "").strip() or None
++    user_agent = os.environ.get("TWITTER_USER_AGENT", "").strip() or None
++    client = Client("en-US", proxy=proxy, user_agent=user_agent)
+     client.set_cookies(cookies)
+     return client
+ 

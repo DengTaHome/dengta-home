@@ -1,0 +1,8 @@
+@echo off
+rem Copy this file to ..\..\_refs\x-twikit-mcp\run-x-mcp.cmd and edit paths.
+rem Never commit real cookie values.
+set "TWITTER_COOKIES_PATH=D:\GZdeepseek\_credentials\x-cookies-full.json"
+set "TWITTER_PROXY=http://127.0.0.1:10809"
+set "TWITTER_USER_AGENT=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0"
+set "TWIKIT_ONDEMAND_URL=https://abs.twimg.com/responsive-web/client-web/ondemand.s.<captured-hash>a.js"
+"D:\GZdeepseek\_tools\python312\python.exe" "D:\GZdeepseek\_refs\x-twikit-mcp\server.py"

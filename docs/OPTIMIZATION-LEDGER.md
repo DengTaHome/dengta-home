@@ -1254,3 +1254,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 真机布局矩阵：360x640、360x780 通过；第三视口登录等待过久已停止，后续重跑。
 - 全量前端测试（QR 改动后）已在后台重跑；build/lint 已通过。
 - 未闭环：twikit 补丁/ondemand 可复现性、CNB 写权限、Amap 认证、凭据轮换。
+
+## 轮次 47（2026-10-29 · X MCP 可复现化）
+
+- 新增 `tools/x-mcp/`：README、`capture-ondemand.mjs`（从已登录 Edge CDP 抓当前 ondemand URL）、
+  `run-x-mcp.cmd.example`、`smoke-test.py`、以及 twikit transaction/user + X server 的 unified diff。
+- 实测：capture 输出当前 `ondemand.s.f6d6d2044cee5d0da.js`；smoke 直接 stdio 调 `tools/list=12`、
+  `get_user_info("jack")` 返回真实资料。
+- 文档明确 DengTa 连接 `protocol_version=2024-11-05`（auto 会让 /test 400）。
+- 仍未闭环：全量前端测试新跑结果（后台）、6 视口布局矩阵后 4 个、CNB/Amap/凭据轮换。

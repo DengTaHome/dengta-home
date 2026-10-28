@@ -1,0 +1,15 @@
+--- a/twikit/x_client_transaction/transaction.py+++ b/twikit/x_client_transaction/transaction.py@@ -1,3 +1,4 @@+import os
+ import re
+ import bs4
+ import math
+@@ -43,8 +44,10 @@         response = self.validate_response(
+             home_page_response) or self.home_page_response
+         on_demand_file = ON_DEMAND_FILE_REGEX.search(str(response))
+-        if on_demand_file:
++        on_demand_file_url = os.environ.get("TWIKIT_ONDEMAND_URL", "").strip()
++        if not on_demand_file_url and on_demand_file:
+             on_demand_file_url = f"https://abs.twimg.com/responsive-web/client-web/ondemand.s.{on_demand_file.group(1)}a.js"
++        if on_demand_file_url:
+             on_demand_file_response = await session.request(method="GET", url=on_demand_file_url, headers=headers)
+             key_byte_indices_match = INDICES_REGEX.finditer(
+                 str(on_demand_file_response.text))
