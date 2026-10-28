@@ -760,3 +760,39 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 安全提醒：本轮为部署使用了用户提供的 SSH 密码（已在对话中出现），建议部署后
   改密码/改用密钥；生产 `MEMORY_API_TOKEN` 曾出现在本机只读排查输出中，如需彻底
   安心可在 Render env 与服务器 `.env` 同步轮换。
+
+---
+
+## 轮次 20（2026-10-28 · QQ 预设安装 + 生产后端导入/蒸馏上线）
+
+### DSH QQ 接入
+- 已运行 `node scripts/setup-dsh.mjs desktop`：生成 qq-chat/qq-chat-v2 preset patch、写入 3 个 MCP、
+  安装 `qq-mode-console` / `qq-agent-presets` bundle 链接；profile 已备份到
+  `backup/dsh-desktop-profile-pre-qq-20261028-230032.zip`。
+- `dsh plugin --profile desktop install` 返回 1（CLI 不在 PATH/需要 DSH 重启加载），但 bundle 链接已在
+  profile package.json 中；本会话已能看到 SnowLuma MCP 工具。
+- **SnowLuma 客户端本机未安装/未运行**（无进程、3000/3001 端口无监听），QQ 网关不可达；
+  需要用户安装 SnowLuma 并扫码登录后，qq-bridge 才能连真实 QQ。
+- 旧 QQ bridge 配置不在本机；恢复后需要重新生成 `config.json` 并填写 SnowLuma WS/HTTP 地址。
+
+### 生产后端（Render）部署
+- 发现生产后端 `DengTaHome/dengta-home-backend` 0.29.76 自动部署已开启，且仓库里有
+  `065_vision_provider_profiles` / `066_voice_provider_openai` / `067_voice_provider_custom`，
+  生产已支持 OpenAI 兼容自定义 TTS（provider=openai + base_url/tts_model）。
+- 将导入/蒸馏增强移植进生产仓库：自适应解析器重写（微信/QQ/WhatsApp/Telegram/Discord/DSH
+  jsonl+zstd/MHT/XLSX、大小上限、日志误判守卫）、零 token 风格统计、蒸馏 prompt 证据注入、
+  文本上传接入解析器、jszip 依赖 + 新测试。既有 parser/import/style-distill/attachments 测试全绿。
+- 提交 `897fa40` 并推送 main；Render `trigger=new_commit` 自动部署，状态 **live**；
+  `https://dengta-home-backend-rkmq.onrender.com/` 与 `/health` 均 200。
+- 本次改动不需要数据库迁移（生产 066/067 已有自定义 TTS 字段）。
+
+### 未完成 / 阻塞
+- 生产前端仓库 `DengTaHome/dengta-home-frontend` 在当前 GitHub PAT 下返回 404（Vercel 项目指向它且
+  自动部署正常），因此 Edge 免费语音/自定义 HTTP 的新 UI 还不能上线；线上前端当前支持
+  server_default/deepgram/openai，用户已可用 OpenAI 兼容自定义 TTS。需要用户给前端仓库访问权限
+  或告知可推送方式。
+- Supabase 控制台登录（2458077782@qq.com）从本机经代理连接被重置，暂无法在 SQL Editor 执行迁移；
+  本轮后端改动不需要迁移，但下一轮 QQ 绑定表需要。
+- QQ↔DengTa 绑定/自动同步尚未实现，方案见下一轮计划：新增 qq_binding 表（QQ号 ↔ DengTa user/companion）、
+  一次性绑定码/QQ 授权入口、首次消息引导、同步偏好勾选（人设/世界书/记忆类别/时间范围）、
+  适配器按绑定关系调用 DengTa API 并注入所选记忆。
