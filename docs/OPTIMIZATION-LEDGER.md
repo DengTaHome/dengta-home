@@ -1175,3 +1175,15 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   `test/time-capsule-state.test.js` 3 项通过；已进 backend module coverage。
 - 已知：X `/connections/:id/test` 仍 400（discover/tools/list/tools-call 正常）；全量 frontend test 的
   design-polish 环境仍会挂起；CNB 写权限/Amap 认证/Muse 分发门槛/凭据轮换未完成。
+
+## 轮次 40（2026-10-29 · P0 验证 + X 工具实测 + 第 11 轮检查）
+
+- backend `36174d5a` 在线；`npm run test:module-coverage` 119/119（含 NetEase import 回归、time-capsule-state、qq-bridge）。
+- frontend `59ee05c9` READY；lint 0 error、build+CSP 通过。
+- X MCP：wrapper 显式 cookie 文件/proxy/UA/ondemand；supergateway 无状态 + API key；
+  `tools/list=12`、`get_user_info("jack")` 实测真实资料；旧 auth=none 连接已删，仅 bearer。
+- 已停止旧本机 18012 quick tunnel（104476）与本地 player/MCP，消除公网裸奔；VPS music 登录态保留。
+- 部署脚本：非 success/无法对比 feed/CNB 非 0 都失败；CNB 直推查 exit；日志 proxy 脱敏；DryRun 仍通过。
+- 已知：X `/connections/:id/test` 400（原始 MCP initialize/notifications/tools-list 手工复现均 200）；全量 frontend test
+  design-polish 环境挂起；CNB 写权限/Amap 认证/Muse 分发门槛/凭据轮换未完成。
+- 本轮已启动新的 Goldfish 只读复核（P0 修复/X/部署脚本）。
