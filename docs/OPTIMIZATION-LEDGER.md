@@ -1346,3 +1346,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 浏览器总套件 `tools/browser-verify/run-all.mjs` 已启动；首屏套件在真实登录/网络下等待较久，后台继续。
 - 后端 `59af43d`、Vercel `37cef72` READY；full6 全绿、module coverage 124/124。
 - 已启动两个并行只读审计（前端语音/情绪/动画/无障碍、后端延迟/稳定性），结果待回。
+
+## 轮次 57（2026-10-29 · 后端审计 P1 修复）
+
+- P1 入站 JSON 过大：`express.json` 从 30mb 降到 **4mb**，并在其前加 `Content-Length>4MB → 413`
+  守卫，避免匿名大 JSON 在鉴权前占用内存；静态注册测试同步更新。
+- P1 聊天历史无分页：`/api/v2/sessions/:id/messages` 与 legacy 路由改为
+  `created_at desc + limit(500)`，响应再 reverse 保持升序；避免超过 Supabase 行上限后丢最新消息。
+- `v2-core-routes` 假 DB 补 `limit()`；`co-watch-room-access` 静态断言更新为 4mb。
+- backend module coverage 通过；backend `8afbee7` 已在线。
+- 仍未修（P2）：流式断连取消/背压、记忆压缩内联、keyed-lock 无超时、401 写日志、DB health abort、优雅停机。
