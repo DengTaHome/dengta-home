@@ -1,25 +1,27 @@
 {
-  "repos": [
-    "DengTaHome/dengta-home",
-    "DengTaHome/dengta-home-backend",
-    "DengTaHome/dengta-home-frontend",
-    "DengTaHome/kiwi-mem-dengta",
-    "Geokkk/wechat-ilink-bridge-hardened",
-    "DONGH4O/wechat-ilink-bridge",
-    "SnowLuma/SnowLuma",
-    "yxiy171866-boop/x-twikit-mcp",
-    "Anko3o/Music-Mcp-Netease",
-    "Cheiineeey/netease-music-mcp",
-    "Vael-KY/netease-music-mcp",
-    "ELDment/Meting-Agent"
-  ],
-  "notes": {
-    "DengTaHome/dengta-home-frontend": "Vercel 生产前端仓库；当前 PAT 404，需权限",
-    "SnowLuma/SnowLuma": "QQ 注入运行时；升级前先确认兼容版本",
-    "yxiy171866-boop/x-twikit-mcp": "stdio MCP，需要 HTTP 包装后接入 DengTa",
-    "Anko3o/Music-Mcp-Netease": "HTTP MCP，自建播放器 + MUSIC_U",
-    "Cheiineeey/netease-music-mcp": "网易云 MCP 备选项目",
-    "Vael-KY/netease-music-mcp": "网易云 MCP 备选项目",
-    "ELDment/Meting-Agent": "多音乐平台 API 代理，可作网易云备选"
-  }
+    "repos":  [
+                  "DengTaHome/dengta-home",
+                  "DengTaHome/dengta-home-backend",
+                  "DengTaHome/dengta-home-frontend",
+                  "DengTaHome/kiwi-mem-dengta",
+                  "Geokkk/wechat-ilink-bridge-hardened",
+                  "DONGH4O/wechat-ilink-bridge",
+                  "SnowLuma/SnowLuma",
+                  "yxiy171866-boop/x-twikit-mcp",
+                  "Anko3o/Music-Mcp-Netease",
+                  "Cheiineeey/netease-music-mcp",
+                  "Vael-KY/netease-music-mcp",
+                  "ELDment/Meting-Agent",
+                  "Derpyu520/qq-bridge"
+              ],
+    "notes":  {
+                  "DengTaHome/dengta-home-frontend":  "Vercel 生产前端仓库；当前 PAT 404，需权限",
+                  "SnowLuma/SnowLuma":  "QQ 注入运行时；升级前先确认兼容版本",
+                  "yxiy171866-boop/x-twikit-mcp":  "stdio MCP，需要 HTTP 包装后接入 DengTa",
+                  "Anko3o/Music-Mcp-Netease":  "HTTP MCP，自建播放器 + MUSIC_U",
+                  "Cheiineeey/netease-music-mcp":  "网易云 MCP 备选项目",
+                  "Vael-KY/netease-music-mcp":  "网易云 MCP 备选项目",
+                  "ELDment/Meting-Agent":  "多音乐平台 API 代理，可作网易云备选",
+                  "Derpyu520/qq-bridge":  "DSH↔QQ 桥接上游；升级前跑 verify:adaptation"
+              }
 }

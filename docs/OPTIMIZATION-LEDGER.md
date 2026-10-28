@@ -971,3 +971,23 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - **真实 UI 仍未上线**：生产前端仓库对 PAT 404；目录/教程 API 已就绪，等前端可部署后接成
   「MCP 应用」卡片与一键向导。用户当前可用 DengTa 现有 MCP 连接表单按教程手动添加。
 - 待办：前端访问权限；X 包装层实测；NetEase MCP 实测（需用户自建实例）；媒体/绑定仍待。
+
+## 轮次 28（2026-10-29 · APK 发版补漏 + QQ 教程复核/自启动）
+
+### Android 发布
+- 线上 feed 已是 2.13.43（301），APK 在 Supabase；本地下载并核对 SHA-256 一致。
+- 补发 GitHub Release `v2.13.43`，资产 `DengTa-2.13.43.apk`（36,410,799 bytes）：
+  https://github.com/DengTaHome/dengta-home/releases/tag/v2.13.43
+- 发现阻塞：线上 APK 证书 `CN=Android Debug` SHA-256 `38a03ab2…`，本机 debug keystore
+  为 `0D:63:4A:AF…`，**密钥不同**；本地源码仍是 2.10.74，落后线上 2.13.43。
+  因此不能构建“可覆盖安装”的新包，也不能用旧源码发新版；已写入 `docs/ANDROID-RELEASE.md`。
+- 应用内更新：>=2.12.18 已支持进度+系统安装；<2.12.18 的旧版第一次升级仍会打开浏览器，
+  这是旧 APK 内固定 Java 行为，服务端无法改变。要发新版本需源码+原始签名 keystore。
+- 未改线上 feed/网站（已是 2.13.43）。
+
+### QQ / DSH 教程复核
+- 新增 `docs/QQ-BRIDGE-REVIEW.md`：上游 qq-bridge v0.2.1-r1 一致；补充 verify/self-test、
+  DSH 升级检查、SnowLuma EULA §5.4 边界（不自动启动/注入）、自动登录现实边界、日志/回滚 SOP。
+- `tools/repo-watch/repos.json` 增加 `Derpyu520/qq-bridge`（现 13 个项目），每日计划继续追踪。
+- 新增 `tools/qq-bridge-recovery/register-autostart.ps1`：注册**仅 qq-bridge** 的登录启动；
+  计划任务注册被权限拒绝，改为创建当前用户 Startup 快捷方式（已创建成功），不自动启动 SnowLuma。
