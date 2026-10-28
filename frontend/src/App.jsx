@@ -2105,14 +2105,13 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
 
   // 冷启动时后端可能还没醒：失败后按 2/5/10/20 秒退避重试，
   // 否则麦克风会整场停在「语音暂不可用」，用户必须刷新页面。
-  const healthRetryTimerRef = useRef(0);
   const refreshServiceHealth = useCallback(async (options = {}) => {
     const controller = settingsScopeControllerRef.current;
     if (!componentMountedRef.current || !controller || controller.signal.aborted) return;
     const healthAttempt = Math.max(1, Number(options.attempt) || 1);
-    if (healthRetryTimerRef.current) {
-      window.clearTimeout(healthRetryTimerRef.current);
-      healthRetryTimerRef.current = 0;
+    if (refreshServiceHealth.retryTimer) {
+      window.clearTimeout(refreshServiceHealth.retryTimer);
+      refreshServiceHealth.retryTimer = 0;
     }
     const requestOptions = {
       signal: controller.signal,
@@ -2201,8 +2200,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       const retryDelays = [2_000, 5_000, 10_000, 20_000];
       if (healthAttempt < retryDelays.length + 1) {
         const delay = retryDelays[healthAttempt - 1] || 20_000;
-        healthRetryTimerRef.current = window.setTimeout(() => {
-          healthRetryTimerRef.current = 0;
+        refreshServiceHealth.retryTimer = window.setTimeout(() => {
+          refreshServiceHealth.retryTimer = 0;
           void refreshServiceHealth({ attempt: healthAttempt + 1 });
         }, delay);
       }
@@ -2211,9 +2210,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
 
   useEffect(
     () => () => {
-      if (healthRetryTimerRef.current) {
-        window.clearTimeout(healthRetryTimerRef.current);
-        healthRetryTimerRef.current = 0;
+      if (refreshServiceHealth.retryTimer) {
+        window.clearTimeout(refreshServiceHealth.retryTimer);
+        refreshServiceHealth.retryTimer = 0;
       }
     },
     [],

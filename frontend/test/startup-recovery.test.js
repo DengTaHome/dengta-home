@@ -60,8 +60,8 @@ assert.equal(depth, 0, "startup-recovery.css 结束时必须回到顶层");
 // 冷启动健康检查失败必须退避重试，否则麦克风整场不可用
 assert.match(
     app,
-    /const healthRetryTimerRef = useRef\(0\);/,
-    "健康检查重试需要定时器状态"
+    /refreshServiceHealth\.retryTimer = window\.setTimeout/,
+    "健康检查重试需要把定时器挂在回调自身（vm harness 无法访问外部 ref）"
 );
 assert.match(
     app,
@@ -75,7 +75,7 @@ assert.match(
 );
 assert.match(
     app,
-    /window\.clearTimeout\(healthRetryTimerRef\.current\)/,
+    /window\.clearTimeout\(refreshServiceHealth\.retryTimer\)/,
     "成功或卸载时必须清掉待重试的定时器"
 );
 

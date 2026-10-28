@@ -221,3 +221,11 @@ headless 浏览器里 `env(safe-area-inset-*)` 恒为 0，**没有带刘海的�
 ### 方法提醒
 本轮两次因**缩进猜错**导致 patcg 锚点失败（App.jsx 同一文件里不同块缩进不同）。
 以后对 App.jsx 的补丁一律先用 node 打印目标行 JSON、再按行号插入，不再猜空格数。
+### 轮次 4 收尾：harness 兼容
+`refreshServiceHealth` 的重试定时器原本放在新加的 `healthRetryTimerRef`（组件外部 ref），
+但 `startup-service-scope.test.js` 用 vm 执行从 App.jsx 抽出的回调源码，
+vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次都没发出」。
+修法：把定时器挂到回调函数自身（`refreshServiceHealth.retryTimer`），
+不新增外部绑定，vm harness 与真实组件都能用。
+更新了 `startup-recovery.test.js` 的两条结构断言；前端全量测试回到 exit 0，
+`verify-health-retry` 仍 3/3 通过。
