@@ -1282,3 +1282,14 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   capture 抓到当前 ondemand URL，smoke 实测 12 工具 + get_user_info。
 - 真机布局：历史上 6 视口 0 问题报告；本轮重跑 360x640、360x780 通过，后 4 个待跑。
 - 未闭环：6 视口重跑、CNB 写权限、Amap 认证、凭据轮换、X twikit 补丁随 X 前端更新维护。
+
+## 轮次 50（2026-10-29 · 胶囊写入串行化 + QR 取消/扫描态）
+
+- 新增 `services/keyed-lock.js`：按 `user:companion` 串行化读改写；content.js 与 qq-bridge.js 的 runtime/capsule
+  保存都走同一把进程内锁，消除 web/聊天并发覆盖窗口（Render 单实例）。
+- qq-bridge 保存返回 `{ok,capsules}`，`time_capsule.active` 用保存后的实际条数，不再用聊天起始快照。
+- qq-bridge.test 的 fake DB 补 `upsert` 和 runtime seed，断言 active=1；新增 `keyed-lock` 并发测试；module coverage 通过。
+- 前端 QR：排除 `scanned` 自动换新；轮询回调校验 `loginAttemptRef`；confirmed/risk 使在途 begin 失效；
+  begin 前先 stopPolling；stale finally 不再清 busy；cancel 清 busy。
+- backend `bf6f1a3` 已部署；frontend `8fa1ab7` 已推送（Vercel 构建中/待确认）。
+- 未闭环：6 视口重跑、CNB/Amap/凭据轮换。
