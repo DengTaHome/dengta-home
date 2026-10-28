@@ -187,7 +187,8 @@ ZIP 魔数正常，`backup\releases\` 里 58 个 APK 全在。
 - `verify-layout-matrix.mjs`：6 个安卓视口，含新增「输入框不得窄于 120px」检查，0 问题
 - `verify-startup-recovery.mjs`：唤醒横幅可见性 3 视口全过
 - `verify-streaming.mjs`：流式契约全过
-- 全量单测：前端 / 后端在本轮改动后重新跑通
+- 全量单测：前端 / 后端在本轮改动后重新跑通（两边 exit 0）
+- 完整体检 `run-all.mjs`：**9/9 通过**（原 6 项 + 多尺寸适配 + 启动恢复 + 语音链路）
 
 **踩到的两个坑（记录以免重犯）**：
 
