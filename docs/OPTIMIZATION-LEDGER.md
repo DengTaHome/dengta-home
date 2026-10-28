@@ -991,3 +991,19 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - `tools/repo-watch/repos.json` 增加 `Derpyu520/qq-bridge`（现 13 个项目），每日计划继续追踪。
 - 新增 `tools/qq-bridge-recovery/register-autostart.ps1`：注册**仅 qq-bridge** 的登录启动；
   计划任务注册被权限拒绝，改为创建当前用户 Startup 快捷方式（已创建成功），不自动启动 SnowLuma。
+
+## 轮次 29（2026-10-29 · 069 成功 + 时间胶囊上线）
+
+- 用户确认 069 已在 Supabase 执行成功；通道同步表的默认值/RLS 加固生效。
+- 读 dayflow（cache-aware attention/forgetting layer）与 Felix Rieseberg「How to be more ambiguous」
+  文章，提取：服务器真实时钟、拒绝相对时间落库、完成状态未确认、外部裁判、Altitude/Depth/Range。
+- 新增时间胶囊（范围：DengTa 通道桥接 `/api/v2/qq-bridge/chat`，微信自动回复已生效）：
+  - 隐藏标记 `[[进行中:任务|分钟]]` / `[[完成:任务]]` / `[[取消:任务]]`；
+  - 每轮注入当前时间、距上次对话、任务开始/已过/预计/超时；
+  - 状态持久化到 `companion_runtime_states.status.time_capsules`（复用现有表，无需迁移）；
+  - 多任务、24h 过期、10 个上限；标记从回复和 DB 消息中剥离；
+  - 状态写失败不阻断聊天；后端 commit `3055ec0` 已推送并部署 live。
+- 生产实测：写入「洗澡 25 分钟」→ `active=1`、DB 有任务；完成标记 → `active=0`、任务清除；
+  回复正文无标记，后台测试通过；qq-bridge 测试 2/2。
+- 新增 `docs/TIME-CAPSULE.md`；dayflow 加入 repo-watch（14 个项目）。
+- 未完成：网页端主聊天/QQ→DSH 时间胶囊、全面逐仓健康检查、Goldfish 外部复核（下一步）。
