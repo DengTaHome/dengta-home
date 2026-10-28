@@ -30,7 +30,7 @@ git apply --ignore-whitespace D:\GZdeepseek\dengta-home\tools\x-mcp\patches\user
 pip install -e .
 ```
 
-> 补丁路径按 `a/twikit/...` 生成；如 `git apply` 因目录前缀失败，用 `-p2` 或 `patch -p2`。
+ > 补丁路径按 `a/twikit/...` 生成，默认 `-p1`；因源文件 CRLF/空白差异，需加 `--ignore-whitespace`。
 
 ## 2. 准备 x-twikit-mcp
 
@@ -73,6 +73,9 @@ DengTa 连接参数：
 ## 5. 验证
 
 ```powershell
+$env:X_COOKIES_PATH='D:\GZdeepseek\_credentials\x-cookies-full.json'
+$env:TWITTER_PROXY='http://127.0.0.1:10809'
+$env:TWIKIT_ONDEMAND_URL='<capture 输出>'
 python D:\GZdeepseek\dengta-home\tools\x-mcp\smoke-test.py
 ```
 
@@ -82,5 +85,5 @@ python D:\GZdeepseek\dengta-home\tools\x-mcp\smoke-test.py
 
 - quick tunnel URL 重启会变，DengTa 连接需重新发现；
 - X 前端更新后必须重新抓 ondemand URL；
-- 单账号单点，不是多用户隔离；写工具默认 disabled；
+- 单账号单点，不是多用户隔离；服务端 tools/list 会返回全部 12 个工具，DengTa 侧只把只读工具设为 auto，写工具默认 disabled（需要在连接 tool_policies 里显式开启）。
 - 不要把 cookie/API key 提交到任何仓库。
