@@ -101,12 +101,35 @@ await page.addInitScript(() => {
 const session = { access_token: activeAuth.access_token, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3500, refresh_token: activeAuth.refresh_token, user: activeAuth.user };
 await page.addInitScript(([k, v]) => { try { globalThis.localStorage.setItem(k, v); } catch {} }, ["dengta_home_auth_v1", JSON.stringify(session)]);
 
+
+/**
+ * 确保聊天里真的有消息。
+ *
+ * 实测：全新存储打开时，应用自动选中的是会话列表第一个——而它可能是**空会话**
+ * （页面上会出现「小小灯当前模型：auto」的空状态）。这不是 bug，
+ * 但测量脚本不能假设第一个会话有历史，必须主动点开一个有内容的会话。
+ */
+async function ensureChatRendered(target) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+        if ((await target.locator(".message-bubble").count()) > 0) return true;
+        const items = target.locator(".session-select");
+        const total = await items.count();
+        if (!total) return false;
+        await items.nth(Math.min(attempt, total - 1)).evaluate((node) => node.click()).catch(() => {});
+        await target.waitForTimeout(2500);
+    }
+    return (await target.locator(".message-bubble").count()) > 0;
+}
+
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
 await page.waitForSelector(".main-panel", { timeout: 180_000 }).catch(() => {});
 // 冷页面必须先真的渲染出消息：否则缓存根本没写，
 // 后面的「重复访问」测的是空缓存，会得出 120 秒这种假数字。
-await page.waitForSelector(".message-bubble", { timeout: 150_000 }).catch(() => {});
+await page.waitForSelector(".session-select, .message-bubble", { timeout: 150_000 }).catch(() => {});
+await ensureChatRendered(page);
 await page.waitForTimeout(2_500);
+// 清空位移记录：上面为了找到有历史的会话点了几次侧边栏，那些位移不是产品问题。
+await page.evaluate(() => { globalThis.__shifts = []; });
 
 // 从外壳出现开始，每 250ms 采样一次状态胶囊的位置
 const samples = [];

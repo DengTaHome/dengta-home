@@ -87,8 +87,23 @@ try {
         const page = await context.newPage();
         const session = { access_token: auth.access_token, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3500, refresh_token: auth.refresh_token, user: auth.user };
         await page.addInitScript(([k, v]) => { try { globalThis.localStorage.setItem(k, v); } catch {} }, ["dengta_home_auth_v1", JSON.stringify(session)]);
-        await page.goto(`http://127.0.0.1:${pagePort}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
+        
+async function ensureChatRendered(target) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+        if ((await target.locator(".message-bubble").count()) > 0) return true;
+        const items = target.locator(".session-select");
+        const total = await items.count();
+        if (!total) return false;
+        await items.nth(Math.min(attempt, total - 1)).evaluate((node) => node.click()).catch(() => {});
+        await target.waitForTimeout(2500);
+    }
+    return (await target.locator(".message-bubble").count()) > 0;
+}
+
+await page.goto(`http://127.0.0.1:${pagePort}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
         await page.waitForSelector(".main-panel", { timeout: 180_000 }).catch(() => {});
+        await page.waitForSelector(".session-select, .message-bubble", { timeout: 150_000 }).catch(() => {});
+        await ensureChatRendered(page);
         // 等目标元素真的渲染出来再断言：慢后端下不等就会把「还没加载」误判成「设置未生效」。
         await page.waitForSelector(ASSERT_SELECTOR, { timeout: 120_000 }).catch(() => {});
         await page.waitForTimeout(3_000);

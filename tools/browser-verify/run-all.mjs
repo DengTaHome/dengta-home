@@ -136,5 +136,5 @@ process.stdout.write(`\n通过 ${passed.length}/${results.length}\n`);
 if (blockingFailed.length) {
     process.stdout.write(`阻断性失败 ${blockingFailed.length} 项：${blockingFailed.map((item) => item.script).join(", ")}\n`);
 }
-process.stdout.write("（△ 表示非阻断：目前只有界面稳定性的 CLS 未达 0.1，状态栏位移已达标）\n");
+process.stdout.write("（△ 表示非阻断项：只有界面稳定性是观察项，其余任何一项失败都应视为产品问题）\n");
 process.exit(blockingFailed.length ? 1 : 0);
