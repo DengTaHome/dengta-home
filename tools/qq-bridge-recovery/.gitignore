@@ -1,0 +1,6 @@
+# 恢复工具目录的本地运行产物（不提交）
+node_modules/
+logs/
+artifacts/
+config.json
+_scratch/

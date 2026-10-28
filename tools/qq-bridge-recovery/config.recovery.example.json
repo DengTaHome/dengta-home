@@ -1,0 +1,49 @@
+{
+  "dsh": {
+    "baseUrl": "http://127.0.0.1:64020",
+    "provider": "deepseek-account",
+    "model": "deepseek-flash",
+    "reasoningEffort": "max",
+    "authToken": "",
+    "authHeader": "authorization",
+    "authPrefix": "Bearer",
+    "allowRemote": false
+  },
+  "role": {
+    "maxInjectChars": 6000
+  },
+  "snowluma": {
+    "wsUrl": "ws://127.0.0.1:3001",
+    "httpUrl": "http://127.0.0.1:3000",
+    "accessToken": "",
+    "followDiscoveredEndpoint": true,
+    "silenceWarnMs": 600000,
+    "launcherPath": "",
+    "homeDir": ""
+  },
+  "ownerQQ": 0,
+  "sessionCwd": "",
+  "agentPreset": "qq-chat",
+  "workspaceTitle": "QQ 聊天",
+  "allow": {
+    "private": [],
+    "groups": []
+  },
+  "deny": {
+    "private": [],
+    "groups": []
+  },
+  "allowAllWhenEmpty": false,
+  "ackMessage": "",
+  "sendDelayMs": 300,
+  "questionTimeoutMs": 300000,
+  "consolePort": 3100,
+  "consoleToken": "",
+  "security": {
+    "interceptNotify": true
+  },
+  "socialV2": {
+    "enabled": true,
+    "agentPreset": "qq-chat-v2"
+  }
+}

@@ -601,7 +601,19 @@ P1 代码在 fork 与 DengTa 镜像/patch 中；真正上线需要在部署环�
   - `wufa-cat/dsh-qq-bot`（DSH 插件版 QQ bot，NapCat/OneBot v11）
 - 本机无 qqbridge/snowluma 残留配置（backup/_refs/.dsh/进程/端口均查过），用户此前部署大概率在
   另一环境；恢复方式 = 克隆的 qq-bridge + SnowLuma（或 dsh-qq-bot + NapCat）。
-- 并行队友正在安装依赖、跑 qq-bridge 自检、写 `tools/qq-bridge-recovery/` 启动脚本与
-  `docs/QQ-BRIDGE-RECOVERY.md`；完成后补记验证结果。
+- 恢复验证已完成（队友产出）：
+  - 依赖 `npm ci` 128 包/15s，postinstall 修补 `@snowluma/sdk` 13 个文件；
+  - `npm run self-test` 通过（建会话→prompt→回合 completed→回复“收到”）；
+  - `test:dsh-auth` 16/16、`test:mcp-servers` 38+1+2 工具、`test:hardening` 36/36、
+    `test:audit` 33/35（缺上游被 gitignore 的 VOICE.md + rc.3 工具名单对账）；
+  - **离线全链路 E2E 通过（mock OneBot，不登录 QQ）**：注入私聊 → 桥接 → 真实 DSH
+    （0.2.1-rc.3, deepseek-flash）→ 回复发回 mock；ask_user_question 转发回路也验证；
+  - 自检自动归档 5 个测试会话、恢复 config/mode，未污染用户 DSH 设置；
+  - 产物：`docs/QQ-BRIDGE-RECOVERY.md`、`tools/qq-bridge-recovery/`（启动/停止/自检脚本、
+    mock OneBot、脱敏模板、原始日志）；
+  - 未执行：`node scripts/setup-dsh.mjs desktop`（会改用户 DSH profile，需用户确认）、
+    安装 SnowLuma/扫码登录真实 QQ；
+  - 结论：原部署最可能是 **Derpyu520/qq-bridge v0.2.1-r1 + SnowLuma**；dsh-qq-bot 为
+    NapCat/Docker 备选；qq-bridge-dsh 在 0.2.1 上因 `{{cwd}}` 硬伤暂不推荐。
 - QQ ↔ DengTa 的业务桥接尚未做：qq-bridge 负责 QQ↔DSH；让 QQ 直接和 DengTa 聊天需要单独适配
   （OneBot → DengTa `/api/v2`），列入下一轮。
