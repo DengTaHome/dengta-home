@@ -47,21 +47,33 @@ test("写入后能读回，并且保留会话 id", () => {
   assert.deepEqual(cached.messages.map((item) => item.id), ["m1", "m2"]);
 });
 
-test("账号之间、伴侣之间严格隔离", () => {
+test("账号之间严格隔离", () => {
   const storage = memoryStorage();
   writeChatHistoryCache({
     accountScope: ACCOUNT_A, companionScope: COMPANION_A,
     sessionId: SESSION_A, messages: [message("a-only")], storage,
   });
   assert.equal(readChatHistoryCache({ accountScope: ACCOUNT_B, companionScope: COMPANION_A, storage }), null, "换账号不能读到别人的对话");
-  assert.equal(readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_B, storage }), null, "换伴侣不能读到别人的对话");
   assert.equal(readChatHistoryCache({ accountScope: "", companionScope: COMPANION_A, storage }), null, "没有账号作用域就不读");
+});
+
+test("已知伴侣不同就不读；伴侣尚未解析时允许先用账号上次的对话顶上", () => {
+  const storage = memoryStorage();
+  writeChatHistoryCache({
+    accountScope: ACCOUNT_A, companionScope: COMPANION_A,
+    sessionId: SESSION_A, messages: [message("for-a")], storage,
+  });
+  assert.equal(readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_B, storage }), null, "已知是另一个伴侣时绝不能串数据");
+  const provisional = readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: "", storage });
+  assert.ok(provisional, "启动瞬间伴侣还没解析出来时，应允许先展示上次的对话");
+  assert.equal(provisional.messages[0].id, "for-a");
+  assert.ok(readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, storage }), "同一个伴侣当然能读");
 });
 
 test("版本不符、过期、损坏的数据一律不读", () => {
   const storage = memoryStorage();
   const now = Date.now();
-  const key = `dengta.chat-cache.v${CHAT_CACHE_VERSION}:${ACCOUNT_A}:${COMPANION_A}`;
+  const key = `dengta.chat-cache.v${CHAT_CACHE_VERSION}:${ACCOUNT_A}`;
 
   storage.setItem(key, JSON.stringify({ version: CHAT_CACHE_VERSION - 1, sessionId: SESSION_A, savedAt: now, messages: [message("old")] }));
   assert.equal(readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, storage }), null, "旧版本结构不可用");
@@ -116,19 +128,19 @@ test("超体积时会丢弃较早的消息，而不是整段失败", () => {
     accountScope: ACCOUNT_A, companionScope: COMPANION_A, sessionId: SESSION_A, messages: big, storage,
   });
   assert.equal(wrote, true);
-  const stored = storage.getItem(`dengta.chat-cache.v${CHAT_CACHE_VERSION}:${ACCOUNT_A}:${COMPANION_A}`);
+  const stored = storage.getItem(`dengta.chat-cache.v${CHAT_CACHE_VERSION}:${ACCOUNT_A}`);
   assert.ok(stored.length <= 160 * 1024 + 2048, "体积应被压到上限附近");
   const cached = readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, storage });
   assert.ok(cached.messages.length > 0 && cached.messages.length < 30, "保留较新的部分");
 });
 
-test("清理只影响对应作用域", () => {
+test("清理只影响对应账号", () => {
   const storage = memoryStorage();
   writeChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, sessionId: SESSION_A, messages: [message("1")], storage });
-  writeChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_B, sessionId: SESSION_A, messages: [message("2")], storage });
+  writeChatHistoryCache({ accountScope: ACCOUNT_B, companionScope: COMPANION_A, sessionId: SESSION_A, messages: [message("2")], storage });
   assert.equal(clearChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, storage }), true);
   assert.equal(readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, storage }), null);
-  assert.ok(readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_B, storage }), "另一个伴侣的缓存不受影响");
+  assert.ok(readChatHistoryCache({ accountScope: ACCOUNT_B, companionScope: COMPANION_A, storage }), "另一个账号的缓存不受影响");
 });
 
 test("存储不可用时不抛错", () => {

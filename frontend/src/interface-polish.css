@@ -100,3 +100,10 @@
 .cotton-chat-dock .cotton-dock-bar button {
   min-height: 44px;
 }
+/* 启动连接失败时出现的「重新连接」按钮：实测只有 36px 高，手机上难按。
+ * 这是网络不佳时用户唯一能点的东西，必须给足触摸面积。
+ */
+.connection-recovery-actions button {
+  min-height: 44px;
+  padding: 0 18px;
+}

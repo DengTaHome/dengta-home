@@ -12,8 +12,10 @@
  * - 超过 7 天不用就丢弃，避免展示极旧内容。
  */
 
-// v4：开始保留 visible_monologue 与 music_card 等「决定行高」的字段，旧缓存结构作废。
-export const CHAT_CACHE_VERSION = 4;
+// v5：缓存改为「按账号存 + 载荷里带伴侣 id 校验」。
+// 原因：启动瞬间伴侣 id 往往还没解析出来（空字符串），旧版把它放进存储键，
+// 导致新标签页永远读不到上一次的缓存——实测表现为重复打开又开始等超时。
+export const CHAT_CACHE_VERSION = 5;
 // 上限提高过常见历史条数（实测这段历史 43 条）。
 // 注意：把它从 40 提到 60 并没有降低 CLS（仍是 0.116），
 // 所以「闪」另有原因，这条只当容量余量，别再当成位移修复。
@@ -21,11 +23,10 @@ export const CHAT_CACHE_LIMIT = 60;
 export const CHAT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_BYTES = 160 * 1024;
 
-function storageKey(accountScope, companionScope) {
+function storageKey(accountScope) {
   const account = String(accountScope || "").trim();
-  const companion = String(companionScope || "").trim();
   if (!account) return "";
-  return `dengta.chat-cache.v${CHAT_CACHE_VERSION}:${account}:${companion || "-"}`;
+  return `dengta.chat-cache.v${CHAT_CACHE_VERSION}:${account}`;
 }
 
 function safeStorage(storage) {
@@ -110,14 +111,14 @@ function markFailure(stage, reason) {
 export function writeChatHistoryCache({ accountScope, companionScope, sessionId, messages, storage, now = Date.now() }) {
   try {
     const target = safeStorage(storage);
-    const key = storageKey(accountScope, companionScope);
+    const key = storageKey(accountScope);
     if (!target || !key) return markFailure("scope", "no storage or scope");
     if (!sessionId || !Array.isArray(messages)) return markFailure("input", `sessionId=${Boolean(sessionId)} isArray=${Array.isArray(messages)}`);
 
     const trimmed = messages.map(trimMessage).filter(Boolean).slice(-CHAT_CACHE_LIMIT);
     if (!trimmed.length) return markFailure("trim", `all ${messages.length} messages were dropped`);
 
-    let payload = { version: CHAT_CACHE_VERSION, sessionId, savedAt: now, messages: trimmed };
+    let payload = { version: CHAT_CACHE_VERSION, sessionId, savedAt: now, companionId: String(companionScope || ""), messages: trimmed };
     let serialized;
     try {
       serialized = JSON.stringify(payload);
@@ -143,7 +144,7 @@ export function writeChatHistoryCache({ accountScope, companionScope, sessionId,
 
 export function readChatHistoryCache({ accountScope, companionScope, storage, now = Date.now() }) {
   const target = safeStorage(storage);
-  const key = storageKey(accountScope, companionScope);
+  const key = storageKey(accountScope);
   if (!target || !key) return null;
   let raw;
   try {
@@ -162,14 +163,20 @@ export function readChatHistoryCache({ accountScope, companionScope, storage, no
   if (typeof parsed.sessionId !== "string" || !parsed.sessionId) return null;
   if (!Array.isArray(parsed.messages) || !parsed.messages.length) return null;
   if (!Number.isFinite(parsed.savedAt) || now - parsed.savedAt > CHAT_CACHE_MAX_AGE_MS) return null;
+  // 伴侣校验：启动时伴侣 id 常常还没解析出来。
+  // - 已知伴侣：必须与缓存一致，绝不把 A 的对话画给 B。
+  // - 尚未解析（空）：允许先用账号上次的对话顶上，网络结果会立刻覆盖。
+  const requestedCompanion = String(companionScope || "");
+  const cachedCompanion = String(parsed.companionId || "");
+  if (requestedCompanion && cachedCompanion && requestedCompanion !== cachedCompanion) return null;
   const messages = parsed.messages.map(trimMessage).filter(Boolean);
   if (!messages.length) return null;
   return { sessionId: parsed.sessionId, savedAt: parsed.savedAt, messages };
 }
 
-export function clearChatHistoryCache({ accountScope, companionScope, storage }) {
+export function clearChatHistoryCache({ accountScope, storage }) {
   const target = safeStorage(storage);
-  const key = storageKey(accountScope, companionScope);
+  const key = storageKey(accountScope);
   if (!target || !key) return false;
   try {
     target.removeItem(key);

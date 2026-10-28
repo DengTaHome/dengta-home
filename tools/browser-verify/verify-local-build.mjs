@@ -51,13 +51,24 @@ async function loadToken() {
     const creds = JSON.parse(await fs.readFile(CRED_FILE, "utf8"));
     const bodyPath = path.join(OUT, "_token-body.json");
     await fs.writeFile(bodyPath, JSON.stringify({ email: creds.email, password: creds.password }), "utf8");
-    const raw = execFileSync("curl.exe", [
+    let raw = "";
+    for (let tokenAttempt = 1; tokenAttempt <= 3; tokenAttempt += 1) {
+        raw = execFileSync("curl.exe", [
         "-s", "--max-time", "90", "--socks5-hostname", "127.0.0.1:10808",
         "-X", "POST", SUPABASE_TOKEN_URL,
         "-H", `apikey: ${SUPABASE_ANON}`,
         "-H", "Content-Type: application/json",
         "--data-binary", `@${bodyPath}`
     ], { encoding: "utf8" });
+        try {
+            if (JSON.parse(raw).access_token) break;
+        } catch {
+            // 代理偶发 "upstream request timeout"，退避后重试。
+            raw = "";
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000 * tokenAttempt));
+    }
+    if (!raw) throw new Error("取 token 失败：代理或 Supabase 连续不可用");
     const auth = JSON.parse(raw);
     if (!auth.access_token) throw new Error(`token 获取失败: ${raw.slice(0, 200)}`);
     await fs.writeFile(AUTH_FILE, raw, "utf8");
@@ -105,7 +116,7 @@ async function main() {
 
     const browser = await chromium.launch({
         channel: "msedge", headless: true, args: ["--no-sandbox"],
-        proxy: { server: "http://127.0.0.1:10809" }
+        proxy: { server: "http://127.0.0.1:10809", bypass: "127.0.0.1,localhost" }
     });
     const context = await browser.newContext({
         viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
@@ -128,7 +139,10 @@ async function main() {
 
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.waitForSelector(".app-shell, .main-panel", { timeout: 150_000 }).catch(() => {});
-    await page.waitForTimeout(12_000);
+    // 固定等 12 秒在慢后端下会误判成「没登录」。
+// 改成等聊天内容真的渲染出来（最多 60 秒），再多给 3 秒让异步卡片稳定。
+await page.waitForSelector(".message-bubble", { timeout: 90_000 }).catch(() => {});
+await page.waitForTimeout(3_000);
 
     const probe = await page.evaluate(() => {
         const q = (sel) => document.querySelectorAll(sel).length;

@@ -33,6 +33,7 @@ function curl(args) {
 }
 
 const steps = [];
+let mediaE2eFailed = false;
 const record = (name, detail) => { steps.push({ name, detail }); console.log(`- ${name}: ${JSON.stringify(detail).slice(0, 220)}`); };
 
 let createdAssetId = null;
@@ -81,7 +82,7 @@ try {
             s.listen(pagePort, "127.0.0.1", () => resolve(s));
         });
 
-        const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--no-sandbox"], proxy: { server: "http://127.0.0.1:10809" } });
+        const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--no-sandbox"], proxy: { server: "http://127.0.0.1:10809", bypass: "127.0.0.1,localhost" } });
         const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
         const page = await context.newPage();
         const session = { access_token: auth.access_token, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3500, refresh_token: auth.refresh_token, user: auth.user };
@@ -132,6 +133,7 @@ try {
         record("目标元素是否渲染", { selector: ASSERT_SELECTOR, count: rendered.length, rendered });
         const ok = rendered.length > 0 && (rendered[0].naturalWidth === null || rendered[0].naturalWidth > 0);
         record(ok ? ">>> 结论：设置已生效" : ">>> 结论：设置未生效", { ok });
+        if (!ok) mediaE2eFailed = true;
         await page.screenshot({ path: `${OUT}\\avatar-after-set.png`, timeout: 120_000 });
         await browser.close();
         server.close();
@@ -159,3 +161,4 @@ try {
 
 fs.writeFileSync(path.join(OUT, "avatar-e2e.json"), JSON.stringify({ ranAt: new Date().toISOString(), steps }, null, 2), "utf8");
 console.log("\n结果已写入 _audit/browser/avatar-e2e.json");
+process.exit(mediaE2eFailed ? 1 : 0);

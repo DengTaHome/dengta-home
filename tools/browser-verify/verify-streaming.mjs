@@ -48,12 +48,24 @@ function refreshToken() {
     const creds = JSON.parse(fsSync.readFileSync(CRED_FILE, "utf8"));
     const bodyPath = path.join(OUT, "_stream-token-body.json");
     fsSync.writeFileSync(bodyPath, JSON.stringify(creds));
-    const raw = execFileSync("curl.exe", [
+    let raw = "";
+    for (let tokenAttempt = 1; tokenAttempt <= 3; tokenAttempt += 1) {
+        raw = execFileSync("curl.exe", [
         "-s", "--max-time", "90", "--socks5-hostname", "127.0.0.1:10808",
         "-X", "POST", SUPABASE_TOKEN_URL,
         "-H", `apikey: ${SUPABASE_ANON}`, "-H", "Content-Type: application/json",
         "--data-binary", `@${bodyPath}`
     ], { encoding: "utf8" });
+        try {
+            if (JSON.parse(raw).access_token) break;
+        } catch {
+            // 代理偶发 "upstream request timeout"，退避后重试。
+            raw = "";
+        }
+        const until = Date.now() + 2000 * tokenAttempt;
+        while (Date.now() < until) { /* 同步退避：这两个脚本的取 token 不在 async 上下文里 */ }
+    }
+    if (!raw) throw new Error("取 token 失败：代理或 Supabase 连续不可用");
     const parsed = JSON.parse(raw);
     if (!parsed.access_token) throw new Error(`token 失败: ${raw.slice(0, 160)}`);
     return parsed;
@@ -92,7 +104,7 @@ function check(name, passed, detail) {
 const auth = refreshToken();
 const server = await startServer();
 const { chromium } = loadPlaywright();
-const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--no-sandbox"], proxy: { server: "http://127.0.0.1:10809" } });
+const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--no-sandbox"], proxy: { server: "http://127.0.0.1:10809", bypass: "127.0.0.1,localhost" } });
 const context = await browser.newContext({
     viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true
 });

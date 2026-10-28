@@ -29,9 +29,21 @@ function refreshTokenIfNeeded() {
     const creds = JSON.parse(fsSync.readFileSync(CRED, "utf8"));
     const bodyPath = path.join(OUT, "_stability-token.json");
     fsSync.writeFileSync(bodyPath, JSON.stringify(creds), "utf8");
-    const raw = execFileSync("curl.exe", ["-s", "--max-time", "90", "--socks5-hostname", "127.0.0.1:10808",
+    let raw = "";
+    for (let tokenAttempt = 1; tokenAttempt <= 3; tokenAttempt += 1) {
+        raw = execFileSync("curl.exe", ["-s", "--max-time", "90", "--socks5-hostname", "127.0.0.1:10808",
         "-X", "POST", SUPABASE_TOKEN_URL, "-H", `apikey: ${SUPABASE_ANON}`,
         "-H", "Content-Type: application/json", "--data-binary", `@${bodyPath}`], { encoding: "utf8" });
+        try {
+            if (JSON.parse(raw).access_token) break;
+        } catch {
+            // 代理偶发 "upstream request timeout"，退避后重试。
+            raw = "";
+        }
+        const until = Date.now() + 2000 * tokenAttempt;
+        while (Date.now() < until) { /* 同步退避：这两个脚本的取 token 不在 async 上下文里 */ }
+    }
+    if (!raw) throw new Error("取 token 失败：代理或 Supabase 连续不可用");
     const fresh = JSON.parse(raw);
     if (!fresh.access_token) throw new Error("token 刷新失败: " + raw.slice(0, 160));
     fsSync.writeFileSync(AUTH, raw, "utf8");
