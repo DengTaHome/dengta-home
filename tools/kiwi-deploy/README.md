@@ -20,9 +20,23 @@
 - 服务器可以 `docker compose`、`git`、`curl`；数据库容器名默认 `db`，应用容器名默认 `kiwi-mem`
 - **不要在服务器上改过 `database.py`/`daily_digest.py`**；否则 `git apply --check` 会拒绝，需要先合并
 
+## 取包方式（任选，服务器能访问 GitHub 时用 B 最省事）
+
+A. 本机 scp：
+```powershell
+scp tools\kiwi-deploy\p1-bundle.tar.gz root@119.8.185.219:/tmp/
+```
+B. 服务器上直接拉仓库里的包（GitHub 被墙时用服务器自己的代理/镜像）：
+```bash
+git clone --depth 1 https://github.com/DengTaHome/dengta-home.git /tmp/dengta-p1
+mkdir -p /tmp/kiwi-p1
+tar -xzf /tmp/dengta-p1/tools/kiwi-deploy/p1-bundle.tar.gz -C /tmp/kiwi-p1
+```
+C. 已有本仓库副本时直接用其中的 `tools/kiwi-deploy/p1-bundle.tar.gz`。
+
 ## 部署步骤
 
-### 1. 本机把部署包传上去
+### 1. 把部署包放到服务器 /tmp（用上面 A 或 B）
 
 ```powershell
 # Windows 本机（仓库根目录，只传一个自包含 bundle）
