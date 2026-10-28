@@ -14,6 +14,18 @@ const {
     getExpressiveSpeechCapabilities,
     synthesizeExpressiveSpeech
 } = require("./expressive-speech");
+const {
+    EDGE_DEFAULT_VOICE,
+    OUTPUT_FORMATS,
+    assertSafeOutboundUrl,
+    customProviderCatalog,
+    customSpeechError,
+    isCustomProvider,
+    normalizeFormat,
+    normalizeResponseMode,
+    publicCustomSpeechError,
+    synthesizeCustomSpeech
+} = require("./custom-speech");
 
 function voiceProviderError(message, code, status = 400) {
     const error = new Error(message);
@@ -27,26 +39,58 @@ function cleanText(value, maxLength) {
     return Array.from(String(value || "").trim()).slice(0, maxLength).join("");
 }
 
+function clampNumber(value, fallback, min, max) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(max, Math.max(min, parsed));
+}
+
+function normalizeProvider(value) {
+    const provider = String(value || "").trim().toLowerCase();
+    if (["server_default", "deepgram", "edge", "openai_compatible", "custom_http"].includes(provider)) {
+        return provider;
+    }
+    return "server_default";
+}
+
 function publicVoiceProfile(row) {
     if (!row) return null;
+    const provider = normalizeProvider(row.provider);
     const credentialConfigured = Boolean(row.secret_ciphertext);
     const enabled = row.enabled === true;
-    const provider = row.provider === "deepgram" ? "deepgram" : "server_default";
+    const baseUrl = String(row.api_base_url || "").trim();
+    const voiceId = String(row.voice_id || "").trim();
+    let configured;
+    if (provider === "server_default") configured = enabled;
+    else if (provider === "deepgram") configured = enabled && credentialConfigured;
+    else if (provider === "edge") configured = enabled;
+    else configured = enabled && Boolean(baseUrl);
     return {
         provider,
         enabled,
         region: normalizeDeepgramRegion(row.region),
-        model: normalizeDeepgramModel(row.model),
-        speed: clampSpeed(row.speed),
+        model: String(row.model || (provider === "openai_compatible" ? "tts-1" : "")).trim(),
+        voice_id: voiceId || (provider === "edge" ? EDGE_DEFAULT_VOICE : ""),
+        api_base_url: baseUrl,
+        output_format: normalizeFormat(row.output_format),
+        rate: clampNumber(row.rate, 0, -50, 50),
+        pitch: clampNumber(row.pitch, 0, -50, 50),
+        volume: clampNumber(row.volume, 0, -50, 50),
+        speed: provider === "deepgram" || provider === "openai_compatible"
+            ? clampSpeed(row.speed)
+            : clampNumber(row.speed, 1, 0.25, 4),
+        method: String(row.method || "POST").toUpperCase(),
+        headers_template: String(row.headers_template || ""),
+        body_template: String(row.body_template || ""),
+        response_mode: normalizeResponseMode(row.response_mode),
+        audio_path: String(row.audio_path || ""),
+        mime_type: String(row.mime_type || ""),
         credential_configured: credentialConfigured,
-        configured:
-            provider === "deepgram"
-                ? enabled && credentialConfigured
-                : enabled,
+        configured,
         last_status: ["untested", "connected", "error"].includes(row.last_status)
             ? row.last_status
             : "untested",
-        last_error: row.last_status === "error" ? "Deepgram 连接测试未通过。" : null,
+        last_error: row.last_status === "error" ? "语音连接测试未通过。" : null,
         last_checked_at: row.last_checked_at || null,
         created_at: row.created_at || null,
         updated_at: row.updated_at || null
@@ -67,6 +111,10 @@ function publicVoiceProviderError(error) {
             code: String(error.code),
             message: String(error.message || "Deepgram 语音服务暂时不可用。")
         };
+    }
+    if (String(error?.code || "").startsWith("CUSTOM_TTS_") || error?.isCustomSpeechError) {
+        const safe = publicCustomSpeechError(error);
+        return { ...safe, status: safe.status || 502 };
     }
     if (String(error?.code || "").startsWith("EXPRESSIVE_TTS_")) {
         return {
@@ -112,7 +160,19 @@ function createVoiceProviderCenter({
             enabled: true,
             region: "global",
             model: "aura-2-helena-en",
+            voice_id: "",
+            api_base_url: "",
+            output_format: "mp3",
+            rate: 0,
+            pitch: 0,
+            volume: 0,
             speed: 1,
+            method: "POST",
+            headers_template: "",
+            body_template: "",
+            response_mode: "binary",
+            audio_path: "",
+            mime_type: "",
             credential_configured: false,
             configured: fallback.configured,
             last_status: "untested",
@@ -129,7 +189,9 @@ function createVoiceProviderCenter({
             ...profile,
             chinese_fallback_available: fallback.configured,
             model_options: DEEPGRAM_MODELS,
-            region_options: ["global", "eu", "au"]
+            region_options: ["global", "eu", "au"],
+            custom_providers: customProviderCatalog(),
+            output_formats: OUTPUT_FORMATS
         };
     }
 
@@ -147,25 +209,123 @@ function createVoiceProviderCenter({
     }
 
     function normalizeDraft(input = {}, existing = null) {
-        const provider = cleanText(input.provider ?? existing?.provider ?? "server_default", 32)
-            .toLowerCase();
-        if (!["server_default", "deepgram"].includes(provider)) {
+        const provider = normalizeProvider(input.provider ?? existing?.provider ?? "server_default");
+        if (
+            !["server_default", "deepgram", "edge", "openai_compatible", "custom_http"].includes(provider)
+        ) {
             throw voiceProviderError(
-                "发声来源只能选择服务器默认语音或 Deepgram。",
+                "发声来源不受支持。",
                 "VOICE_PROVIDER_UNSUPPORTED"
             );
         }
-        return {
+        const enabled =
+            input.enabled === undefined
+                ? existing
+                    ? existing.enabled === true
+                    : true
+                : input.enabled === true;
+        const baseUrl = cleanText(input.api_base_url ?? existing?.api_base_url ?? "", 500);
+        const voiceId = cleanText(input.voice_id ?? input.voice ?? existing?.voice_id ?? "", 120);
+        const model = cleanText(input.model ?? existing?.model ?? "", 120);
+        const outputFormat = normalizeFormat(input.output_format ?? existing?.output_format);
+        const draft = {
             provider,
-            enabled:
-                input.enabled === undefined
-                    ? existing
-                        ? existing.enabled === true
-                        : true
-                    : input.enabled === true,
+            enabled,
             region: normalizeDeepgramRegion(input.region ?? existing?.region),
-            model: normalizeDeepgramModel(input.model ?? existing?.model),
-            speed: clampSpeed(input.speed ?? existing?.speed)
+            model: model || (provider === "openai_compatible" ? "tts-1" : ""),
+            voice_id:
+                voiceId ||
+                (provider === "edge" ? EDGE_DEFAULT_VOICE : provider === "deepgram" ? "" : ""),
+            api_base_url: baseUrl,
+            output_format: outputFormat,
+            rate: clampNumber(input.rate ?? existing?.rate, 0, -50, 50),
+            pitch: clampNumber(input.pitch ?? existing?.pitch, 0, -50, 50),
+            volume: clampNumber(input.volume ?? existing?.volume, 0, -50, 50),
+            speed:
+                provider === "deepgram"
+                    ? clampSpeed(input.speed ?? existing?.speed)
+                    : provider === "openai_compatible"
+                      ? clampNumber(input.speed ?? existing?.speed, 1, 0.25, 4)
+                      : clampNumber(input.speed ?? existing?.speed, 1, 0.25, 4),
+            method: ["GET", "POST", "PUT", "PATCH"].includes(
+                String(input.method ?? existing?.method ?? "POST").toUpperCase()
+            )
+                ? String(input.method ?? existing?.method ?? "POST").toUpperCase()
+                : "POST",
+            headers_template: cleanText(input.headers_template ?? existing?.headers_template ?? "", 4000),
+            body_template: cleanText(input.body_template ?? existing?.body_template ?? "", 8000),
+            response_mode: normalizeResponseMode(input.response_mode ?? existing?.response_mode),
+            audio_path: cleanText(input.audio_path ?? existing?.audio_path ?? "", 200),
+            mime_type: cleanText(input.mime_type ?? existing?.mime_type ?? "", 120)
+        };
+        if (provider === "edge") {
+            if (!draft.voice_id) draft.voice_id = EDGE_DEFAULT_VOICE;
+            if (!edgeVoiceLike(draft.voice_id)) {
+                throw voiceProviderError(
+                    "Edge 音色名称不合法。",
+                    "VOICE_PROVIDER_VOICE_INVALID"
+                );
+            }
+        }
+        if (provider === "openai_compatible" || provider === "custom_http") {
+            if (!draft.api_base_url) {
+                throw voiceProviderError(
+                    "请填写语音服务地址。",
+                    "VOICE_PROVIDER_BASE_URL_REQUIRED"
+                );
+            }
+            try {
+                assertSafeOutboundUrl(draft.api_base_url, env);
+            } catch (error) {
+                throw voiceProviderError(error.message, error.code || "VOICE_PROVIDER_BASE_URL_INVALID");
+            }
+        }
+        if (provider === "custom_http" && draft.headers_template) {
+            let parsed;
+            try {
+                parsed = JSON.parse(draft.headers_template);
+            } catch {
+                throw voiceProviderError(
+                    "自定义请求头必须是合法 JSON 对象。",
+                    "VOICE_PROVIDER_HEADERS_INVALID"
+                );
+            }
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                throw voiceProviderError(
+                    "自定义请求头必须是合法 JSON 对象。",
+                    "VOICE_PROVIDER_HEADERS_INVALID"
+                );
+            }
+            if (Object.keys(parsed).length > 40) {
+                throw voiceProviderError("自定义请求头过多。", "VOICE_PROVIDER_HEADERS_INVALID");
+            }
+        }
+        return draft;
+    }
+
+    function edgeVoiceLike(value) {
+        return /^[a-z]{2,3}(-[A-Za-z]{2,4})?-[A-Za-z0-9]{2,40}Neural$/.test(String(value || ""));
+    }
+
+    function toCustomRuntime(draft, apiKey) {
+        return {
+            provider: draft.provider,
+            enabled: draft.enabled,
+            apiBaseUrl: draft.api_base_url,
+            voiceId: draft.voice_id,
+            model: draft.model,
+            outputFormat: draft.output_format,
+            rate: draft.rate,
+            pitch: draft.pitch,
+            volume: draft.volume,
+            speed: draft.speed,
+            method: draft.method,
+            headersTemplate: draft.headers_template,
+            bodyTemplate: draft.body_template,
+            responseMode: draft.response_mode,
+            audioPath: draft.audio_path,
+            mimeType: draft.mime_type,
+            apiKey: apiKey || ""
         };
     }
 
@@ -235,33 +395,60 @@ function createVoiceProviderCenter({
     async function resolveRuntimeProfile() {
         const row = await readRow();
         if (!row) return null;
+        const provider = normalizeProvider(row.provider);
         if (row.enabled !== true) {
             return {
                 provider: "disabled",
                 updatedAt: row.updated_at || ""
             };
         }
-        if (row.provider !== "deepgram") return null;
-        if (!row.secret_ciphertext) {
-            throw voiceProviderError(
-                "Deepgram 已启用，但 API Key 尚未配置。",
-                "VOICE_PROVIDER_CREDENTIAL_REQUIRED",
-                503
-            );
+        if (!isCustomProvider(provider)) {
+            if (provider !== "deepgram") return null;
+            if (!row.secret_ciphertext) {
+                throw voiceProviderError(
+                    "Deepgram 已启用，但 API Key 尚未配置。",
+                    "VOICE_PROVIDER_CREDENTIAL_REQUIRED",
+                    503
+                );
+            }
+            let apiKey;
+            try {
+                apiKey = decryptCredential(row.secret_ciphertext, env);
+            } catch {
+                throw voiceProviderError(
+                    "Deepgram API Key 无法解密，请重新填写。",
+                    "VOICE_PROVIDER_CREDENTIAL_INVALID",
+                    503
+                );
+            }
+            return {
+                ...normalizeDraft(row, row),
+                apiKey,
+                updatedAt: row.updated_at || ""
+            };
         }
-        let apiKey;
-        try {
-            apiKey = decryptCredential(row.secret_ciphertext, env);
-        } catch {
+        let apiKey = "";
+        if (row.secret_ciphertext) {
+            try {
+                apiKey = decryptCredential(row.secret_ciphertext, env);
+            } catch {
+                throw voiceProviderError(
+                    "语音 API Key 无法解密，请重新填写。",
+                    "VOICE_PROVIDER_CREDENTIAL_INVALID",
+                    503
+                );
+            }
+        }
+        const draft = normalizeDraft(row, row);
+        if (draft.provider !== "edge" && !draft.api_base_url) {
             throw voiceProviderError(
-                "Deepgram API Key 无法解密，请重新填写。",
-                "VOICE_PROVIDER_CREDENTIAL_INVALID",
+                "语音服务地址尚未配置。",
+                "VOICE_PROVIDER_BASE_URL_REQUIRED",
                 503
             );
         }
         return {
-            ...normalizeDraft(row, row),
-            apiKey,
+            ...toCustomRuntime(draft, apiKey),
             updatedAt: row.updated_at || ""
         };
     }
@@ -280,6 +467,36 @@ function createVoiceProviderCenter({
         if (draft.provider === "server_default") {
             try {
                 const speech = await synthesizeExpressiveSpeech({
+                    text,
+                    env,
+                    fetchImpl
+                });
+                if (existing) await writeStatus(existing, "connected");
+                return speech;
+            } catch (error) {
+                if (existing) {
+                    await writeStatus(existing, "error", safeStoredError(error));
+                }
+                throw error;
+            }
+        }
+        if (isCustomProvider(draft.provider)) {
+            const suppliedCredential = cleanText(input.api_key ?? input.credential, 8000);
+            let apiKey = suppliedCredential;
+            if (!apiKey && existing?.secret_ciphertext) {
+                try {
+                    apiKey = decryptCredential(existing.secret_ciphertext, env);
+                } catch {
+                    throw voiceProviderError(
+                        "语音 API Key 无法解密，请重新填写。",
+                        "VOICE_PROVIDER_CREDENTIAL_INVALID",
+                        503
+                    );
+                }
+            }
+            try {
+                const speech = await synthesizeCustomSpeech({
+                    providerConfig: toCustomRuntime(draft, apiKey),
                     text,
                     env,
                     fetchImpl
@@ -345,8 +562,12 @@ function createVoiceProviderCenter({
                     name: "Deepgram Aura-2",
                     regions: Object.freeze(["global", "eu", "au"]),
                     models: DEEPGRAM_MODELS
-                }
-            ]
+                },
+                ...customProviderCatalog()
+            ],
+            output_formats: OUTPUT_FORMATS,
+            base_url_public_allowed: String(env.VOICE_CUSTOM_ALLOW_PRIVATE || "") === "1",
+            http_allowed: String(env.VOICE_CUSTOM_ALLOW_HTTP || "") === "1"
         };
     }
 

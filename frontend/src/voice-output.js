@@ -3,7 +3,61 @@ import { apiFetch } from "./api.js";
 export const VOICE_OUTPUT_PROVIDERS = Object.freeze({
   serverDefault: "server_default",
   deepgram: "deepgram",
+  edge: "edge",
+  openai: "openai_compatible",
+  custom: "custom_http",
 });
+
+const CUSTOM_PROVIDER_IDS = new Set([
+  VOICE_OUTPUT_PROVIDERS.edge,
+  VOICE_OUTPUT_PROVIDERS.openai,
+  VOICE_OUTPUT_PROVIDERS.custom,
+]);
+
+/** 与后端 custom-speech.js 的 EDGE_VOICES 保持同步（用户可在后端目录接口升级）。 */
+export const EDGE_VOICES = Object.freeze([
+  { value: "zh-CN-XiaoxiaoNeural", label: "晓晓 · 温柔女声（推荐）", language: "zh" },
+  { value: "zh-CN-XiaoyiNeural", label: "晓伊 · 活泼女声", language: "zh" },
+  { value: "zh-CN-YunxiNeural", label: "云希 · 少年男声（推荐）", language: "zh" },
+  { value: "zh-CN-YunjianNeural", label: "云健 · 沉稳男声", language: "zh" },
+  { value: "zh-CN-YunyangNeural", label: "云扬 · 新闻男声", language: "zh" },
+  { value: "zh-CN-YunxiaNeural", label: "云夏 · 少年男声", language: "zh" },
+  { value: "zh-CN-liaoning-XiaobeiNeural", label: "晓北 · 东北女声", language: "zh" },
+  { value: "zh-CN-shaanxi-XiaoniNeural", label: "晓妮 · 陕西女声", language: "zh" },
+  { value: "zh-TW-HsiaoChenNeural", label: "曉臻 · 台湾女声", language: "zh" },
+  { value: "zh-TW-YunJheNeural", label: "雲哲 · 台湾男声", language: "zh" },
+  { value: "zh-HK-HiuGaaiNeural", label: "曉佳 · 粤语女声", language: "zh" },
+  { value: "zh-HK-WanLungNeural", label: "雲龍 · 粤语男声", language: "zh" },
+  { value: "en-US-AvaNeural", label: "Ava · 美式女声", language: "en" },
+  { value: "en-US-JennyNeural", label: "Jenny · 美式女声", language: "en" },
+  { value: "en-US-AriaNeural", label: "Aria · 美式女声", language: "en" },
+  { value: "en-US-GuyNeural", label: "Guy · 美式男声", language: "en" },
+  { value: "en-US-AndrewNeural", label: "Andrew · 美式男声", language: "en" },
+  { value: "en-GB-SoniaNeural", label: "Sonia · 英式女声", language: "en" },
+  { value: "en-GB-RyanNeural", label: "Ryan · 英式男声", language: "en" },
+  { value: "ja-JP-NanamiNeural", label: "七海 · 日语女声", language: "ja" },
+  { value: "ja-JP-KeitaNeural", label: "圭太 · 日语男声", language: "ja" },
+  { value: "ko-KR-SunHiNeural", label: "善喜 · 韩语女声", language: "ko" },
+  { value: "ko-KR-InJoonNeural", label: "仁俊 · 韩语男声", language: "ko" },
+  { value: "de-DE-KatjaNeural", label: "Katja · 德语女声", language: "de" },
+  { value: "fr-FR-DeniseNeural", label: "Denise · 法语女声", language: "fr" },
+  { value: "es-ES-ElviraNeural", label: "Elvira · 西语女声", language: "es" },
+]);
+
+export const OUTPUT_FORMATS = Object.freeze([
+  { value: "mp3", label: "MP3" },
+  { value: "opus", label: "Opus" },
+  { value: "aac", label: "AAC" },
+  { value: "flac", label: "FLAC" },
+  { value: "wav", label: "WAV" },
+  { value: "pcm", label: "PCM" },
+]);
+
+export const RESPONSE_MODES = Object.freeze([
+  { value: "binary", label: "直接返回音频二进制" },
+  { value: "json_base64", label: "JSON 里返回 base64" },
+  { value: "json_url", label: "JSON 里返回音频 URL" },
+]);
 
 export const DEEPGRAM_MODELS = Object.freeze([
   { value: "aura-2-thalia-en", label: "Thalia", language: "en" },
@@ -52,18 +106,43 @@ export const DEFAULT_VOICE_OUTPUT = Object.freeze({
   region: "global",
   speed: 1,
   credential: "",
+  api_base_url: "",
+  voice_id: "",
+  output_format: "mp3",
+  rate: 0,
+  pitch: 0,
+  volume: 0,
+  method: "POST",
+  headers_template: "",
+  body_template: "",
+  response_mode: "binary",
+  audio_path: "",
+  mime_type: "",
   credential_configured: false,
   configured: false,
   chinese_fallback_available: false,
   model_options: DEEPGRAM_MODELS,
   region_options: DEEPGRAM_REGION_OPTIONS,
+  edge_voices: EDGE_VOICES,
+  output_formats: OUTPUT_FORMATS,
+  response_modes: RESPONSE_MODES,
   available: true,
 });
 
 function cleanProvider(value) {
-  return value === VOICE_OUTPUT_PROVIDERS.deepgram
-    ? VOICE_OUTPUT_PROVIDERS.deepgram
-    : VOICE_OUTPUT_PROVIDERS.serverDefault;
+  const providers = [
+    VOICE_OUTPUT_PROVIDERS.serverDefault,
+    VOICE_OUTPUT_PROVIDERS.deepgram,
+    VOICE_OUTPUT_PROVIDERS.edge,
+    VOICE_OUTPUT_PROVIDERS.openai,
+    VOICE_OUTPUT_PROVIDERS.custom,
+  ];
+  return providers.includes(value) ? value : VOICE_OUTPUT_PROVIDERS.serverDefault;
+}
+
+function cleanNumber(value, fallback, min, max) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
 }
 
 function cleanRegion(value) {
@@ -80,6 +159,19 @@ function cleanSpeed(value) {
 function modelLanguage(value) {
   const language = String(value || "").split("-").at(-1)?.toLowerCase();
   return DEEPGRAM_LANGUAGE_LABELS[language] ? language : "en";
+}
+
+function normalizeEdgeVoices(source) {
+  const values = Array.isArray(source) && source.length > 0 ? source : EDGE_VOICES;
+  return values.flatMap((item) => {
+    const value = String(item?.value || item?.id || item || "").trim();
+    if (!value) return [];
+    return [{
+      value,
+      label: String(item?.label || value),
+      language: String(item?.language || "zh"),
+    }];
+  });
 }
 
 function normalizeModelOptions(source, currentModel) {
@@ -128,12 +220,24 @@ export function normalizeVoiceOutput(source = {}) {
   const enabled = value.enabled !== false;
   const credentialConfigured =
     value.credential_configured === true || value.api_key_configured === true;
+  const rawModel = String(value.model || value.voice || "").trim();
   const model =
-    String(value.model || value.voice || DEFAULT_VOICE_OUTPUT.model).trim() ||
-    DEFAULT_VOICE_OUTPUT.model;
+    rawModel ||
+    (provider === VOICE_OUTPUT_PROVIDERS.deepgram
+      ? DEFAULT_VOICE_OUTPUT.model
+      : provider === VOICE_OUTPUT_PROVIDERS.openai
+        ? "tts-1"
+        : "");
+  const apiBaseUrl = String(value.api_base_url || "").trim();
+  const voiceId = String(value.voice_id || value.voice || "").trim();
   const configured =
     value.configured === true ||
     value.ready === true ||
+    (provider === VOICE_OUTPUT_PROVIDERS.edge && enabled) ||
+    ((provider === VOICE_OUTPUT_PROVIDERS.openai ||
+      provider === VOICE_OUTPUT_PROVIDERS.custom) &&
+      enabled &&
+      Boolean(apiBaseUrl)) ||
     (provider === VOICE_OUTPUT_PROVIDERS.deepgram &&
       enabled &&
       credentialConfigured &&
@@ -141,15 +245,45 @@ export function normalizeVoiceOutput(source = {}) {
   const providerEntry = Array.isArray(source?.providers)
     ? source.providers.find((item) => item?.id === "deepgram")
     : null;
+  const edgeEntry = Array.isArray(source?.providers)
+    ? source.providers.find((item) => item?.id === "edge")
+    : null;
   const region = cleanRegion(value.region);
+  const edgeVoices = normalizeEdgeVoices(
+    value.edge_voices || source.edge_voices || edgeEntry?.voices || EDGE_VOICES,
+  );
+  const voiceOptions = Array.isArray(value.voice_options)
+    ? value.voice_options
+    : edgeVoices;
 
   return {
     provider,
     enabled,
-    model,
+    model: rawModel || model || voiceId,
     region,
-    speed: cleanSpeed(value.speed),
+    speed:
+      provider === VOICE_OUTPUT_PROVIDERS.deepgram
+        ? cleanSpeed(value.speed)
+        : cleanNumber(value.speed, 1, 0.25, 4),
     credential: "",
+    api_base_url: apiBaseUrl,
+    voice_id: voiceId || (provider === VOICE_OUTPUT_PROVIDERS.edge ? EDGE_VOICES[0].value : ""),
+    output_format: String(value.output_format || "mp3"),
+    rate: cleanNumber(value.rate, 0, -50, 50),
+    pitch: cleanNumber(value.pitch, 0, -50, 50),
+    volume: cleanNumber(value.volume, 0, -50, 50),
+    method: ["GET", "POST", "PUT", "PATCH"].includes(
+      String(value.method || "POST").toUpperCase(),
+    )
+      ? String(value.method || "POST").toUpperCase()
+      : "POST",
+    headers_template: String(value.headers_template || ""),
+    body_template: String(value.body_template || ""),
+    response_mode: RESPONSE_MODES.some((item) => item.value === value.response_mode)
+      ? value.response_mode
+      : "binary",
+    audio_path: String(value.audio_path || ""),
+    mime_type: String(value.mime_type || ""),
     credential_configured: credentialConfigured,
     configured,
     chinese_fallback_available: value.chinese_fallback_available === true,
@@ -161,6 +295,13 @@ export function normalizeVoiceOutput(source = {}) {
       value.region_options || source.region_options || providerEntry?.regions,
       region,
     ),
+    edge_voices: edgeVoices,
+    voice_options: voiceOptions,
+    output_formats: OUTPUT_FORMATS,
+    response_modes: RESPONSE_MODES,
+    custom_providers: Array.isArray(source?.providers)
+      ? source.providers.filter((item) => CUSTOM_PROVIDER_IDS.has(item?.id))
+      : [],
     available: source.available !== false,
   };
 }
@@ -199,10 +340,26 @@ export function voiceOutputPayload(source = {}) {
     region: normalized.region,
     speed: normalized.speed,
     credential: String(source.credential || "").trim(),
+    api_base_url: normalized.api_base_url,
+    voice_id: normalized.voice_id,
+    output_format: normalized.output_format,
+    rate: normalized.rate,
+    pitch: normalized.pitch,
+    volume: normalized.volume,
+    method: normalized.method,
+    headers_template: normalized.headers_template,
+    body_template: normalized.body_template,
+    response_mode: normalized.response_mode,
+    audio_path: normalized.audio_path,
+    mime_type: normalized.mime_type,
   };
 }
 
 export function previewTextForModel(model) {
+  const id = String(model || "").toLowerCase();
+  if (id.startsWith("zh") || id.includes("-zh-") || id.includes("xiaoxiao") || id.includes("yunxi")) {
+    return "你回来啦。我把今天想说的话，都藏在这句轻轻的问候里。";
+  }
   const samples = {
     en: "Welcome home. I saved a little warmth in my voice for you.",
     es: "Bienvenido a casa. Guardé un poco de calidez en mi voz para ti.",
@@ -220,10 +377,10 @@ export function shouldRequestVoiceOutputForText(text, source = null) {
   if (!value) return false;
   if (!source) return true;
   const config = normalizeVoiceOutput(source);
-  if (
-    config.provider !== VOICE_OUTPUT_PROVIDERS.deepgram ||
-    config.chinese_fallback_available
-  ) {
+  if (config.provider !== VOICE_OUTPUT_PROVIDERS.deepgram) {
+    return true;
+  }
+  if (config.chinese_fallback_available) {
     return true;
   }
 
@@ -285,6 +442,16 @@ export function voiceOutputServiceState(source, fallback = {}) {
       expressiveChineseFallbackAvailable: config.chinese_fallback_available,
       expressiveApiKeyConfigured: config.credential_configured,
       expressiveVoiceConfigured: Boolean(config.model),
+      expressiveProvider: config.provider,
+    };
+  }
+  if (CUSTOM_PROVIDER_IDS.has(config.provider)) {
+    return {
+      expressiveEnabled: true,
+      expressiveAvailable: config.configured,
+      expressiveChineseFallbackAvailable: true,
+      expressiveApiKeyConfigured: config.credential_configured,
+      expressiveVoiceConfigured: Boolean(config.voice_id || config.model),
       expressiveProvider: config.provider,
     };
   }

@@ -71,6 +71,10 @@ const {
     deepgramModelLanguage,
     synthesizeDeepgramSpeech
 } = require("./deepgram-speech");
+const {
+    isCustomProvider,
+    synthesizeCustomSpeech
+} = require("./custom-speech");
 
 function serviceUnavailable(message) {
     const error = new Error(message);
@@ -395,6 +399,14 @@ async function synthesizeExpressiveSpeech({
         error.status = 409;
         error.code = "VOICE_OUTPUT_DISABLED";
         throw error;
+    }
+    if (isCustomProvider(providerConfig?.provider)) {
+        return synthesizeCustomSpeech({
+            providerConfig,
+            text,
+            env,
+            fetchImpl
+        });
     }
     if (providerConfig?.provider === "deepgram") {
         const speechText = prepareSpeechText(text, MAX_DEEPGRAM_CHARACTERS);

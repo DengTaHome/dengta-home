@@ -96,8 +96,72 @@ assert.deepEqual(
     region: "eu",
     speed: 1.5,
     credential: "dg-secret",
+    api_base_url: "",
+    voice_id: "",
+    output_format: "mp3",
+    rate: 0,
+    pitch: 0,
+    volume: 0,
+    method: "POST",
+    headers_template: "",
+    body_template: "",
+    response_mode: "binary",
+    audio_path: "",
+    mime_type: "",
   },
 );
+
+// 自定义语音服务商：Edge 免 Key、OpenAI 兼容、自定义 HTTP
+const edgeConfig = normalizeVoiceOutput({
+  profile: {
+    provider: "edge",
+    enabled: true,
+    voice_id: "zh-CN-YunxiNeural",
+    output_format: "mp3",
+  },
+});
+assert.equal(edgeConfig.provider, "edge");
+assert.equal(edgeConfig.voice_id, "zh-CN-YunxiNeural");
+assert.equal(edgeConfig.configured, true);
+assert.equal(voiceOutputServiceState(edgeConfig).expressiveProvider, "edge");
+assert.match(previewTextForModel(edgeConfig.model || edgeConfig.voice_id), /你回来啦/);
+
+const openaiConfig = normalizeVoiceOutput({
+  profile: {
+    provider: "openai_compatible",
+    enabled: true,
+    api_base_url: "https://tts.example.com/v1",
+    model: "tts-1",
+    voice_id: "alloy",
+    output_format: "opus",
+    credential_configured: true,
+  },
+});
+assert.equal(openaiConfig.configured, true);
+assert.equal(openaiConfig.api_base_url, "https://tts.example.com/v1");
+assert.equal(openaiConfig.output_format, "opus");
+assert.equal(voiceOutputServiceState(openaiConfig).expressiveAvailable, true);
+
+const customConfig = normalizeVoiceOutput({
+  profile: {
+    provider: "custom_http",
+    enabled: true,
+    api_base_url: "https://tts.example.com/speak",
+    method: "PUT",
+    response_mode: "json_base64",
+    body_template: '{"text":"{{text_json}}"}',
+  },
+});
+assert.equal(customConfig.configured, true);
+assert.equal(customConfig.method, "PUT");
+assert.equal(customConfig.response_mode, "json_base64");
+assert.equal(voiceOutputPayload(customConfig).body_template, '{"text":"{{text_json}}"}');
+
+assert.match(component, /Edge 免费神经语音/);
+assert.match(component, /OpenAI 兼容 TTS/);
+assert.match(component, /自定义 HTTP 语音接口/);
+assert.match(component, /请求体模板/);
+
 
 assert.deepEqual(voiceOutputServiceState(deepgram), {
   expressiveEnabled: true,

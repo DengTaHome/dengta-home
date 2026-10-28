@@ -1,0 +1,16 @@
+{
+  "name": "qq-bridge-recovery",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QQ 接入栈恢复工具：mock OneBot v11 服务（用于不登录 QQ 的自检）+ 启动/停止脚本。不参与 DSH 运行时，仅本地验证用。",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "mock": "node mock-onebot.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

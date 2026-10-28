@@ -559,3 +559,49 @@ Kiwi × MMTR P1（multitenant PG 表 + 回填 + consolidate）现在具备本地
 P1 代码在 fork 与 DengTa 镜像/patch 中；真正上线需要在部署环境执行
 `python -m mmtr_brain.p1 migrate` + 配置每日 consolidate，并决定 kiwi-mem 部署位置
 （仓库仍是用户既有部署，本轮未触碰生产）。
+
+---
+
+## 轮次 16（2026-10-28 · 自定义语音接口 + QQ 接入栈恢复侦察）
+
+### 自定义语音接口（BYO TTS，已实现并提交）
+- 新增 `backend/services/custom-speech.js`：三种用户自带发声方式
+  - `edge`：微软 Edge Read Aloud 免费神经语音（无需 Key，中文自然），Node 内置 WebSocket
+    实现 speech.config/SSML/二进制音频帧/turn.end，含 `Sec-MS-GEC` 令牌；
+  - `openai_compatible`：任意兼容 `POST /v1/audio/speech` 的服务（Base URL + Key + model/voice/format/speed）；
+  - `custom_http`：任意 HTTP TTS（方法/请求头/请求体模板；二进制、JSON base64、JSON 音频 URL 三种返回）。
+- 安全：用户地址由服务端请求 → 默认仅 https 公网，禁 localhost/私网/云元数据（SSRF）；
+  自托管用 `VOICE_CUSTOM_ALLOW_HTTP=1` / `VOICE_CUSTOM_ALLOW_PRIVATE=1` 放行本地 TTS；
+  15MB 音频上限、超时、模板限长；Key 沿用 AES-256-GCM 加密，接口只回 `credential_configured`。
+- `voice-provider-center.js`：provider 扩展、按 provider 校验字段、保存/解析/试听、
+  `status.providers` 返回 Edge 音色目录与自定义 provider 元数据；`publicVoiceProviderError` 映射新错误码。
+- `expressive-speech.js`：`/voice/speech` 分流到自定义 provider（原有 MiniMax/Deepgram 不变）。
+- `server.js`：语音缓存键补 provider/voice/base/format，切换配置不再串音。
+- 前端：`voice-output.js` + `VoiceProviderSettings.jsx` 支持 5 种发声来源（服务器默认 / Deepgram /
+  Edge 免费 / OpenAI 兼容 / 自定义 HTTP），条件字段（音色、地址、Key、模型、格式、模板、返回方式）。
+- 迁移：`backend/supabase/065_custom_voice_providers.sql`（扩展 provider check + 11 个字段；
+  部署前需执行）。
+- 文档：`docs/VOICE-CUSTOM-PROVIDERS.md`；`backend/.env.example` 增加两个安全开关与超时/限长。
+
+### 验证（本轮实测）
+- `node --test test/custom-speech.test.js` ✓（Edge 假 WebSocket 帧解析、空音频、SSRF、体积、模板、
+  三种返回、超时/上游错误）
+- `node --test test/voice-provider-custom.test.js` ✓（保存 Edge/OpenAI/自定义、Key 不覆盖旧密文、
+  试听写入 connected、非法地址/请求头拒绝）
+- 既有语音测试 7 个文件全绿；前端 `voice-output`/`voice` 测试 + `vite build` 通过。
+- 本地真实 HTTP TTS 端到端探针：保存 custom_http → testProfile 返回音频
+  `LOCAL-TTS:灯塔你好`，`last_status=connected`；默认 env 下同一地址被 SSRF 拦截。
+- Edge 真实外呼在本机被网络策略阻断（`CUSTOM_TTS_EDGE_ERROR` 1s），已用假 WebSocket 单测覆盖；
+  生产需服务器可直连 `speech.platform.bing.com`，否则用户可改用 openai/custom 接自己的服务。
+
+### QQ 接入栈恢复（进行中）
+- 已定位并克隆对应开源项目到 `_refs/qq/`：
+  - `Derpyu520/qq-bridge`（SnowLuma OneBot v11 ↔ DSH，含 MCP 工具、语音脚本、config 示例）
+  - `leonathan369-droid/qq-bridge`（DSH 设置页控制中心 + LLBot 适配衍生版）
+  - `wufa-cat/dsh-qq-bot`（DSH 插件版 QQ bot，NapCat/OneBot v11）
+- 本机无 qqbridge/snowluma 残留配置（backup/_refs/.dsh/进程/端口均查过），用户此前部署大概率在
+  另一环境；恢复方式 = 克隆的 qq-bridge + SnowLuma（或 dsh-qq-bot + NapCat）。
+- 并行队友正在安装依赖、跑 qq-bridge 自检、写 `tools/qq-bridge-recovery/` 启动脚本与
+  `docs/QQ-BRIDGE-RECOVERY.md`；完成后补记验证结果。
+- QQ ↔ DengTa 的业务桥接尚未做：qq-bridge 负责 QQ↔DSH；让 QQ 直接和 DengTa 聊天需要单独适配
+  （OneBot → DengTa `/api/v2`），列入下一轮。

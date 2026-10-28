@@ -10,12 +10,26 @@ import {
 } from "./voice-output";
 
 function providerLabel(value) {
-  return value === VOICE_OUTPUT_PROVIDERS.deepgram
-    ? "Deepgram Aura"
-    : "服务器默认语音";
+  return {
+    [VOICE_OUTPUT_PROVIDERS.deepgram]: "Deepgram Aura",
+    [VOICE_OUTPUT_PROVIDERS.edge]: "Edge 免费神经语音",
+    [VOICE_OUTPUT_PROVIDERS.openai]: "OpenAI 兼容 TTS",
+    [VOICE_OUTPUT_PROVIDERS.custom]: "自定义 HTTP 语音",
+  }[value] || "服务器默认语音";
 }
 
 function connectionMessage(config) {
+  if (config.provider === VOICE_OUTPUT_PROVIDERS.edge) {
+    return "已选择 Edge 免费神经语音：无需 API Key，直接保存即可试听。";
+  }
+  if (
+    config.provider === VOICE_OUTPUT_PROVIDERS.openai ||
+    config.provider === VOICE_OUTPUT_PROVIDERS.custom
+  ) {
+    return config.configured
+      ? "已保存你自己的语音接口；试听会直接调用它。"
+      : "请填写语音服务地址后再保存。";
+  }
   if (config.provider !== VOICE_OUTPUT_PROVIDERS.deepgram) {
     return config.configured
       ? "当前沿用已连接的服务器默认语音。"
@@ -162,6 +176,15 @@ export default function VoiceProviderSettings({
             <option value={VOICE_OUTPUT_PROVIDERS.deepgram}>
               Deepgram Aura
             </option>
+            <option value={VOICE_OUTPUT_PROVIDERS.edge}>
+              Edge 免费神经语音（无需 Key）
+            </option>
+            <option value={VOICE_OUTPUT_PROVIDERS.openai}>
+              OpenAI 兼容 TTS（自带服务）
+            </option>
+            <option value={VOICE_OUTPUT_PROVIDERS.custom}>
+              自定义 HTTP 语音接口
+            </option>
           </select>
           <small>设置按登录账号与伴侣隔离；切换账号后会读取该账号自己的选择。</small>
         </label>
@@ -256,6 +279,235 @@ export default function VoiceProviderSettings({
             </label>
           </div>
         </>
+      )}
+
+      {draft.provider === VOICE_OUTPUT_PROVIDERS.edge && (
+        <div className="voice-provider-form-grid">
+          <label>
+            Edge 音色
+            <select
+              value={draft.voice_id}
+              onChange={(event) => update("voice_id", event.target.value)}
+              disabled={busy}
+            >
+              {(draft.edge_voices || []).map((voice) => (
+                <option value={voice.value} key={voice.value}>
+                  {voice.label}
+                </option>
+              ))}
+            </select>
+            <small>免费音色由微软 Edge Read Aloud 提供，无需 API Key，中文自然。</small>
+          </label>
+          <label>
+            语速微调 · {Number(draft.rate || 0)}%
+            <input
+              type="range"
+              min="-30"
+              max="30"
+              step="5"
+              value={draft.rate}
+              onChange={(event) => update("rate", Number(event.target.value))}
+              disabled={busy}
+            />
+            <small>0 为原始语速；正数更快，负数更慢。</small>
+          </label>
+        </div>
+      )}
+
+      {draft.provider === VOICE_OUTPUT_PROVIDERS.openai && (
+        <div className="voice-provider-form-grid">
+          <label>
+            语音服务地址
+            <input
+              type="url"
+              value={draft.api_base_url}
+              onChange={(event) => update("api_base_url", event.target.value)}
+              placeholder="https://api.openai.com/v1 或你的中转站地址"
+              spellCheck="false"
+              disabled={busy}
+            />
+            <small>兼容 /v1/audio/speech 的服务都可以；例如官方、硅基流动或自建网关。</small>
+          </label>
+          <label>
+            API Key
+            <input
+              type="password"
+              value={draft.credential || ""}
+              onChange={(event) => update("credential", event.target.value)}
+              placeholder={
+                draft.credential_configured
+                  ? "已安全保存；留空会保留原密钥"
+                  : "粘贴你的语音服务 API Key"
+              }
+              autoComplete="off"
+              spellCheck="false"
+              disabled={busy}
+            />
+            <small>只加密保存在当前账号下，不会回读显示。</small>
+          </label>
+          <label>
+            模型
+            <input
+              type="text"
+              value={draft.model}
+              onChange={(event) => update("model", event.target.value)}
+              placeholder="tts-1 / tts-1-hd / 服务商模型名"
+              spellCheck="false"
+              disabled={busy}
+            />
+            <small>不同服务商模型名不同，按你的服务商文档填写。</small>
+          </label>
+          <label>
+            音色
+            <input
+              type="text"
+              value={draft.voice_id}
+              onChange={(event) => update("voice_id", event.target.value)}
+              placeholder="alloy / nova / 你的音色 ID"
+              spellCheck="false"
+              disabled={busy}
+            />
+          </label>
+          <label>
+            输出格式
+            <select
+              value={draft.output_format}
+              onChange={(event) => update("output_format", event.target.value)}
+              disabled={busy}
+            >
+              {(draft.output_formats || []).map((format) => (
+                <option value={format.value} key={format.value}>
+                  {format.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            语速 · {Number(draft.speed || 1).toFixed(2)}×
+            <input
+              type="range"
+              min="0.25"
+              max="4"
+              step="0.05"
+              value={draft.speed}
+              onChange={(event) => update("speed", Number(event.target.value))}
+              disabled={busy}
+            />
+          </label>
+        </div>
+      )}
+
+      {draft.provider === VOICE_OUTPUT_PROVIDERS.custom && (
+        <div className="voice-provider-form-grid">
+          <label>
+            接口地址
+            <input
+              type="url"
+              value={draft.api_base_url}
+              onChange={(event) => update("api_base_url", event.target.value)}
+              placeholder="https://your-tts.example.com/synthesize"
+              spellCheck="false"
+              disabled={busy}
+            />
+            <small>后端会直接请求这个地址；默认只允许 https 公网地址。</small>
+          </label>
+          <label>
+            请求方法
+            <select
+              value={draft.method}
+              onChange={(event) => update("method", event.target.value)}
+              disabled={busy}
+            >
+              {["POST", "GET", "PUT", "PATCH"].map((method) => (
+                <option value={method} key={method}>
+                  {method}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Authorization / API Key（可选）
+            <input
+              type="password"
+              value={draft.credential || ""}
+              onChange={(event) => update("credential", event.target.value)}
+              placeholder={
+                draft.credential_configured
+                  ? "已安全保存；留空会保留原密钥"
+                  : "可选：会作为 Bearer 发送"
+              }
+              autoComplete="off"
+              spellCheck="false"
+              disabled={busy}
+            />
+          </label>
+          <label>
+            输出格式
+            <select
+              value={draft.output_format}
+              onChange={(event) => update("output_format", event.target.value)}
+              disabled={busy}
+            >
+              {(draft.output_formats || []).map((format) => (
+                <option value={format.value} key={format.value}>
+                  {format.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="voice-provider-wide">
+            请求头 JSON（可选）
+            <textarea
+              value={draft.headers_template}
+              onChange={(event) => update("headers_template", event.target.value)}
+              placeholder='{"X-Api-Key": "{{api_key}}"}'
+              rows={2}
+              spellCheck="false"
+              disabled={busy}
+            />
+          </label>
+          <label className="voice-provider-wide">
+            请求体模板
+            <textarea
+              value={draft.body_template}
+              onChange={(event) => update("body_template", event.target.value)}
+              placeholder='{"text": "{{text_json}}", "voice": "{{voice}}"}'
+              rows={3}
+              spellCheck="false"
+              disabled={busy}
+            />
+            <small>
+              可用占位符：{"{{text}}"}、{"{{text_json}}"}、{"{{voice}}"}、{"{{model}}"}、
+              {"{{api_key}}"}、{"{{format}}"}。
+            </small>
+          </label>
+          <label>
+            返回方式
+            <select
+              value={draft.response_mode}
+              onChange={(event) => update("response_mode", event.target.value)}
+              disabled={busy}
+            >
+              {(draft.response_modes || []).map((mode) => (
+                <option value={mode.value} key={mode.value}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            音频字段路径
+            <input
+              type="text"
+              value={draft.audio_path}
+              onChange={(event) => update("audio_path", event.target.value)}
+              placeholder="data.audio / data.url"
+              spellCheck="false"
+              disabled={busy}
+            />
+            <small>只在返回 JSON（base64 或音频 URL）时需要。</small>
+          </label>
+        </div>
       )}
 
       {feedback && (

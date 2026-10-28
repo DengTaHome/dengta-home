@@ -6498,6 +6498,9 @@ app.post("/voice/speech", async (req, res, next) => {
             messageId,
             providerConfig?.provider || "global-minimax",
             providerConfig?.model || "",
+            providerConfig?.voiceId || providerConfig?.voice_id || "",
+            providerConfig?.apiBaseUrl || providerConfig?.api_base_url || "",
+            providerConfig?.outputFormat || providerConfig?.output_format || "",
             providerConfig?.region || "",
             providerConfig?.speed || "",
             providerConfig?.updatedAt || ""
