@@ -1031,3 +1031,21 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   近两天所有 health/publish run 同样失败。计费 API 显示 10 月 Linux Actions 2814 分钟，
   判断为私有仓库 Actions 额度/支出上限耗尽。需用户提高 GitHub Actions spending limit。
 - 源码/CI 细节写入 `docs/ANDROID-RELEASE.md`；token 已存 `_credentials`（仓库外），建议用后轮换。
+
+## 轮次 32（2026-10-29 · MCP 应用目录上线 + 网易云 MCP 跑通 + Vercel 部署修复）
+
+- 生产前端私有仓库可访问后，在 `McpDeviceCenter` 增加 **MCP 应用目录**卡片（X / 网易云）：
+  从 `/api/v2/mcp/catalog` 读取，含真实仓库、传输/鉴权、分步教程、安全提示与“使用此应用”预填；
+  同步修复 `vercel.json` 两个 CSP hash。提交 `f048b16`（后因 Vercel git author 拦截重写为 `65eeb4f`，
+  author 改为 `buyaocaowo555-9312 <tnineninet@gmail.com>`），Vercel production **READY**，
+  线上 `McpDeviceCenter-MQCuCaU6.js` 已含“MCP 应用目录”。
+- **Vercel BLOCKED 根因**：提交 author 为 `dengta-home@local`，Vercel 不认；改成账号邮箱后正常。
+  以后前端仓库提交必须用该 author。
+- 网易云 MCP：
+  - 本机 clone `Anko3o/Music-Mcp-Netease`；启动 player `:9090` + MCP `:18012`；
+  - cloudflared quick tunnel 暴露 `https://.../mcp`，DengTa discover 成功发现 **12 个工具**；
+  - 已创建连接 `网易云音乐 · 自托管播放器（Anko3o）`（id `13ea4ba7…`），
+    启用并只允许 6 个只读工具（song_search/lyric_read/memo_read/her_recent/her_netease/song_comments）。
+  - 用户需在播放器网页扫码登录（本机 9090，已打开）；quick tunnel 重启会换 URL，长期需 VPS/命名隧道。
+- GitHub Actions：前端仓库 workflow 仍因额度/支出上限失败（见轮次 31），Android 发版等用户提高 spending limit。
+- 用户新 GitHub classic token 已存 `_credentials`（仓库外），发版后建议 revoke。
