@@ -1,29 +1,37 @@
 {
-    "repos":  [
-                  "DengTaHome/dengta-home",
-                  "DengTaHome/dengta-home-backend",
-                  "DengTaHome/dengta-home-frontend",
-                  "DengTaHome/kiwi-mem-dengta",
-                  "Geokkk/wechat-ilink-bridge-hardened",
-                  "DONGH4O/wechat-ilink-bridge",
-                  "SnowLuma/SnowLuma",
-                  "yxiy171866-boop/x-twikit-mcp",
-                  "Anko3o/Music-Mcp-Netease",
-                  "Cheiineeey/netease-music-mcp",
-                  "Vael-KY/netease-music-mcp",
-                  "ELDment/Meting-Agent",
-                  "Derpyu520/qq-bridge",
-                  "0xblewalker/dayflow"
-              ],
-    "notes":  {
-                  "DengTaHome/dengta-home-frontend":  "Vercel 生产前端仓库；当前 PAT 404，需权限",
-                  "SnowLuma/SnowLuma":  "QQ 注入运行时；升级前先确认兼容版本",
-                  "yxiy171866-boop/x-twikit-mcp":  "stdio MCP，需要 HTTP 包装后接入 DengTa",
-                  "Anko3o/Music-Mcp-Netease":  "HTTP MCP，自建播放器 + MUSIC_U",
-                  "Cheiineeey/netease-music-mcp":  "网易云 MCP 备选项目",
-                  "Vael-KY/netease-music-mcp":  "网易云 MCP 备选项目",
-                  "ELDment/Meting-Agent":  "多音乐平台 API 代理，可作网易云备选",
-                  "Derpyu520/qq-bridge":  "DSH↔QQ 桥接上游；升级前跑 verify:adaptation",
-                  "0xblewalker/dayflow":  "时间胶囊/注意力层参考项目；只借鉴设计，不直接嵌入"
-              }
+    "repos": [
+        "DengTaHome/dengta-home",
+        "DengTaHome/dengta-home-backend",
+        "DengTaHome/dengta-home-frontend",
+        "DengTaHome/kiwi-mem-dengta",
+        "Geokkk/wechat-ilink-bridge-hardened",
+        "DONGH4O/wechat-ilink-bridge",
+        "SnowLuma/SnowLuma",
+        "yxiy171866-boop/x-twikit-mcp",
+        "Anko3o/Music-Mcp-Netease",
+        "Cheiineeey/netease-music-mcp",
+        "Vael-KY/netease-music-mcp",
+        "ELDment/Meting-Agent",
+        "Derpyu520/qq-bridge",
+        "0xblewalker/dayflow",
+        "Cami-Ose/muse-toy-broadcaster",
+        "Cami-Ose/navi-shell"
+    ],
+    "notes": {
+        "DengTaHome/dengta-home-frontend": "Vercel 生产前端仓库；已可访问，提交 author 必须用账号邮箱，否则 Vercel BLOCKED",
+        "SnowLuma/SnowLuma": "QQ 注入运行时；升级前先确认兼容版本",
+        "yxiy171866-boop/x-twikit-mcp": "stdio MCP，需要 HTTP 包装后接入 DengTa",
+        "Anko3o/Music-Mcp-Netease": "HTTP MCP，自建播放器 + MUSIC_U",
+        "Cheiineeey/netease-music-mcp": "网易云 MCP 备选项目",
+        "Vael-KY/netease-music-mcp": "网易云 MCP 备选项目",
+        "ELDment/Meting-Agent": "多音乐平台 API 代理，可作网易云备选",
+        "Derpyu520/qq-bridge": "DSH↔QQ 桥接上游；升级前跑 verify:adaptation",
+        "0xblewalker/dayflow": "时间胶囊/注意力层参考项目；只借鉴设计，不直接嵌入",
+        "Cami-Ose/muse-toy-broadcaster": "MIT；Android BLE 广播器（MuSe/Love Spouse），可构建独立 APK",
+        "Cami-Ose/navi-shell": "MIT；高德导航 Android App，需要高德 key + 自建 /access /asr /proxy_chat /tts 后端",
+        "cnb:dengtahome/dengtahome": "腾讯 CNB 前端镜像仓库；GitHub Actions sync-cnb 在额度恢复后自动推送"
+    },
+    "cnbRepos": [
+        "dengtahome/dengtahome"
+    ]
 }

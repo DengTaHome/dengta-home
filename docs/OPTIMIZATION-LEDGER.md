@@ -1049,3 +1049,26 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - 用户需在播放器网页扫码登录（本机 9090，已打开）；quick tunnel 重启会换 URL，长期需 VPS/命名隧道。
 - GitHub Actions：前端仓库 workflow 仍因额度/支出上限失败（见轮次 31），Android 发版等用户提高 spending limit。
 - 用户新 GitHub classic token 已存 `_credentials`（仓库外），发版后建议 revoke。
+
+## 轮次 33（2026-10-29 · Cami-Ose 两项目深审 + 构建 + CNB/11 月部署计划）
+
+- 深审并克隆 `Cami-Ose/muse-toy-broadcaster`、`Cami-Ose/navi-shell`（均 MIT）。
+- **muse-toy-broadcaster**：上游缺 `app/src/main/res/`，原样构建失败（缺 ic_launcher/string/theme/layout）。
+  本地补齐最小 `res/` 后 `assembleDebug`/`assembleRelease` 均通过；用独立 keystore 签名
+  `DengTa-MuseToy-1.0.apk`（0.63MB，v2/v3 验证通过），已上传到前端私有仓库 release
+  `companion-muse-v1.0` 作私有备份。安全发现：cleartext SSE 允许、Token 明文、BLE 无认证、强度映射未标定。
+- **navi-shell**：`assembleDebug` 成功（1m54s）；但缺高德 Amap Key（绑定包名+签名 SHA1）
+  和 `/access` `/asr` `/proxy_chat` `/tts` `/api/navi/*` 后端，因此暂不能开箱给所有用户；
+  方案 A 用户自带 key、B DengTa 后端适配、C 并入主包，详见 `docs/COMPANION-APPS-REVIEW.md`。
+- 追踪：repo-watch 加入两个 Cami 仓库 + CNB `frontend-main`（当前 0d69ede），
+  运行成功 0 错误；`docs/REPO-WATCH.md` 已刷新。
+- **CNB 备份**：本地无 CNB 写 token，不能立即直推；已注册 11 月 1 日任务，
+  先跑 GitHub Actions `sync-cnb.yml` 用仓库 secrets 镜像；本地直推分支留在
+  `tools/deploy/nov1-deploy.ps1`（需 CNB_USERNAME/CNB_TOKEN）。
+- **11 月部署**：
+  - Windows 任务 `DengTaDeployNov1`，2026-11-01 08:10（Asia/Shanghai），交互式登录运行；
+  - DSH 定时提醒同时间，标题「执行 DengTa 发版与 CNB 同步」；
+  - 脚本会触发 sync-cnb + publish-android-apk、轮询、验证线上 feed、可选 CNB 直推。
+  - 详见 `docs/DEPLOY-SCHEDULE.md`。
+- 本轮前端 MCP 应用目录已上线，网易云 MCP（本机 quick tunnel）连接已启用 6 个只读工具；
+  这些仍是上一轮成果，不在本轮重复。

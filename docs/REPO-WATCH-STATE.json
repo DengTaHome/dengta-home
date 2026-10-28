@@ -1,16 +1,16 @@
 {
-  "updatedAt": "2026-10-28T17:06:44.085Z",
+  "updatedAt": "2026-10-28T17:45:54.045Z",
   "repos": {
     "DengTaHome/dengta-home": {
       "full_name": "DengTaHome/dengta-home",
       "stars": 4,
-      "pushed_at": "2026-10-28T16:58:49Z",
-      "commit_sha": "38f8f6a0",
-      "commit_message": "Publish Android release sop, QQ bridge review and safe autostart",
-      "commit_date": "2026-10-28T16:58:36Z",
+      "pushed_at": "2026-10-28T17:36:49Z",
+      "commit_sha": "1a262f5d",
+      "commit_message": "Record MCP catalog deployment and NetEase MCP connection",
+      "commit_date": "2026-10-28T17:36:46Z",
       "release_tag": "v2.13.43",
       "release_date": "2026-10-28T16:56:40Z",
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "DengTaHome/dengta-home-backend": {
       "full_name": "DengTaHome/dengta-home-backend",
@@ -21,7 +21,18 @@
       "commit_date": "2026-10-28T17:03:25Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
+    },
+    "DengTaHome/dengta-home-frontend": {
+      "full_name": "DengTaHome/dengta-home-frontend",
+      "stars": 0,
+      "pushed_at": "2026-10-28T17:33:10Z",
+      "commit_sha": "65eeb4ff",
+      "commit_message": "Add MCP app catalog cards with deployment tutorials",
+      "commit_date": "2026-10-28T17:33:08Z",
+      "release_tag": "",
+      "release_date": null,
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "DengTaHome/kiwi-mem-dengta": {
       "full_name": "DengTaHome/kiwi-mem-dengta",
@@ -32,7 +43,7 @@
       "commit_date": "2026-08-18T16:35:31Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "Geokkk/wechat-ilink-bridge-hardened": {
       "full_name": "Geokkk/wechat-ilink-bridge-hardened",
@@ -43,7 +54,7 @@
       "commit_date": "2026-10-28T08:49:56Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "DONGH4O/wechat-ilink-bridge": {
       "full_name": "DONGH4O/wechat-ilink-bridge",
@@ -54,40 +65,40 @@
       "commit_date": "2026-05-18T12:43:43Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "SnowLuma/SnowLuma": {
       "full_name": "SnowLuma/SnowLuma",
-      "stars": 3044,
+      "stars": 3049,
       "pushed_at": "2026-10-28T13:28:40Z",
       "commit_sha": "8ffd3142",
       "commit_message": "chore(release): v2.2.1",
       "commit_date": "2026-10-27T09:28:27Z",
       "release_tag": "v2.2.1",
       "release_date": "2026-10-27T09:35:00Z",
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "yxiy171866-boop/x-twikit-mcp": {
       "full_name": "yxiy171866-boop/x-twikit-mcp",
-      "stars": 8,
+      "stars": 9,
       "pushed_at": "2026-10-28T14:33:08Z",
       "commit_sha": "dc5c9352",
       "commit_message": "feat: include bookmark_count and views in get_tweet_by_id stats",
       "commit_date": "2026-10-28T14:33:06Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "Anko3o/Music-Mcp-Netease": {
       "full_name": "Anko3o/Music-Mcp-Netease",
-      "stars": 72,
+      "stars": 73,
       "pushed_at": "2026-10-27T17:58:35Z",
       "commit_sha": "06e5a258",
       "commit_message": "批注捆在歌词句上：每条带 line，卡片先放句子再放评论；MCP 的 line 单独递",
       "commit_date": "2026-10-27T17:58:33Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "Cheiineeey/netease-music-mcp": {
       "full_name": "Cheiineeey/netease-music-mcp",
@@ -98,7 +109,7 @@
       "commit_date": "2026-10-01T18:07:13Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "Vael-KY/netease-music-mcp": {
       "full_name": "Vael-KY/netease-music-mcp",
@@ -109,7 +120,7 @@
       "commit_date": "2026-10-12T13:20:40Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "ELDment/Meting-Agent": {
       "full_name": "ELDment/Meting-Agent",
@@ -120,29 +131,63 @@
       "commit_date": "2026-03-20T13:54:02Z",
       "release_tag": "v1.6.11",
       "release_date": "2026-03-20T13:54:40Z",
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "Derpyu520/qq-bridge": {
       "full_name": "Derpyu520/qq-bridge",
-      "stars": 3189,
+      "stars": 3190,
       "pushed_at": "2026-10-22T12:07:48Z",
       "commit_sha": "a49877f4",
       "commit_message": "chore: probe-tools 跑完自清理工作区与临时目录",
       "commit_date": "2026-10-22T12:05:47Z",
       "release_tag": "v0.2.1-r1",
       "release_date": "2026-10-22T12:07:57Z",
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     },
     "0xblewalker/dayflow": {
       "full_name": "0xblewalker/dayflow",
-      "stars": 44,
+      "stars": 45,
       "pushed_at": "2026-08-16T14:47:28Z",
       "commit_sha": "30b338c7",
       "commit_message": "Relicense current and future versions under AGPL-3.0-only",
       "commit_date": "2026-08-16T14:47:26Z",
       "release_tag": "v0.1.2",
       "release_date": "2026-08-09T19:41:04Z",
-      "checkedAt": "2026-10-28T17:06:44.085Z"
+      "checkedAt": "2026-10-28T17:45:54.045Z"
+    },
+    "Cami-Ose/muse-toy-broadcaster": {
+      "full_name": "Cami-Ose/muse-toy-broadcaster",
+      "stars": 3,
+      "pushed_at": "2026-08-27T09:20:43Z",
+      "commit_sha": "2c4a7af5",
+      "commit_message": "Initial commit: MuSe/Love Spouse BLE broadcaster",
+      "commit_date": "2026-08-27T08:53:00Z",
+      "release_tag": "v1.0",
+      "release_date": "2026-08-27T09:20:44Z",
+      "checkedAt": "2026-10-28T17:45:54.045Z"
+    },
+    "Cami-Ose/navi-shell": {
+      "full_name": "Cami-Ose/navi-shell",
+      "stars": 11,
+      "pushed_at": "2026-10-08T15:32:32Z",
+      "commit_sha": "1d198962",
+      "commit_message": "初始提交：navi-shell",
+      "commit_date": "2026-10-08T15:32:19Z",
+      "release_tag": "",
+      "release_date": null,
+      "checkedAt": "2026-10-28T17:45:54.045Z"
+    },
+    "dengtahome/dengtahome": {
+      "full_name": "dengtahome/dengtahome",
+      "host": "cnb.cool",
+      "stars": null,
+      "pushed_at": null,
+      "commit_sha": "0d69edea",
+      "commit_message": "CNB frontend-main HEAD",
+      "commit_date": null,
+      "release_tag": "",
+      "release_date": null,
+      "checkedAt": "2026-10-28T17:45:54.045Z"
     }
   }
 }

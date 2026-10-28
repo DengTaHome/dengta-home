@@ -113,21 +113,55 @@ for (const repo of config.repos) {
     console.log(JSON.stringify({ repo, commit: record.commit_sha, release: record.release_tag, changed: isChanged, firstSeen: !before }));
 }
 
+
+// CNB 镜像仓库：只做 HEAD 追踪（GitHub Actions 额度恢复后再同步）。
+for (const repo of (config.cnbRepos || [])) {
+    try {
+        const gitBin = process.env.GIT_BIN || (fs.existsSync("D:\\GZdeepseek\\_tools\\git\\cmd\\git.exe") ? "D:\\GZdeepseek\\_tools\\git\\cmd\\git.exe" : "git");
+        const args = ["ls-remote", `https://cnb.cool/${repo}.git`, "refs/heads/frontend-main"];
+        const proxy = process.env.CNB_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY || "";
+        if (proxy) args.unshift("-c", `http.proxy=${proxy}`, "-c", `https.proxy=${proxy}`);
+        const output = execFileSync(gitBin, args, { encoding: "utf8", windowsHide: true, timeout: 30000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+        const sha = String(output).trim().split(/\s+/)[0] || "";
+        const record = {
+            full_name: repo,
+            host: "cnb.cool",
+            stars: null,
+            pushed_at: null,
+            commit_sha: shortSha(sha),
+            commit_message: "CNB frontend-main HEAD",
+            commit_date: null,
+            release_tag: "",
+            release_date: null,
+            checkedAt: next.updatedAt,
+        };
+        const before = previous.repos?.[repo] || null;
+        const isChanged = before ? before.commit_sha !== record.commit_sha : false;
+        if (isChanged) changed += 1;
+        next.repos[repo] = record;
+        rows.push({ repo, record, isChanged, firstSeen: !before, note: config.notes?.[`cnb:${repo}`] || "", url: `https://cnb.cool/${repo}` });
+        console.log(JSON.stringify({ repo, host: "cnb.cool", commit: record.commit_sha, changed: isChanged, firstSeen: !before }));
+    } catch (error) {
+        errors += 1;
+        rows.push({ repo, error: String(error.message || error), url: `https://cnb.cool/${repo}` });
+    }
+}
+
 fs.writeFileSync(STATE_PATH, JSON.stringify(next, null, 2));
 const noteLines = rows.map((row) => row.note).filter(Boolean);
 const lines = [
-    "# GitHub 项目追踪（DengTa 生态）",
+    "# 项目追踪（GitHub + CNB，DengTa 生态）",
     "",
     `- 最近检查：${next.updatedAt}`,
-    `- 项目数：${config.repos.length}；本次变化：${changed}；错误：${errors}`,
+    `- 项目数：${config.repos.length + (config.cnbRepos || []).length}（GitHub ${config.repos.length} + CNB ${(config.cnbRepos || []).length}）；本次变化：${changed}；错误：${errors}`,
     "",
     "| 项目 | Stars | 最新 commit | 提交时间 | Release | 变化 |",
     "|---|---:|---|---|---|---|",
     ...rows.map((row) => {
-        if (row.error) return `| ${row.repo} | — | — | — | — | ⚠️ ${row.error} |`;
+        if (row.error) return `| [${row.repo}](${row.url}) | — | — | — | — | ⚠️ ${row.error} |`;
         const r = row.record;
         const badge = row.isChanged ? "🆕 有更新" : row.firstSeen ? "首次记录" : "无变化";
-        return `| [${row.repo}](https://github.com/${row.repo}) | ${r.stars} | \`${r.commit_sha}\` ${r.commit_message.replace(/\|/g, "\\|")} | ${formatDate(r.commit_date)} | ${r.release_tag || "—"} | ${badge} |`;
+        return `| [${row.repo}](${row.url || `https://github.com/${row.repo}`}) | ${r.stars ?? "—"} | \`${r.commit_sha}\` ${r.commit_message.replace(/\|/g, "\\|")} | ${formatDate(r.commit_date)} | ${r.release_tag || "—"} | ${badge} |`;
     }),
     "",
     "## 已记录的项目说明",
