@@ -78,7 +78,7 @@ function publicVoiceProfile(row) {
         rate: clampNumber(row.rate, 0, -50, 50),
         pitch: clampNumber(row.pitch, 0, -50, 50),
         volume: clampNumber(row.volume, 0, -50, 50),
-        speed: provider === "deepgram" || provider === "openai_compatible"
+        speed: provider === "deepgram"
             ? clampSpeed(row.speed)
             : clampNumber(row.speed, 1, 0.25, 4),
         method: String(row.method || "POST").toUpperCase(),
@@ -140,7 +140,8 @@ function safeStoredError(error) {
 function createVoiceProviderCenter({
     database,
     env = process.env,
-    fetchImpl = fetch
+    fetchImpl = fetch,
+    webSocketImpl = null
 } = {}) {
     if (!database || typeof database.from !== "function") {
         throw new TypeError("Voice provider center requires a scoped database.");
@@ -502,7 +503,8 @@ function createVoiceProviderCenter({
                     providerConfig: toCustomRuntime(draft, apiKey),
                     text,
                     env,
-                    fetchImpl
+                    fetchImpl,
+                    WebSocketImpl: webSocketImpl
                 });
                 if (existing) await writeStatus(existing, "connected");
                 return speech;

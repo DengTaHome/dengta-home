@@ -317,6 +317,10 @@ function parseMessengerText(text) {
             continue;
         }
         match = line.match(qqInline);
+        if (match && /^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE|NOTICE|FATAL)$/i.test(match[7].trim())) {
+            if (current) current.content += (current.content ? "\n" : "") + line.trim();
+            continue;
+        }
         if (match) {
             headerCount += 1;
             flush();
@@ -324,6 +328,10 @@ function parseMessengerText(text) {
             continue;
         }
         match = line.match(qqHeader);
+        if (match && /^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE|NOTICE|FATAL)$/i.test(match[7].trim())) {
+            if (current) current.content += (current.content ? "\n" : "") + line.trim();
+            continue;
+        }
         if (match) {
             headerCount += 1;
             flush();

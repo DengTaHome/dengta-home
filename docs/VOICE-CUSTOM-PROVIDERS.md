@@ -45,8 +45,9 @@ DengTa 不再只能等服务器配置 MiniMax：每个账号都可以把自己�
   （`localtest.me`/`nip.io` 类）；重定向逐跳校验且**禁止跨源重定向**，避免 API Key 与
   文本被带到别的域。仍有极小的 DNS TOCTOU 窗口，生产建议使用可信的语音服务地址。
 - 免费 Edge 走 `wss://api.msedgeservices.com` + Sec-MS-GEC v2（5 分钟桶），需要服务器能
-  直连微软端点（`ws` 包会带上 Edge 的 Host/Origin/UA 头）。本机网络无法验证真实外呼，
-  单测用协议夹具覆盖；若部署环境网络受限，改用 `openai_compatible`/`custom_http` 即可。
+  直连微软端点（`ws` 包会带上 Edge 的 Origin/UA 头）。**本机已用最终实现真实合成成功**
+  （zh-CN-XiaoxiaoNeural，27,504 字节 MP3，约 1.9s）；单测另有协议夹具与已知向量。
+  若部署环境网络受限，改用 `openai_compatible`/`custom_http` 即可。
 - 语速范围：Deepgram 仍限制 0.70–1.50；Edge/OpenAI 兼容/自定义 HTTP 允许 0.25–4.00，
   数据库约束已在 065 中放宽。
 

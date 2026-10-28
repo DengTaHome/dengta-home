@@ -47,6 +47,7 @@ function isValidSenderName(name, content) {
     if (/^\d+$/.test(sender)) return false;
     if (/^[\[(]/.test(sender)) return false;
     if (/https?:|www\./i.test(sender)) return false;
+    if (/^(INFO|WARN|WARNING|ERROR|DEBUG|TRACE|NOTICE|FATAL)$/i.test(sender)) return false;
     if (/^[\d\s:：/-]+$/.test(sender)) return false;
     // "时间 发送者" 或整行被误当发送者时，内容为空且名字里带时间 → 不是发送者
     if (!content && /\d{1,2}:\d{2}/.test(sender)) return false;

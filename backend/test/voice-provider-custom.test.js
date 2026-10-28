@@ -118,7 +118,8 @@ async function main() {
     const center = createVoiceProviderCenter({
         database,
         env,
-        fetchImpl: async () => audioResponse()
+        fetchImpl: async () => audioResponse(),
+        webSocketImpl: fakeSocketClass()
     });
 
     const status = await center.status();
@@ -224,17 +225,11 @@ async function main() {
     assert.equal(custom.provider, "custom_http");
     assert.equal(custom.configured, true);
 
-    // Edge 试听：注入假 WebSocket
-    const realWebSocket = globalThis.WebSocket;
-    globalThis.WebSocket = fakeSocketClass();
-    try {
-        await center.saveProfile({ provider: "edge", enabled: true, voice_id: "zh-CN-XiaoxiaoNeural" });
-        const edgeSpeech = await center.testProfile({ text: "测试免费语音。" });
-        assert.equal(edgeSpeech.provider, "edge");
-        assert.equal(edgeSpeech.audio.toString(), "edge-voice");
-    } finally {
-        globalThis.WebSocket = realWebSocket;
-    }
+    // Edge 试听：走注入的 ws 风格 fake socket
+    await center.saveProfile({ provider: "edge", enabled: true, voice_id: "zh-CN-XiaoxiaoNeural" });
+    const edgeSpeech = await center.testProfile({ text: "测试免费语音。" });
+    assert.equal(edgeSpeech.provider, "edge");
+    assert.equal(edgeSpeech.audio.toString(), "edge-voice");
 
     // 错误映射
     const mapped = publicVoiceProviderError(

@@ -414,6 +414,22 @@ async function testRedirectSafety() {
     assert.ok(loops >= 4);
 }
 
+async function testEdgeProductionDispatch() {
+    // 生产入口 synthesizeCustomSpeech 必须把 Edge 交给 ws 实现（而不是内置 WebSocket）
+    const result = await synthesizeCustomSpeech({
+        providerConfig: {
+            provider: "edge",
+            enabled: true,
+            voiceId: "zh-CN-YunxiNeural"
+        },
+        text: "生产路径测试",
+        WebSocketImpl: fakeSocketClass({ audio: Buffer.from("edge-production") })
+    });
+    assert.equal(result.provider, "edge");
+    assert.equal(result.model, "zh-CN-YunxiNeural");
+    assert.equal(result.audio.toString(), "edge-production");
+}
+
 async function testDispatch() {
     const result = await synthesizeCustomSpeech({
         providerConfig: {
@@ -456,6 +472,7 @@ async function main() {
     await testOpenAiSynthesis();
     await testCustomHttp();
     await testRedirectSafety();
+    await testEdgeProductionDispatch();
     await testDispatch();
     console.log("custom-speech tests passed");
 }

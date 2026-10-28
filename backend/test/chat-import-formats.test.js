@@ -220,6 +220,15 @@ async function main() {
     const contacts = await contactsZip.generateAsync({ type: "nodebuffer" });
     await assert.rejects(() => extractText("contacts.xlsx", contacts), (error) => error.code === "import_xlsx_empty");
 
+    const nginxLog = [
+        "2024-05-01 09:00:00 INFO: request started",
+        "2024-05-01 09:00:01 ERROR: upstream timeout",
+        "2024-05-01 09:00:02 INFO: request finished"
+    ].join("\n");
+    const nginxParsed = await extractText("nginx.log", Buffer.from(nginxLog, "utf8"));
+    assert.notEqual(nginxParsed.format, "chat-text");
+    assert.match(nginxParsed.text, /INFO: request started/);
+
     // 15. 普通日志/会议纪要不能被误判成聊天
     const meeting = "会议纪要\n2024-05-01 09:00 服务启动\nListening on port 3000";
     const meetingParsed = await extractText("meeting.txt", Buffer.from(meeting, "utf8"));

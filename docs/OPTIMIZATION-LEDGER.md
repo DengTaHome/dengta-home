@@ -690,3 +690,16 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 ### 仍未做
 - 真实 Edge 外呼（本机网络不可达，只有协议夹具 + 已知向量）；部署后需在服务器实测。
 - 分块 map-reduce、结构化 persona JSON、前端统计展示、质量评估；QQ↔DengTa 适配器。
+
+### 最终复审（HEAD 0a75693 后）
+- 外部裁判确认 v2 token/SSRF/流式限额/迁移/导入链路均已通过，但发现 Edge 生产链路 3 个 blocker：
+  ① `synthesizeCustomSpeech` 默认仍注入 Node 内置 WebSocket（没有 `.on`、Blob 帧）；
+  ② 强制 `Host: speech.platform.bing.com` 访问 `api.msedgeservices.com` 会 400；
+  ③ ws 的文本帧也是 Buffer，被 `Buffer.isBuffer` 误判为二进制，`turn.end` 不可达。
+- 修复：生产入口默认 `WebSocketImpl=null` → Edge 自己加载 `ws`；去掉 Host 头；严格用
+  `isBinary` 区分音视频/文本帧；center 支持注入 `webSocketImpl` 便于测试。
+- **真实外呼验证通过**：最终实现 `synthesizeCustomSpeech({provider:"edge"})` 合成
+  zh-CN-XiaoxiaoNeural，返回 27,504 字节 MP3，耗时约 1.9s（本机 2026-10-28）。
+- 顺带修复：openai_compatible speed 不再被 Deepgram 0.7–1.5 clamp；日志级大写单词
+  （INFO/ERROR…）不再被当聊天发送者，并加 nginx 日志测试。
+- 复跑 18 个后端套件 + 前端 voice 测试 + vite build 全绿。

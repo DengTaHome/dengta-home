@@ -612,7 +612,6 @@ function synthesizeEdgeSpeech({
                     "User-Agent": EDGE_USER_AGENT,
                     "Accept-Encoding": "gzip, deflate, br, zstd",
                     "Accept-Language": "en-US,en;q=0.9",
-                    Host: "speech.platform.bing.com",
                     Origin: EDGE_ORIGIN
                 }
             });
@@ -668,7 +667,7 @@ function synthesizeEdgeSpeech({
         });
 
         socket.on("message", (data, isBinary) => {
-            if (isBinary || Buffer.isBuffer(data)) {
+            if (isBinary) {
                 const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
                 if (buffer.length > 2) {
                     const headerLength = buffer.readUInt16BE(0);
@@ -1016,7 +1015,7 @@ async function synthesizeCustomSpeech({
     text,
     env = process.env,
     fetchImpl = fetch,
-    WebSocketImpl = globalThis.WebSocket
+    WebSocketImpl = null
 } = {}) {
     const provider = providerConfig?.provider;
     if (!isCustomProvider(provider)) {
@@ -1033,7 +1032,7 @@ async function synthesizeCustomSpeech({
             pitch: providerConfig.pitch,
             volume: providerConfig.volume,
             timeoutMs: env.EXPRESSIVE_TTS_TIMEOUT_MS,
-            WebSocketImpl
+            WebSocketImpl: WebSocketImpl || null
         });
     }
     if (provider === "openai_compatible") {
