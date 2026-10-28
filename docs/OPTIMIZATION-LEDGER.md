@@ -1221,3 +1221,15 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   `test:module-coverage` **121/121**（含 NetEase import 回归）。
 - backend revision `ec88074`（Render 自动部署；等待/确认中）。
 - Goldfish 另指出时间胶囊并发覆盖、前端自动换码双发/取消、X twikit 补丁可复现性等 P2，尚未全部闭环。
+
+## 轮次 44（2026-10-29 · Goldfish P0/P2 闭环）
+
+- P0 `service.songUrl` 导出已修为 `songUrl: resolveSongUrl`；新增运行时测试（name/length/Promise），
+  backend `test:module-coverage` **121/121**；Render `ec88074` → `53ca5db`。
+- 时间胶囊并发：`applyCapsuleJobs()` 把 marker jobs 应用到**最新** capsules，qq-bridge save 不再用聊天前快照；
+  新增并发新增/完成测试，`time-capsule-state` 7 项通过。
+- 前端 QR：自动换码最多 2 次、expired 后 return、confirmed/risk 不再被主动换新吃掉、取消/重试用
+  `loginAttemptRef` 作废旧 begin；build/lint 通过；Vercel `f2cd03e4` READY。
+- X：`test_server.py` 删除 cookie 打印；deploy Wait-Run 对 conclusion=null 抛错；stale music tunnel 标记已删。
+- 未闭环：X `/connections/:id/test` 400（原始 MCP 握手/工具调用正常）；twikit 补丁/ondemand URL 可复现性；
+  全量前端测试此前已 exit 0（本轮改动后只做 build/lint）；CNB/Amap/凭据轮换。

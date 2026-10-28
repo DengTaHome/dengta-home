@@ -121,7 +121,7 @@ function Wait-Run($Run, [int]$TimeoutMinutes = 50) {
   while ((Get-Date) -lt $deadline) {
     $r = Invoke-GitHub -Method GET -Uri "https://api.github.com/repos/$repo/actions/runs/$($Run.id)"
     Log "run=$($r.id) status=$($r.status) conclusion=$($r.conclusion)"
-    if ($r.status -eq "completed") { return $r }
+    if ($r.status -eq "completed") { if ($null -eq $r.conclusion) { throw "run $($r.id) completed without conclusion" }; return $r }
     Start-Sleep -Seconds 25
   }
   throw "run $($Run.id) 超时"
