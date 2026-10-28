@@ -370,6 +370,19 @@ function normalizeHervoiceEndpoint(value) {
     return `${base}/api/voice/upload`;
 }
 
+// 健康检查必须沿用 HERVOICE_URL 的路径前缀：normalizeHervoiceEndpoint 返回
+// 返回的是 base 加 /api/voice/upload；之前用绝对路径 "/health" 会把 /prefix 丢掉。
+function hervoiceHealthEndpoint(baseUrl) {
+    const uploadUrl = new URL(normalizeHervoiceEndpoint(baseUrl));
+    const basePath = uploadUrl.pathname
+        .replace(/\/api\/voice\/upload\/?$/i, "")
+        .replace(/\/$/, "");
+    uploadUrl.pathname = (basePath || "") + "/health";
+    uploadUrl.search = "";
+    uploadUrl.hash = "";
+    return uploadUrl.toString();
+}
+
 function createHervoiceWarmup({
     minimumIntervalMs = 10 * 60 * 1000,
     timeoutMs = 75_000
@@ -403,8 +416,9 @@ function createHervoiceWarmup({
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), safeTimeout);
         const completion = (async () => {
-            const endpoint = new URL("/health", normalizeHervoiceEndpoint(normalizedBaseUrl)).toString();
+            let endpoint = "";
             try {
+                endpoint = hervoiceHealthEndpoint(normalizedBaseUrl);
                 const response = await fetchImpl(endpoint, {
                     method: "GET",
                     headers: { "User-Agent": "DengTa-Home-Backend/Warmup" },
@@ -415,11 +429,19 @@ function createHervoiceWarmup({
                 return false;
             } finally {
                 clearTimeout(timer);
-                inFlight = null;
             }
         })();
-        inFlight = completion;
-        return { started: true, reason: "started", completion };
+        // 清理放在外挂链上：异步函数体在赋值前就可能 reject，
+        // 体内 finally 清掉的 inFlight 会被赋值覆盖，变成永久 in_flight。
+        // tracked 同时接住 rejection，并保证 await completion 返回时清理已经完成。
+        let tracked = null;
+        tracked = completion
+            .catch(() => false)
+            .finally(() => {
+                if (inFlight === tracked) inFlight = null;
+            });
+        inFlight = tracked;
+        return { started: true, reason: "started", completion: tracked };
     }
 
     return { start };
@@ -529,7 +551,13 @@ async function analyzeVoiceWithHervoice({
 
         try {
             return sanitizeHervoiceAnalysis(payload);
-        } catch {
+        } catch (error) {
+            // 只有「文本存在、情绪/声学特征不合法」才降级；
+            // 空转写必须继续报错，否则会落库一条空的用户消息并对空输入生成回复。
+            const fallbackText = isPlainObject(payload)
+                ? truncateText(payload.text, 30000)
+                : "";
+            if (!fallbackText.trim()) throw error;
             // 情感分析校验失败时降级：只保留转写文本，忽略情绪/声学特征
             return sanitizeHervoiceAnalysisFallback(payload);
         }

@@ -341,6 +341,73 @@ async function main() {
     assert.match(serverSource, /const settingsPromise = getSettings\(database\);/);
     assert.match(serverSource, /const conversationPromise = conversationId/);
 
+    // 空转写不能被降级成空字符串：那会落库一条空用户消息并对空输入生成回复
+    let emptyTranscriptError = null;
+    try {
+        await analyzeVoiceWithHervoice({
+            file: {
+                buffer: Buffer.from("voice-bytes"),
+                mimetype: "audio/webm",
+                originalname: "dengta-voice-1.webm"
+            },
+            baseUrl: "https://hervoice.example.com",
+            secret: "test-secret",
+            fetchImpl: async () => ({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    text: "   ",
+                    emotion: "neutral",
+                    confidence: 0.8,
+                    hint: "",
+                    features: {}
+                })
+            })
+        });
+    } catch (error) {
+        emptyTranscriptError = error;
+    }
+    assert.ok(emptyTranscriptError, "空转写必须报错，不能降级成空字符串");
+    assert.match(emptyTranscriptError.message, /没有识别出/);
+
+    // 预热：非法 HERVOICE_URL 不能让 inFlight 永久卡死（否则之后永远 in_flight）
+    const brokenWarmup = createHervoiceWarmup({ minimumIntervalMs: 0 });
+    const brokenStart = brokenWarmup.start({
+        baseUrl: "not-a-url",
+        fetchImpl: async () => ({ ok: true })
+    });
+    assert.equal(brokenStart.started, true);
+    assert.equal(await brokenStart.completion, false);
+    const recoveredStart = brokenWarmup.start({
+        baseUrl: "https://hervoice.example.com",
+        fetchImpl: async () => ({ ok: true }),
+        // 绕过 1 秒节流下限，专测 inFlight 是否已清理
+        now: Date.now() + 5_000
+    });
+    assert.equal(
+        recoveredStart.started,
+        true,
+        "第一次预热结束后必须能再次开始（inFlight 要被清理）"
+    );
+    await recoveredStart.completion;
+
+    // 健康检查要沿用 HERVOICE_URL 的路径前缀，而不是绝对路径 /health
+    const healthUrls = [];
+    const prefixedWarmup = createHervoiceWarmup({ minimumIntervalMs: 0 });
+    const prefixedStart = prefixedWarmup.start({
+        baseUrl: "https://hervoice.example.com/prefix",
+        fetchImpl: async (url) => {
+            healthUrls.push(String(url));
+            return { ok: true };
+        }
+    });
+    await prefixedStart.completion;
+    assert.equal(
+        healthUrls[0],
+        "https://hervoice.example.com/prefix/health",
+        "预热探测必须保留 HERVOICE_URL 的路径前缀"
+    );
+
     console.log("voice turn safety and contract tests passed");
 }
 

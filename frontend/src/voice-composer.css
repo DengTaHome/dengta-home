@@ -92,3 +92,20 @@
     padding: 0;
   }
 }
+
+/*
+ * 减少动画时弹层不能停在起始变形。
+ * 弹层的最终位置原本只写在 @keyframes 100% 帧里，一旦 animation: none，
+ * 它就会以缩小/错位的起始 transform 出现。这里显式给出终态。
+ */
+.sun-glass-jelly-popover.is-open,
+.sun-glass-time-menu.is-open {
+  transform: translateY(0) scale(1);
+}
+
+@media (max-width: 820px) {
+  .sun-glass-jelly-popover.is-open,
+  .sun-glass-time-menu.is-open {
+    transform: none;
+  }
+}

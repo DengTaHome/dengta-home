@@ -119,6 +119,23 @@ page.on("request", (request) => {
     if (request.url().includes("/voice/warmup")) warmupRequests.push({ method: request.method(), at: Date.now() });
 });
 await page.addInitScript(() => {
+    // 让测试可以把麦克风授权拖慢，验证「授权期间松手」的分支。
+    globalThis.__delayMicMs = 0;
+    const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(
+        navigator.mediaDevices,
+    );
+    if (originalGetUserMedia) {
+        navigator.mediaDevices.getUserMedia = async (constraints) => {
+            const delay = Number(globalThis.__delayMicMs || 0);
+            if (delay > 0) {
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+            return originalGetUserMedia(constraints);
+        };
+    }
+});
+
+await page.addInitScript(() => {
     globalThis.__vibrations = [];
     const original = navigator.vibrate?.bind(navigator);
     navigator.vibrate = (pattern) => {
@@ -285,6 +302,57 @@ if (buttonVisible) {
     });
     record("语音流程最终收敛（不永久卡住）", settled, finalState);
     record("失败时给出可读提示", settled, finalState.error || "(未失败)");
+
+    // 场景 2：长按阈值已到、麦克风还在授权中时松手 —— 不能开始无人按着的录音
+    await page.evaluate(() => {
+        globalThis.__delayMicMs = 1_500;
+    });
+    const box3 = await button.boundingBox();
+    const x3 = box3 ? box3.x + box3.width / 2 : DEVICE.width / 2;
+    const y3 = box3 ? box3.y + box3.height / 2 : DEVICE.height - 80;
+    await button.dispatchEvent("pointerdown", {
+        pointerId: 11,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        clientX: x3,
+        clientY: y3,
+    });
+    await page.waitForTimeout(500);
+    await button.dispatchEvent("pointerup", {
+        pointerId: 11,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+        clientX: x3,
+        clientY: y3,
+    });
+    await page.waitForTimeout(2_600);
+    const releaseDuringPermission = await page.evaluate(() => {
+        const direct = document.querySelector(".chat-voice-button");
+        const notice = document.querySelector(".notice, .voice-inline-error");
+        return {
+            pressed: direct ? direct.getAttribute("aria-pressed") : null,
+            cls: direct ? direct.className : null,
+            notice: notice ? notice.textContent.replace(/\s+/g, " ").trim().slice(0, 80) : "",
+        };
+    });
+    record(
+        "授权期间松手不会开始录音",
+        releaseDuringPermission.pressed !== "true" &&
+            !/is-recording/.test(releaseDuringPermission.cls || ""),
+        releaseDuringPermission
+    );
+    record(
+        "授权期间松手有明确提示",
+        /松开|没有录音/.test(releaseDuringPermission.notice || ""),
+        releaseDuringPermission.notice
+    );
+    await page.evaluate(() => {
+        globalThis.__delayMicMs = 0;
+    });
 
     await page.screenshot({ path: `${OUT}/voice-ui-390x844.png`, timeout: 120_000 });
 }

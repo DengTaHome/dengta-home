@@ -67,4 +67,33 @@ const startupIdx = main.indexOf('import "./startup-recovery.css";');
 const voiceCssIdx = main.indexOf('import "./voice-composer.css";');
 assert.ok(voiceCssIdx > startupIdx, "voice-composer.css 应最后导入以覆盖布局");
 
+// 首屏缓存读取必须 memo 化：直接写在渲染体里会让每个流式增量都 JSON.parse
+assert.match(app, /const initialChatCache = useMemo\(/, "首屏缓存读取必须用 useMemo 包裹");
+assert.match(
+  app,
+  /\[visualPreview, accountStorageScope, companionScope\]/,
+  "缓存 memo 的依赖必须包含视觉预览与作用域"
+);
+
+// 麦克风授权超时 + 授权期间松手不能开始无人按着的录音
+assert.match(app, /麦克风授权超时/, "getUserMedia 必须有超时提示");
+assert.match(
+  app,
+  /voiceCaptureRunRef\.current !== captureRun \|\|\s*\n\s*!voicePointerHeldRef\.current/,
+  "拿到麦克风后必须再次校验指针是否仍按住"
+);
+assert.match(app, /已经松开了，这次没有录音/, "授权期间松手要给用户明确提示");
+
+// 减少动画时弹层不能停在起始变形：最终位置必须由 CSS 终态给出
+assert.match(
+  css,
+  /\.sun-glass-jelly-popover\.is-open,[\s\S]*?\.sun-glass-time-menu\.is-open \{[\s\S]*?transform:\s*translateY\(0\) scale\(1\);/,
+  "桌面弹层终态必须显式写 transform"
+);
+assert.match(
+  css,
+  /@media \(max-width: 820px\)[\s\S]*?transform:\s*none;/,
+  "移动端弹层终态应为 transform: none"
+);
+
 console.log("voice-composer: 结构断言通过");

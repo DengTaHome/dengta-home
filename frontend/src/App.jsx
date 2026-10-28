@@ -923,9 +923,18 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   // 缓存优先：先用上次保存的会话把界面画出来，网络结果回来后再覆盖。
   // 实测首屏要 6.5–9.5 秒才等到三波请求走完，这段时间不该是空白。
   // 只在挂载时读一次；切换账号/伴侣会由上层 key 触发重新挂载。
-  const initialChatCache = visualPreview
-    ? null
-    : readChatHistoryCache({ accountScope: accountStorageScope, companionScope });
+  // 只在挂载/作用域变化时读一次。写在渲染体里时，流式每来一个增量都会
+  // setMessages → 整棵 App 重渲染 → 重新 JSON.parse 最多 160KB，正好压在最热路径上。
+  const initialChatCache = useMemo(
+    () =>
+      visualPreview
+        ? null
+        : readChatHistoryCache({
+            accountScope: accountStorageScope,
+            companionScope,
+          }),
+    [visualPreview, accountStorageScope, companionScope],
+  );
   const [activeSessionId, setActiveSessionId] = useState(() => initialChatCache?.sessionId || null);
   const [messages, setMessages] = useState(() => (
     initialChatCache
@@ -3729,7 +3738,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
 
       setVoiceMode(VOICE_STATES.requesting);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        // 首次授权弹窗或系统卡顿时 getUserMedia 可能长期不 resolve，
+        // 没有超时会让输入框一直锁在「等待麦克风授权」。
+        const streamPromise = navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
@@ -3737,8 +3748,35 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           },
           video: false,
         });
-        if (voiceCaptureRunRef.current !== captureRun) {
+        let permissionTimedOut = false;
+        const stream = await new Promise((resolve, reject) => {
+          const timer = window.setTimeout(() => {
+            permissionTimedOut = true;
+            streamPromise
+              .then((lateStream) => releaseVoiceStream(lateStream))
+              .catch(() => {});
+            reject(new Error("麦克风授权超时，请检查系统权限后重试。"));
+          }, 8_000);
+          streamPromise.then(
+            (value) => {
+              window.clearTimeout(timer);
+              if (!permissionTimedOut) resolve(value);
+            },
+            (error) => {
+              window.clearTimeout(timer);
+              reject(error);
+            },
+          );
+        });
+        if (
+          voiceCaptureRunRef.current !== captureRun ||
+          !voicePointerHeldRef.current
+        ) {
           releaseVoiceStream(stream);
+          // 用户在授权期间就松手了：不能替用户开始一段没人按着的录音，
+          // 更不能让它跑满 60 秒后自动上传发送。
+          setVoiceMode(VOICE_STATES.idle);
+          setNotice("已经松开了，这次没有录音。按住麦克风说完再松手。");
           return;
         }
         voicePermissionReadyRef.current = true;
