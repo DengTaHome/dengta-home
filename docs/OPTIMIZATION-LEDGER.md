@@ -1397,3 +1397,16 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - verify-touch-targets：main 211 个可交互元素、0 个 <44×44；statusPanel/settings/music 也 0 个；测试 exit 0。
 - 已补 .message-reference-button 与回复选项关闭按钮的 44px 触摸区。
 - 前端最新提交已 push；全量单测 full6 仍为最近一次完整全绿，本轮浏览器补测通过。
+
+## 轮次 62（2026-10-29 · 流畅度/闪烁专项，新 8h 第 1 轮）
+
+- 用户反馈“闪烁卡顿、动画不流畅”；定位并处理：
+  - `main.jsx` 恢复引入的 `App.css` 是 Vite 模板样式，改为只引入抽取的 `refusal-banner.css`，避免全局模板样式污染。
+  - `RainbowAgentMark` 默认改用 15KB 静态首帧，仅悬停才加载 426KB/288 帧动图；移动端不再持续解码。
+  - 移动端（≤700px）关闭所有 `backdrop-filter` 玻璃模糊，降低 Android WebView 合成开销。
+  - 全局在 `visibilitychange` / 滚动期间设置 `data-dengta-hidden` / `data-dengta-scrolling`，CSS 暂停所有装饰动画；滚动停止 140ms 后恢复。
+- 真机验证：
+  - `verify-local-build` 11/11 全通过。
+  - `verify-animation-budget` 全部通过：滚动暂停、后台暂停、恢复均正确；聊天页 infinite 动画仅 1 个。
+  - `verify-touch-targets` 0 个 <44×44。
+- 前端已 push，Vercel 构建中/待确认。

@@ -78,3 +78,10 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - 最新定向测试 6/6（voice/QR guards/NetEase entry），build+CSP 通过；backend 124/124；真机 6/6 视口。
 - 已修包括：NetEase 导出/导入、胶囊并发与 active、QR 竞态/卸载、语音权限松手、更多回复去重、JSON 4MB 守卫、聊天历史 500 条分页、X `/test` protocol、X 可复现补丁、Muse 1.1。
 - 未闭环：CNB 写权限、高德认证、凭据轮换；前端/后端若干 P2（TTS 在途取消、preflight 取消、情绪伪展示、首屏 CSS/字体/动图成本、语音键盘可达性、歌词 focus trap、stream 断连取消、优雅停机）。
+
+## 流畅度专项（2026-10-29 新 8h 第 1 轮）
+
+- 已移除 Vite 模板 `App.css` 全量引入，改为 `refusal-banner.css` 仅保留拒答样式。
+- `RainbowAgentMark` 默认静态首帧，悬停才启动 426KB 动态 WebP；移动端不持续解码。
+- ≤700px 关闭 backdrop-filter 玻璃模糊；隐藏/滚动时通过 data 属性暂停所有装饰动画。
+- 真机：verify-local-build 11/11、verify-animation-budget 全通过、touch targets 0 <44px。
