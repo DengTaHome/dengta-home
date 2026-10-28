@@ -1129,3 +1129,20 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   Vercel production READY（`7054753` + 后续测试修复）。
 - 部署：backend `5298d6b` Render 已生效（health revision 5298d6b8）；frontend Vercel
   `7054753`/`bf6909a` READY；VPS music 容器健康且登录态保留。
+
+## 轮次 37（2026-10-29 · 每用户网易云入口上线 + X MCP 突破 + Goldfish 修复）
+
+- **每用户网易云一起听**：`NeteaseQrLogin.jsx` 之前从未挂载；已接入 `MusicSettings` 的
+  「一起听歌 → 网易云账号 · 扫码登录」，每用户独立后端 cookie；新增结构回归测试；
+  Vercel `7ca0bd2`/`fe6a136` READY；live `qr/begin` 201。
+- **X MCP**：twikit 2.3.3 对当前 X 前端报 `KEY_BYTE indices`；用 Playwright 抓到当前
+  `ondemand.s` URL，给 twikit 加 `TWIKIT_ONDEMAND_URL` 兼容，并把 User 缺失字段改为容错；
+  本机 supergateway(streamable HTTP) + cloudflared quick tunnel 已起，12 工具、search_tweets 实测成功。
+  DengTa 连接 `4bcdbfeb-…` 已建/启用 5 个只读工具；`/test` 仍返回 400，需继续修 transport/session。
+- **Goldfish P0/P1**：部署脚本 proxy/HTTP/run/feed 校验、时间胶囊读失败保护、反代日志/health/
+  fail-closed/子进程监督、repo-watch 状态、任务电池策略、MCP 目录字段/编号/风险映射均已修；
+  backend `5298d6b` + frontend `fe6a136`/`7ca0bd2` 已部署。
+- 验证：backend 5/5（time-capsule 3 + qq-bridge 2）；frontend build/lint 通过；
+  X 12 工具 stdio 实测；VPS music 登录态保留。
+- 剩余：X `/test` 400；X tunnel 仍为 quick URL；frontend 全量 test 的 design-polish 环境挂起；
+  CNB 写权限；Amap 开发者认证；Muse 本地控制/分发门槛。
