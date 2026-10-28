@@ -29,7 +29,7 @@ $node = 'D:\GZdeepseek\_tools\node\node.exe'
 手动编辑 `selection.json` 的 `enabled` 字段即可选择；每次聊天都会重新读取。
 发送时作为 `channel_persona` 传给后端，只覆盖本回合，不写回 DengTa 网页端设置。
 
-## 临时勾选界面（本机）
+## DB-backed 勾选界面（本机）
 
 ```powershell
 & $node tools\wechat-dengta-bridge\select-ui.mjs
@@ -52,3 +52,10 @@ $node = 'D:\GZdeepseek\_tools\node\node.exe'
 已用 mock wxb CLI 跑通「fetch → 仅勾选人设 `/chat` → send」全链路：
 临时选择一个小节「只回复四个字：勾选生效」，mock 收到的发送文本正是 `勾选生效`，
 证明 channel_persona 覆盖真实生效。真实微信回环需要主人给 ClawBot 发一条消息触发。
+
+## 注意：现在以 DengTa DB 为准（2026-10-29）
+
+- 068 已执行，`persona_sections` / `channel_sync_preferences` 已建。
+- `select-ui.mjs` 已改为直接读写生产 `/api/v2/channel-sync`（Bearer 会话），页面显示 DB 中的 41 个小节与记忆；保存即写回 DengTa，下一轮微信回复生效。
+- `auto-reply.mjs` 只发送 `channel: "wechat"`；服务端按 DB 勾选组装人设，不再接受客户端整段 `channel_persona`。
+- 旧的本地 `selection.json` / `make-selection.mjs` 仅作迁移/预览用途，不再决定微信实际人设。

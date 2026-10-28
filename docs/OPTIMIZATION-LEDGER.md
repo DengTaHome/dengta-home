@@ -925,3 +925,22 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - **M10 已修**：select-ui 增加 CSP、JSON+Origin+X-Channel-Sync 校验、`<` 转义、tmp+rename 原子写。
 - 后端提交 `4b039fc` 已推送并部署 live；验证 `channel_persona` 过滤回复「过滤成功」。
 - 微信自动回复仍保持**停止**，等复核确认后再启用；QQ 小号仍待用户登录。
+
+## 轮次 26（2026-10-29 · 068 执行成功 + DB 勾选驱动通道）
+
+- 用户已在 Supabase SQL Editor 成功执行 068；REST 验证 `persona_sections`、
+  `channel_sync_preferences`、`channel_bindings` 三表存在（初始为空）。
+- 生产后端新增 `/api/v2/channel-sync`：人设小节 CRUD、通道偏好读写、记忆搜索；
+  全部走 RequestScope（companion 归属校验）；修复 scoped DB 的 upsert allowlist
+  （否则 PUT 偏好 500）。
+- qq-bridge `/chat` 现在根据 `channel=wechat|qq` 从 DB 组装人设：只含 enabled 的
+  `persona_sections`、style、按 `memory_mode` 选出的记忆；无勾选则回退最小安全人设；
+  忽略客户端 `channel_persona`。提交 `6a732bb` / `f165c9c` 已部署 live。
+- 实测：写入一个测试小节 + 偏好 → 桥接 `/chat` 返回精确「数据库勾选生效」；
+  随后清理测试小节，prefs 重置为 normal_only/none。
+- 把现有统一人设拆成 **41 节**（normal 24 / nsfw 16 / style 1）导入 DB，全部
+  `enabled:false`；19 条记忆默认不勾选。
+- `select-ui.mjs` 改为 DB-backed：读取上述 API 渲染勾选页，保存时 PUT 小节+偏好；
+  GET / 200、POST /save 往返 ok。`auto-reply.mjs` 改为只发 `channel:"wechat"`，
+  服务端按 DB 选择回复；已重启运行，当前因无勾选走最小安全人设。
+- 仍待：QQ 小号登录/重新注入、媒体收发、绑定码/自动建号、正式前端 UI。

@@ -231,8 +231,9 @@ async function chatWithDengTa(text, conversationId) {
         client_message_id: crypto.randomUUID(),
     };
     if (conversationId) body.conversation_id = conversationId;
-    const channelPersona = composeChannelPersona();
-    if (channelPersona) body.channel_persona = channelPersona;
+    // 人设由服务端按 channel_sync_preferences + persona_sections 组装；
+    // 本地 selection 仅用于预览/迁移，不再直接发送整段 prompt。
+    body.channel = "wechat";
     const response = await fetch(`${cfg.backendBaseUrl}/api/v2/qq-bridge/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-dengta-qq-token": cfg.token },
