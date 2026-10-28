@@ -2,6 +2,7 @@ import { diagnosticScopeKey, recordOperationFailure } from "./operation-diagnost
 import { requestErrorLog } from "./error-log-request.js";
 import { isChatGenerationInProgress } from "./chat-idempotency.js";
 import { authSession as defaultAuthSession } from "./auth-session.js";
+import { getCacheKey, isCacheableGetPath } from "./api-get-cache.js";
 import {
   COMMITTED_CHAT_ERROR_FALLBACK,
   publicChatErrorMessage,
@@ -51,7 +52,51 @@ function awaitWithAbortSignal(value, signal) {
   });
 }
 
+/**
+ * 正在飞行中的只读请求：同键并发只发一次。
+ *
+ * 实测冷启动时 bootstrap、special-dates、fun-labs 的四个接口各被请求两遍，
+ * 且两次 read 都发生在第一次 write 之前——说明是两个并发调用同时拉起的。
+ * 让后来者等待同一个请求，可以省掉一整趟跨境往返。
+ */
+const inflightGets = new Map();
+
 async function fetchFromApi(path, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET" || !isCacheableGetPath(path)) return performFetchFromApi(path, options);
+
+  const companion = String(options.authSession?.getSnapshot?.()?.activeCompanionId || "");
+  const dedupeKey = getCacheKey(path, companion);
+  const existing = inflightGets.get(dedupeKey);
+  if (existing) {
+    const snapshot = await existing.catch(() => null);
+    if (snapshot) {
+      return new Response(snapshot.body, {
+        status: snapshot.status,
+        headers: { "content-type": snapshot.contentType || "application/json" },
+      });
+    }
+    return performFetchFromApi(path, options);
+  }
+
+  const task = performFetchFromApi(path, options);
+  // 首调用方拿原始 Response；同时留一份文本快照给后来者。
+  const snapshotTask = task
+    .then(async (response) => ({
+      body: await response.clone().text(),
+      status: response.status,
+      contentType: response.headers.get("content-type"),
+    }))
+    .catch(() => null);
+  inflightGets.set(dedupeKey, snapshotTask);
+  try {
+    return await task;
+  } finally {
+    inflightGets.delete(dedupeKey);
+  }
+}
+
+async function performFetchFromApi(path, options = {}) {
   const {
     timeoutMs = 0,
     retry = true,
