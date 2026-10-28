@@ -18,7 +18,8 @@ const REPO = path.resolve(fileURLToPath(new URL("../../frontend", import.meta.ur
 const DIST = path.join(REPO, "dist");
 const OUT = "D:\\GZdeepseek\\_audit\\browser";
 const CRED = path.join(OUT, "browser-auth.json");
-const PORT = 5174;
+// 必须是 5173：后端 CORS 白名单只放行这个端口，换端口会让 bootstrap 全部失败。
+const PORT = 5173;
 const ANON = "sb_publishable_8igj37ucC_HG98LSFwnkHA_6QBtcE8F";
 const TOKEN_URL = "https://nyyqizwrlmejpfdhgrnd.supabase.co/auth/v1/token?grant_type=password";
 const localRequire = createRequire(import.meta.url);
