@@ -1263,3 +1263,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   `get_user_info("jack")` 返回真实资料。
 - 文档明确 DengTa 连接 `protocol_version=2024-11-05`（auto 会让 /test 400）。
 - 仍未闭环：全量前端测试新跑结果（后台）、6 视口布局矩阵后 4 个、CNB/Amap/凭据轮换。
+
+## 轮次 48（2026-10-29 · X 连接 test + 可复现工具落地）
+
+- X 连接 `protocol_version` 从 `auto` 改为 `2024-11-05` 后，DengTa `/connections/:id/test` 通过，
+  server_name=`twitter-twikit`；已记录到 `docs/X-MCP.md`。
+- `tools/x-mcp/` 已提交：可复现补丁（twikit transaction/user + X server）、capture-ondemand、wrapper 模板、
+  smoke-test（tools/list=12、get_user_info("jack") 实测）。
+- 后端 `53ca5db9`、前端 `f2cd03e4` READY；后端 module coverage 121/121。
+- 真机布局矩阵前两个视口通过；后 4 个待跑；全量前端测试后台仍在运行。
+- 未闭环：CNB 写权限、Amap 认证、凭据轮换；X twikit 补丁仍需在 X 前端更新时重新抓 ondemand。
