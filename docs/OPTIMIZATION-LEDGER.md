@@ -508,3 +508,54 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
 
 Kiwi × MMTR P1（multitenant PG 表 + 回填 + consolidate）现在具备本地环境，
 下一步可直接在 `kiwi` 库上做迁移与算法接线。
+---
+
+## 轮次 15（2026-10-28 · MMTR × kiwi P1 落地：脑层落库 / 回填 / 每日 consolidate）
+
+### 实现（kiwi fork：`D:\GZdeepseek\_refs\kiwi-mem-dengta`，本地提交；DengTa 仓库保留镜像 + patch）
+- `mmtr_brain/p1.py`：`migrate` / `backfill` / `consolidate` 三个幂等操作。
+  - 每租户 schema 增 15 列（三通道 s_/t_、level、floor_level、promise_state、
+    due_at、theme_key、recall_count、last_compress_at、promise_surfaced_at、
+    last_consolidated_at）+ 3 张表（relation_state/mmtr_activations/
+    mmtr_consolidate_runs）+ 索引（离线 migrate 建，检查 indisvalid）；
+  - 回填：只处理 `s_fact IS NULL`，旧 heat 等价移植（含 gateway_config 覆盖、
+    冷启动、锁定、valid_until、未来时间戳边界），换算三通道初始强度与地板；
+  - 每日 consolidate：每 schema 单事务 + advisory lock（`pg_try_advisory_lock`
+    轮询，避免与 CREATE INDEX CONCURRENTLY 互等死锁），关系回归、承诺
+    pending→broken/surfaced（带 pending 守卫与行数检查）、压缩阶梯
+    （pending/锁定/at-floor/最小间隔排除；keyset 翻页 + 每轮上限
+    `MMTR_COMPRESS_MAX_PER_RUN` 默认 2000）、新记忆增量回填、90 天激活清理、
+    审计行；dry-run 零写入。
+- `database.py`：init_tables / ensure_tenant_schema 按 `MMTR_P1_ENABLED` 接线，
+  每进程每 schema 只补一次（缓存，失败不缓存）；`update_memory` 改 importance
+  时同步 floor_level（先探测列存在，禁用/迁移失败不 500）。
+- `daily_digest.py`：consolidate 放进 `run_memory_job` 租户锁（与 Dream 互斥），
+  老租户先惰性升级；`MMTR_P1_CONSOLIDATE_ENABLED` 可关闭；docker-compose/.env.example 转发开关。
+
+### 三轮 Goldfish 复审（外部裁判，均未参与实现）
+1. 驳回：TENANT_DATA_TABLES 无条件 LIKE 导致禁用 503、回填未传配置参数、
+   promise 无 pending 守卫、压缩 LIMIT 饥饿、边衰减缺失、测试假通过；
+2. 驳回：禁用路径 update_memory 写 floor_level、每请求 P1 apply 开销（26→49 查询）、
+   gateway_config 缺失毒化事务、并发 migrate 索引死锁、SKIP 语义/覆盖不足、文档不一致；
+3. 仍驳回：并发 migrate 仍死锁（阻塞式 advisory lock 与 CIC 互等）、meta 建表
+   UniqueViolation 竞态、饥饿测试被 SQL 预过滤绕过、索引断言是子集、计数/声明不一致；
+   修复为 try-lock 轮询 + meta 竞态捕获 + 真双进程 migrate 测试 + fact-alive 饥饿用例
+   + 精确索引/indisvalid 断言 + 文档修正后，全部测试通过。
+
+### 验证
+- `mmtr_brain/test_brain.py`（P0，29 条断言）✓
+- `python -m mmtr_brain.test_p1_pg`（主链路）✓
+- `python -m mmtr_brain.test_p1_guards_pg`（禁用/老租户/update_memory/真并发
+  consolidate/真并发 migrate/400 条 fact-alive 饥饿/dry-run/边界/索引）✓
+- 坏 DSN 实测 exit 1（不再 SKIP）；并发 migrate 两进程均 rc=0、索引 valid、meta 单行。
+- 每请求开销：P1 首次 ensure 150ms（一次性），缓存后 4.27ms（与旧路径 4.9ms 同级）。
+- 旧 heat vs 新权重抽样产物：`tools/mmtr-brain/p1_backfill_sample.json`。
+
+### 明确 descope
+- **边衰减**不在 P1：MMTR 的 decayEdges 需要 memory_edges 有 w0/t0/hits 且按租户隔离；
+  kiwi 现在是全局表且无这些列。descope 到 P2 前置，文档已写明，避免假实现。
+
+### 部署仍未做（需决策）
+P1 代码在 fork 与 DengTa 镜像/patch 中；真正上线需要在部署环境执行
+`python -m mmtr_brain.p1 migrate` + 配置每日 consolidate，并决定 kiwi-mem 部署位置
+（仓库仍是用户既有部署，本轮未触碰生产）。

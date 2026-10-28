@@ -93,13 +93,19 @@ CREATE TABLE mmtr_activations (          -- 只统计回血与横向抑制
 
 | 阶段 | 内容 | 验证 |
 | --- | --- | --- |
-| **P0 ✅** | 把 MMTR 纯公式移植成 Python 模块（`mmtr_brain/brain.py`），覆盖三通道、回血、压缩、诺言、关系、检索重排；31 条不变量测试全过 | `python test_brain.py`（见 §8） |
-| P1 | kiwi 加列 + 回填脚本 + 每日 `consolidate` 任务（关系回归/边衰减/压缩/约定判定） | 迁移在测试库跑通；旧记忆热度与新权重抽样对比 |
+| **P0 ✅** | 把 MMTR 纯公式移植成 Python 模块（`mmtr_brain/brain.py`），覆盖三通道、回血、压缩、诺言、关系、检索重排；29 条不变量断言全过 | `python test_brain.py`（见 §8） |
+| **P1 ✅ 已实现** | kiwi 加列 + 回填脚本 + 每日 `consolidate`（关系回归/压缩/约定判定）；边衰减 descope 到 P2 | 迁移/回填/巩固在真实 PG 跑通：`test_p1_pg` + `test_p1_guards_pg`；旧 heat 抽样见 `mmtr_brain/p1_backfill_sample.json` |
 | P2 | `/memory/recall` 响应带 `weights/promise/relation`；注入文案用 `quiet` 组装（无数字） | DengTa 真机：同一查询注入内容更短且更贴情绪 |
 | P3 | `/memory/chat-turn` 写入时拆三通道 + 承诺识别（复用 fork 的提取器，加 `due_at` 解析） | 契约测试：承诺在 7 天内浮出、宽限期后 broken |
 | P4 | DengTa `memory-budget.js` 用 `weights` 取代本地 heat（已有网关 heat 权威化作为过渡） | 与 P2 同一测试；回退开关保留 |
 
-## 6. 明确不搬
+## 6. P1 显式 descope：边衰减
+
+MMTR 的 `decayEdges` 依赖 `memory_edges(w0,t0,hits)` 且边必须按租户隔离；
+kiwi 目前边是全局表、无这些列。P1 不搬边衰减，待"边按租户迁移 + 加列"后再做。
+写清楚而不是留空壳，避免后续误判 P1 完成度。
+
+## 7. 明确不搬
 
 - **MMTR 的 embedding/LLM 抽取**：kiwi 已成熟，重复搬只会增加 token 成本。
 - **MMTR 的 sqlite 存储与 HTTP server**：kiwi 的 Postgres 与 `/memory/*` 已承担。
@@ -107,7 +113,7 @@ CREATE TABLE mmtr_activations (          -- 只统计回血与横向抑制
 - **kiwi 现有 Dream/日历摘要**不动：它们与 MMTR 的 consolidate 有重叠但各有价值，
   先在 consolidate 里做关系/约定，Dream 保持现状。
 
-## 7. 默认参数（移植进 kiwi 时保持一致，可配置覆盖）
+## 8. 默认参数（移植进 kiwi 时保持一致，可配置覆盖）
 
 ```
 channels: fact(τ4, p0.9, floor0.02, gain0.55) gist(τ12, p0.75, floor0.12, gain0.4)
@@ -121,11 +127,11 @@ retrieval: sim.42 gist.18 fact.08 affect.14 importance.10 calendar.12 theme.08
            lateralInhibition.18 readOnly.04 redundant.25 mmrLambda.72
 ```
 
-## 8. 已跑通的 P0 原型
+## 9. 已跑通的 P0 原型
 
 位置：`D:\GZdeepseek\_refs\kiwi-mem-dengta\mmtr_brain\`（从备份 bundle 还原的 fork 工作副本）
 
-- `brain.py`：纯算法移植（≈260 行），不依赖数据库
+- `brain.py`：纯算法移植，不依赖数据库
 - `test_brain.py`：31 条不变量断言，实测全过：
 
 ```
@@ -138,7 +144,7 @@ retrieval: sim.42 gist.18 fact.08 affect.14 importance.10 calendar.12 theme.08
 ✓ 检索：横向抑制/只读降权生效
 ```
 
-## 9. 需要你拍板的两件事
+## 10. 需要你拍板的两件事
 
 1. **改哪个仓库**：我目前把原型放在 kiwi 的 fork 工作副本里；要真正上线需要能推该 fork 的权限
    （或把 P0 模块 + P1 迁移脚本交付给你手动合入）。

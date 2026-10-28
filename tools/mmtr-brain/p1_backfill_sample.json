@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-10-28T00:00:00+00:00",
+  "samples": [
+    {
+      "label": "cold-importance-10",
+      "old_heat": 0.8,
+      "s_strength": {
+        "fact": 0.8,
+        "gist": 0.8,
+        "affect": 0.8
+      },
+      "new_weights": {
+        "fact": 0.8,
+        "gist": 0.8,
+        "affect": 0.8
+      },
+      "floor_level": 0
+    },
+    {
+      "label": "decayed-3recalls",
+      "old_heat": 0.162369,
+      "s_strength": {
+        "fact": 0.162369,
+        "gist": 0.3,
+        "affect": 0.275
+      },
+      "new_weights": {
+        "fact": 0.162369,
+        "gist": 0.3,
+        "affect": 0.275
+      },
+      "floor_level": 2
+    },
+    {
+      "label": "emotional-high",
+      "old_heat": 0.037714,
+      "s_strength": {
+        "fact": 0.037714,
+        "gist": 0.3,
+        "affect": 0.385
+      },
+      "new_weights": {
+        "fact": 0.037714,
+        "gist": 0.3,
+        "affect": 0.385
+      },
+      "floor_level": 1
+    },
+    {
+      "label": "locked",
+      "old_heat": 1.0,
+      "s_strength": {
+        "fact": 1.0,
+        "gist": 1.0,
+        "affect": 1.0
+      },
+      "new_weights": {
+        "fact": 1.0,
+        "gist": 1.0,
+        "affect": 1.0
+      },
+      "floor_level": 0
+    }
+  ]
+}
