@@ -9,6 +9,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 
 const REPO = path.resolve(fileURLToPath(new URL("../../frontend", import.meta.url)));
 const DIST = path.join(REPO, "dist");
@@ -16,6 +17,28 @@ const OUT = process.env.DENGTA_BROWSER_VERIFY_OUT || path.resolve(REPO, "..", ".
 const PORT = Number(process.env.DENGTA_BROWSER_VERIFY_PORT || 5173);
 const AUTH = process.env.DENGTA_BROWSER_VERIFY_AUTH || path.join(OUT, "auth.json");
 const auth = JSON.parse(fsSync.readFileSync(AUTH, "utf8"));
+
+// token 只有 1 小时；过期后接口全 401，页面会停在加载态，
+// 测出来的「CLS 通过」其实是「什么都没渲染」的假结果。
+const CRED = process.env.DENGTA_BROWSER_VERIFY_CREDENTIALS || path.join(OUT, "browser-auth.json");
+const SUPABASE_ANON = process.env.DENGTA_SUPABASE_ANON || "sb_publishable_8igj37ucC_HG98LSFwnkHA_6QBtcE8F";
+const SUPABASE_TOKEN_URL = process.env.DENGTA_SUPABASE_TOKEN_URL || "https://nyyqizwrlmejpfdhgrnd.supabase.co/auth/v1/token?grant_type=password";
+function refreshTokenIfNeeded() {
+    const now = Math.floor(Date.now() / 1000);
+    if (Number(auth.expires_at || 0) > now + 60) return auth;
+    const creds = JSON.parse(fsSync.readFileSync(CRED, "utf8"));
+    const bodyPath = path.join(OUT, "_stability-token.json");
+    fsSync.writeFileSync(bodyPath, JSON.stringify(creds), "utf8");
+    const raw = execFileSync("curl.exe", ["-s", "--max-time", "90", "--socks5-hostname", "127.0.0.1:10808",
+        "-X", "POST", SUPABASE_TOKEN_URL, "-H", `apikey: ${SUPABASE_ANON}`,
+        "-H", "Content-Type: application/json", "--data-binary", `@${bodyPath}`], { encoding: "utf8" });
+    const fresh = JSON.parse(raw);
+    if (!fresh.access_token) throw new Error("token 刷新失败: " + raw.slice(0, 160));
+    fsSync.writeFileSync(AUTH, raw, "utf8");
+    return fresh;
+}
+const activeAuth = refreshTokenIfNeeded();
+
 const localRequire = createRequire(import.meta.url);
 function loadPlaywright() {
     const roots = [
@@ -63,7 +86,7 @@ await page.addInitScript(() => {
         }).observe({ type: "layout-shift", buffered: true });
     } catch {}
 });
-const session = { access_token: auth.access_token, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3500, refresh_token: auth.refresh_token, user: auth.user };
+const session = { access_token: activeAuth.access_token, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3500, refresh_token: activeAuth.refresh_token, user: activeAuth.user };
 await page.addInitScript(([k, v]) => { try { globalThis.localStorage.setItem(k, v); } catch {} }, ["dengta_home_auth_v1", JSON.stringify(session)]);
 
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
