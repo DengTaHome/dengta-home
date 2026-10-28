@@ -98,7 +98,15 @@
      但**更新频率从库外无法验证**；仓库方案（独立表 + 串行写链）与线上方案是两套设计，
      不能互相作为证据。
 3. **音乐真实播放未验证**：网易云登录态存在 App 内置浏览器会话里，自动化环境拿不到。
-4. **Vercel / Render / GitHub 的空间清理**需要登录控制台。
+4. **平台清理进度**：
+   - **Vercel 已完成**（2026-10-28）：62 个部署 → 删除 52 个旧构建，保留 10 个
+     （含线上生产部署 `dpl_FFEcJrnChikJtBXGjYuXWqqHmeY4`）。删除后复核：
+     6 个别名全部完好、`www.dengtahome.com` 返回 200、生产部署仍为 READY。
+   - **Render 无需操作**：两个服务都在使用（`dengta-home-backend` 主后端、
+     `dengta-home-voice` 供后端 `HERVOICE_URL` 做语音转写）；且 Render API
+     不支持删除单个历史部署（`DELETE .../deploys/{id}` 返回 405）。
+   - **GitHub 待办**：Actions 历史运行与产物的清理需要 fine-grained PAT
+     （Actions: Read and write），目前尚未提供。
 5. **13 处源码切片测试**尚未重构为真实挂载（属技术债，不影响功能）。
 6. 密码、token 等凭据只存在于工作区 `_audit/`，**不在仓库内**。
 
