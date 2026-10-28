@@ -1,4 +1,7 @@
---- a/twikit/user.py+++ b/twikit/user.py@@ -91,37 +91,37 @@         legacy = data['legacy']
+--- a/twikit/user.py
++++ b/twikit/user.py
+@@ -91,37 +91,37 @@
+         legacy = data['legacy']
  
          self.id: str = data['rest_id']
 -        self.created_at: str = legacy['created_at']

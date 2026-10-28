@@ -1,4 +1,7 @@
---- a/server.py+++ b/server.py@@ -3,10 +3,10 @@ import json
+--- a/server.py
++++ b/server.py
+@@ -3,10 +3,10 @@
+ import json
  from pathlib import Path
  from typing import Optional
 -from mcp.server.mcpserver import MCPServer
@@ -10,7 +13,8 @@
  
  
  def _resolve_cookies() -> dict[str, str]:
-@@ -17,6 +17,15 @@     2. Path specified in TWITTER_COOKIES_PATH environment variable
+@@ -17,6 +17,15 @@
+     2. Path specified in TWITTER_COOKIES_PATH environment variable
      3. Default local file: ./cookies.json
      """
 +    raw_json = os.environ.get("TWITTER_COOKIES_JSON", "").strip()
@@ -25,7 +29,8 @@
      env_auth = os.environ.get("TWITTER_AUTH_TOKEN", "").strip()
      env_ct0 = os.environ.get("TWITTER_CT0", "").strip()
      if env_auth and env_ct0:
-@@ -41,7 +50,7 @@                     auth_token = data.get("auth_token", "")
+@@ -41,7 +50,7 @@
+                     auth_token = data.get("auth_token", "")
                      ct0 = data.get("ct0", "")
                      if auth_token and ct0:
 -                        return {"auth_token": auth_token, "ct0": ct0}
@@ -33,7 +38,8 @@
                  
                  # Support list format exported by browser extensions (e.g. EditThisCookie)
                  if isinstance(data, list):
-@@ -68,7 +77,9 @@             "as environment variables, or create a 'cookies.json' file with {\"auth_token\": \"...\", \"ct0\": \"...\"}."
+@@ -68,7 +77,9 @@
+             "as environment variables, or create a 'cookies.json' file with {\"auth_token\": \"...\", \"ct0\": \"...\"}."
          )
      
 -    client = Client("en-US")

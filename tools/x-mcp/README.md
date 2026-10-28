@@ -23,10 +23,10 @@ Couldn't get KEY_BYTE indices
 ```powershell
 # 下载 twikit 源码（例如 tarball 解压到 D:\GZdeepseek\_refs\twikit-src\twikit-main）
 cd D:\GZdeepseek\_refs\twikit-src\twikit-main
-git apply --check D:\GZdeepseek\dengta-home\tools\x-mcp\patches\transaction.py.patch
-git apply --check D:\GZdeepseek\dengta-home\tools\x-mcp\patches\user.py.patch
-git apply D:\GZdeepseek\dengta-home\tools\x-mcp\patches\transaction.py.patch
-git apply D:\GZdeepseek\dengta-home\tools\x-mcp\patches\user.py.patch
+git apply --check --ignore-whitespace D:\GZdeepseek\dengta-home\tools\x-mcp\patches\transaction.py.patch
+git apply --check --ignore-whitespace D:\GZdeepseek\dengta-home\tools\x-mcp\patches\user.py.patch
+git apply --ignore-whitespace D:\GZdeepseek\dengta-home\tools\x-mcp\patches\transaction.py.patch
+git apply --ignore-whitespace D:\GZdeepseek\dengta-home\tools\x-mcp\patches\user.py.patch
 pip install -e .
 ```
 

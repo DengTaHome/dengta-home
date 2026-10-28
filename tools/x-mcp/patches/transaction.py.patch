@@ -1,8 +1,12 @@
---- a/twikit/x_client_transaction/transaction.py+++ b/twikit/x_client_transaction/transaction.py@@ -1,3 +1,4 @@+import os
+--- a/twikit/x_client_transaction/transaction.py
++++ b/twikit/x_client_transaction/transaction.py
+@@ -1,3 +1,4 @@
++import os
  import re
  import bs4
  import math
-@@ -43,8 +44,10 @@         response = self.validate_response(
+@@ -43,8 +44,10 @@
+         response = self.validate_response(
              home_page_response) or self.home_page_response
          on_demand_file = ON_DEMAND_FILE_REGEX.search(str(response))
 -        if on_demand_file:
