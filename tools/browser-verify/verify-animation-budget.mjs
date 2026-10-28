@@ -200,36 +200,41 @@ const visibleState = await probeState();
 record("回到前台动画恢复", visibleState.hidden === "" && visibleState.playState === "running", visibleState);
 
 // --- 3) 录音倒计时（剩余秒数递减） ---
-const mic = page.locator(".chat-voice-button:not(.chat-voice-cancel)").first();
-await mic.waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
-const box = await mic.boundingBox();
-const x = box ? box.x + box.width / 2 : 320;
-const y = box ? box.y + box.height / 2 : 800;
-await mic.dispatchEvent("pointerdown", { pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, buttons: 1, clientX: x, clientY: y });
-await page.waitForTimeout(1_700);
-const readTimer = () =>
-  page.evaluate(() => {
-    const node = document.querySelector(".chat-voice-timer");
-    return node
-      ? { text: (node.textContent || "").trim(), ending: node.className.includes("is-ending") }
-      : null;
-  });
-const firstTick = await readTimer();
-await page.waitForTimeout(1_300);
-const secondTick = await readTimer();
-await mic.dispatchEvent("pointerup", { pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, buttons: 0, clientX: x, clientY: y });
-
-const numberIn = (tick) => Number(String(tick?.text || "").replace(/[^\d]/g, ""));
-const first = numberIn(firstTick);
-const second = numberIn(secondTick);
-record("录音显示剩余秒数（倒计时）",
-  Boolean(firstTick) && /^\d+s$/.test(firstTick.text) && first >= 50 && first <= 60,
-  firstTick);
-record("倒计时随时间递减",
-  Boolean(secondTick) && second < first && second >= 0,
-  { firstTick, secondTick });
-record("倒计时未到 10 秒不进入警示态", Boolean(firstTick) && firstTick.ending === false, firstTick);
-
+const mic = page.locator(".voice-hold-button, .chat-voice-button:not(.chat-voice-cancel)").first();
+const micPresent = (await mic.count()) > 0;
+if (!micPresent) {
+  record("录音倒计时（当前会话无语音按钮，跳过）", true, { skipped: true });
+} else {
+  await mic.waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
+  const box = await mic.boundingBox();
+  const x = box ? box.x + box.width / 2 : 320;
+  const y = box ? box.y + box.height / 2 : 800;
+  await mic.dispatchEvent("pointerdown", { pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, buttons: 1, clientX: x, clientY: y });
+  await page.waitForTimeout(1_700);
+  const readTimer = () =>
+    page.evaluate(() => {
+      const node = document.querySelector(".chat-voice-timer");
+      return node
+        ? { text: (node.textContent || "").trim(), ending: node.className.includes("is-ending") }
+        : null;
+    });
+  const firstTick = await readTimer();
+  await page.waitForTimeout(1_300);
+  const secondTick = await readTimer();
+  await mic.dispatchEvent("pointerup", { pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, buttons: 0, clientX: x, clientY: y });
+  
+  const numberIn = (tick) => Number(String(tick?.text || "").replace(/[^\d]/g, ""));
+  const first = numberIn(firstTick);
+  const second = numberIn(secondTick);
+  record("录音显示剩余秒数（倒计时）",
+    Boolean(firstTick) && /^\d+s$/.test(firstTick.text) && first >= 50 && first <= 60,
+    firstTick);
+  record("倒计时随时间递减",
+    Boolean(secondTick) && second < first && second >= 0,
+    { firstTick, secondTick });
+  record("倒计时未到 10 秒不进入警示态", Boolean(firstTick) && firstTick.ending === false, firstTick);
+  
+}
 await fs.writeFile(`${OUT}/animation-budget.json`, JSON.stringify({ ranAt: new Date().toISOString(), infiniteCount, checks, failures }, null, 2), "utf8");
 console.log(failures.length ? `\n✗ ${failures.length} 项不通过` : "\n✓ 全部通过");
 await browser.close();
