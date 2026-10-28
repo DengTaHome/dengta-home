@@ -57,4 +57,26 @@ for (const char of css) {
 }
 assert.equal(depth, 0, "startup-recovery.css 结束时必须回到顶层");
 
+// 冷启动健康检查失败必须退避重试，否则麦克风整场不可用
+assert.match(
+    app,
+    /const healthRetryTimerRef = useRef\(0\);/,
+    "健康检查重试需要定时器状态"
+);
+assert.match(
+    app,
+    /const retryDelays = \[2_000, 5_000, 10_000, 20_000\];/,
+    "健康检查必须按 2/5/10/20 秒退避"
+);
+assert.match(
+    app,
+    /refreshServiceHealth\(\{ attempt: healthAttempt \+ 1 \}\)/,
+    "失败后应以递增 attempt 重新调用自己"
+);
+assert.match(
+    app,
+    /window\.clearTimeout\(healthRetryTimerRef\.current\)/,
+    "成功或卸载时必须清掉待重试的定时器"
+);
+
 console.log("startup-recovery: 4 项结构断言通过");

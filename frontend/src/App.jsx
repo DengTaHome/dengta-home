@@ -2103,9 +2103,17 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     }
   }, [applyVoiceOutputStatus, privateMediaScope]);
 
-  const refreshServiceHealth = useCallback(async () => {
+  // 冷启动时后端可能还没醒：失败后按 2/5/10/20 秒退避重试，
+  // 否则麦克风会整场停在「语音暂不可用」，用户必须刷新页面。
+  const healthRetryTimerRef = useRef(0);
+  const refreshServiceHealth = useCallback(async (options = {}) => {
     const controller = settingsScopeControllerRef.current;
     if (!componentMountedRef.current || !controller || controller.signal.aborted) return;
+    const healthAttempt = Math.max(1, Number(options.attempt) || 1);
+    if (healthRetryTimerRef.current) {
+      window.clearTimeout(healthRetryTimerRef.current);
+      healthRetryTimerRef.current = 0;
+    }
     const requestOptions = {
       signal: controller.signal,
       authSession: createScopedSettingsSession(authSession, privateMediaScope, controller.signal),
@@ -2189,8 +2197,27 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         error: error?.message || "服务器状态检查失败",
         checkedAt: new Date().toISOString(),
       }));
+      // 退避重试：最长约 37 秒后仍失败才放弃；成功路径会清掉这个定时器。
+      const retryDelays = [2_000, 5_000, 10_000, 20_000];
+      if (healthAttempt < retryDelays.length + 1) {
+        const delay = retryDelays[healthAttempt - 1] || 20_000;
+        healthRetryTimerRef.current = window.setTimeout(() => {
+          healthRetryTimerRef.current = 0;
+          void refreshServiceHealth({ attempt: healthAttempt + 1 });
+        }, delay);
+      }
     }
   }, [privateMediaScope]);
+
+  useEffect(
+    () => () => {
+      if (healthRetryTimerRef.current) {
+        window.clearTimeout(healthRetryTimerRef.current);
+        healthRetryTimerRef.current = 0;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
