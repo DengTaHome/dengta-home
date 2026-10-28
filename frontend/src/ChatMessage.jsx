@@ -56,6 +56,8 @@ function ChatMessage({
   privateMediaCatalog = null,
   textImpactScope = "",
   reduceMotion = false,
+  // 情绪理解关闭后，历史消息里的语音情绪标签也要隐藏（数据保留，重新开启可恢复）。
+  showEmotion = true,
 }) {
   const rowRef = useRef(null);
   const isUser = item.role === "user";
@@ -392,7 +394,7 @@ function ChatMessage({
               <ChatErrorLog key={refusalLogId || "local"} logId={refusalLogId} diagnostic={item} />
             </div>
           )}
-          {item.voiceAnalysis && (
+          {showEmotion && item.voiceAnalysis && (
             <div className="voice-message-meta">
               <span>语音转写</span>
               <strong>

@@ -1279,10 +1279,15 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   });
   const [emotionUnderstandingEnabled, setEmotionUnderstandingEnabled] =
     useState(() => readEmotionUnderstandingSetting(accountStorageScope));
+    // 语音请求在途中用户可能切换开关：提示语与状态标签要读「当前」值，而不是发起时的闭包值。
+    const emotionUnderstandingEnabledRef = useRef(emotionUnderstandingEnabled);
   const [voiceState, setVoiceState] = useState(VOICE_STATES.idle);
   const [voiceElapsedMs, setVoiceElapsedMs] = useState(0);
   const [voiceError, setVoiceError] = useState("");
   const [lastVoiceAnalysis, setLastVoiceAnalysis] = useState(null);
+  useEffect(() => {
+    emotionUnderstandingEnabledRef.current = emotionUnderstandingEnabled;
+  }, [emotionUnderstandingEnabled]);
   const [isComposerMenuOpen, setIsComposerMenuOpen] = useState(false);
   const [isStatusPanelExpanded, setIsStatusPanelExpanded] = useState(false);
   const [statusPanelCloseRequest, setStatusPanelCloseRequest] = useState(0);
@@ -3686,8 +3691,11 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         setTurnContext("");
       }
       setLastVoiceAnalysis(voiceAnalysis);
+      // 关闭情绪理解后，提示条同样不能出现情绪与置信度（否则历史标签藏了、提示还在泄露）。
       setNotice(
-        `语音已转写。声音情绪线索：${voiceAnalysis.emotion}，${formatVoiceConfidence(voiceAnalysis.confidence)}。这不是心理诊断。`,
+        emotionUnderstandingEnabledRef.current
+          ? `语音已转写。声音情绪线索：${voiceAnalysis.emotion}，${formatVoiceConfidence(voiceAnalysis.confidence)}。这不是心理诊断。`
+          : "语音已转写。情绪理解已关闭，这次只记录文字。",
       );
       try {
         await refreshSessions(responseSessionId);
@@ -6892,6 +6900,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                 innerMonologueErrors={innerMonologueErrors}
                 onRequestInnerMonologue={requestVisibleInnerMonologue}
                 onCancelInnerMonologue={cancelVisibleInnerMonologue}
+                showEmotion={emotionUnderstandingEnabled}
                 userAvatar={userAvatar}
                 companionAvatar={companionAvatar}
                 privateMediaCatalog={privateMediaCatalog}
@@ -7279,7 +7288,10 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                       ? "语音暂不可用"
                       : voiceState === VOICE_STATES.recording
                         ? `松开发送 · 还能说 ${formatVoiceRemainingSeconds(voiceElapsedMs)} 秒`
-                        : VOICE_STATE_LABELS[voiceState] || "按住说话"}
+                        : voiceState === VOICE_STATES.thinking &&
+                            !emotionUnderstandingEnabled
+                          ? "正在理解语音…"
+                          : VOICE_STATE_LABELS[voiceState] || "按住说话"}
                   </span>
                 </button>
                 {voiceState === VOICE_STATES.speaking && (
@@ -7325,15 +7337,21 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                 <div className="voice-analysis-card" role="status">
                   <div>
                     <strong>刚才的语音转写</strong>
-                    <span>
-                      {lastVoiceAnalysis.emotion} ·{" "}
-                      {formatVoiceConfidence(lastVoiceAnalysis.confidence)}
-                    </span>
+                    {emotionUnderstandingEnabled ? (
+                      <span>
+                        {lastVoiceAnalysis.emotion} ·{" "}
+                        {formatVoiceConfidence(lastVoiceAnalysis.confidence)}
+                      </span>
+                    ) : (
+                      <span>情绪理解已关闭</span>
+                    )}
                   </div>
                   <p>{lastVoiceAnalysis.text}</p>
                   <small>
-                    {lastVoiceAnalysis.hint ||
-                      "情绪结果只是声音与文字线索，不是心理诊断；你的自述永远优先。"}
+                    {emotionUnderstandingEnabled
+                      ? lastVoiceAnalysis.hint ||
+                        "情绪结果只是声音与文字线索，不是心理诊断；你的自述永远优先。"
+                      : "情绪理解已关闭，只保留这次语音的文字转写。"}
                   </small>
                 </div>
               )}
@@ -8655,7 +8673,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
             <h3>语音与情绪理解</h3>
             <p className="card-hint">
               文字聊天会参考本轮文字；按住说话时才会申请麦克风并分析转写、语气和声音线索。
-              结果不是心理诊断；如果理解不对，请直接告诉 AI，以你的自述为准。两个开关只保存在当前设备。
+              结果不是心理诊断；如果理解不对，请直接告诉 AI，以你的自述为准。
+              关闭情绪理解后，历史消息里的情绪标签也会隐藏（数据保留，重新开启即可恢复）。
+              两个开关只保存在当前设备。
             </p>
             <div className="settings-grid">
               <label>

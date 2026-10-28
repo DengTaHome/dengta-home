@@ -193,4 +193,29 @@ test("决定行高的字段必须保留（否则替换时列表会跳）", () =>
   assert.equal(message.tool_calls.processing_stages, undefined, "内部阶段不影响行高，可以丢");
   assert.equal(message.tool_calls.resolved_model, undefined);
 });
+test("语音情绪标签必须在缓存里保留（重载首屏不能丢标签）", () => {
+  const storage = memoryStorage();
+  const wrote = writeChatHistoryCache({
+    accountScope: ACCOUNT_A,
+    companionScope: COMPANION_A,
+    sessionId: SESSION_A,
+    messages: [
+      message("voice-top", "今天有点累", {
+        voiceAnalysis: { emotion: "平静", confidence: 0.78, hint: "语速偏慢" },
+        tool_calls: { is_voice: true },
+      }),
+      message("voice-tool", "昨晚没睡好", {
+        tool_calls: { is_voice: true, voice_analysis: { emotion: "calm", confidence: 0.8 } },
+      }),
+    ],
+    storage,
+  });
+  assert.equal(wrote, true);
+  const cached = readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, storage });
+  assert.equal(cached.messages[0].voiceAnalysis.emotion, "平静", "top-level 情绪必须保留");
+  assert.equal(cached.messages[0].voiceAnalysis.confidence, 0.78);
+  assert.equal(cached.messages[1].tool_calls.voice_analysis.emotion, "calm", "tool_calls 语音元数据必须保留");
+  assert.equal(cached.messages[1].tool_calls.is_voice, true);
+});
+
 console.log("Chat history cache: isolation, versioning, expiry, trimming and quota handling passed");

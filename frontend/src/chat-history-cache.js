@@ -58,6 +58,10 @@ const KEPT_TOOL_CALL_KEYS = Object.freeze([
   "message_kind",
   "partial_reply",
   "refusal_detected",
+  // 语音消息的情绪标签：不保留的话，重载后缓存首屏会「丢标签」，
+  // 要等网络历史覆盖才恢复（离线时永远不恢复）。
+  "voice_analysis",
+  "is_voice",
   "art_alt",
   "artwork_id",
 ]);
@@ -77,6 +81,16 @@ function trimMessage(message) {
   // 心声卡片会显著改变行高，必须留着，否则预览和真实行高对不上。
   if (typeof message.visible_monologue === "string" && message.visible_monologue) {
     trimmed.visible_monologue = message.visible_monologue;
+  }
+  // 已 hydrate 的消息把情绪分析放在 top-level voiceAnalysis；缓存必须保留，
+  // 否则历史语音标签在首屏缓存渲染阶段会消失。
+  const voiceAnalysis = message.voiceAnalysis || message.voice_analysis;
+  if (voiceAnalysis && typeof voiceAnalysis === "object") {
+    const compact = {};
+    for (const key of ["emotion", "confidence", "hint"]) {
+      if (voiceAnalysis[key] !== undefined) compact[key] = voiceAnalysis[key];
+    }
+    if (Object.keys(compact).length) trimmed.voiceAnalysis = compact;
   }
   if (message.tool_calls && typeof message.tool_calls === "object") {
     const light = {};
