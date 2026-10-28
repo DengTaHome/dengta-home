@@ -183,3 +183,20 @@ $env:DENGTA_MEDIA_PURPOSE="chat_background"; node tools/browser-verify/verify-me
 | `chat_background` | `.private-chat-background img` | 请求了内容，渲染 192×192 |
 
 每种用途跑完都会把账号恢复到原状（清空偏好 + 永久删除临时资产）。
+---
+
+# 投屏接收端与涂鸦画室（verify-touch-extra.mjs）
+
+主界面/状态面板/设置/音乐之外的另两个界面：
+
+```powershell
+node tools/browser-verify/verify-touch-extra.mjs
+```
+
+| 界面 | 进入方式 | 元素数 | 结果 |
+| --- | --- | --- | --- |
+| 投屏接收端 | 直接打开 `/receive` | 4 | 0 个偏小 |
+| 涂鸦画室 | 侧边栏「涂鸦」 | 29 | 0 个偏小 |
+
+画室这一轮抓到两个顶栏全局按钮偏小（新对话 36×40、设置齿轮 40×40），
+已统一提到 44——它们出现在所有主视图的顶栏，属于全局问题。

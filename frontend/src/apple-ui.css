@@ -306,8 +306,9 @@ select:focus-visible {
 .new-chat-top,
 .settings-gear-button,
 .install-button {
-  min-width: 36px;
-  min-height: 36px;
+  /* 触摸目标下限 44px：这几个顶栏按钮原来是 36px，390px 宽的手机上容易点空。 */
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   border-radius: 50%;
   color: var(--apple-ink);
@@ -1233,8 +1234,9 @@ select:focus-visible {
   }
 
   .new-chat-top {
-    width: 36px;
-    min-width: 36px;
+    /* 窄屏下也保持 44px 的触摸目标（原来缩到 36px）。 */
+    width: 44px;
+    min-width: 44px;
     padding: 0;
     border-radius: 50%;
   }
