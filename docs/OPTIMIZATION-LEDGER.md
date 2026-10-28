@@ -486,3 +486,25 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
 ### 待办
 - pgvector：Kiwi×MMTR 融合需要 PostgreSQL vector 扩展；工作区有 PG16.4 但缺扩展，
   下一轮下载/构建 Windows 版。
+---
+
+## 轮次 14（2026-10-28 · pgvector 安装并验证，Kiwi×MMTR 融合前置就绪）
+
+用户要求"之前任务缺的环境也下载到工作区"。Kiwi × MMTR 融合需要向量列，已完成：
+
+- 来源：`andreiramani/pgvector_pgsql_windows` release `0.8.7` 的
+  `vector.v0.8.7-pg16.zip`（170KB，Windows 非官方构建）。
+  注意 GitHub API 走代理会 rate-limit，**直连 api.github.com 可用**。
+- 安装到两套 PostgreSQL 16 目录（`_tools\pgsql` 与现有的
+  `C:\Users\<user>\AppData\Local\dengta-pgsql`）：`lib/vector.dll`、
+  `share/extension/vector*`（42 个 SQL）、`include/server/extension/vector/*`。
+- 现有开发集群 `127.0.0.1:55432`（trust，数据目录 `AppData\Local\dengta-pgdata`）
+  已 `CREATE EXTENSION vector` → **0.8.7**；新建 `kiwi` 数据库并完成真实向量运算：
+  - `vector(3)` 插入 + L2 距离 `<->`：0 / 5.196
+  - `vector(4)` 余弦距离 `<=>`：0 / 0.157
+- `_tools\pgdata` 下自建集群曾与现有集群抢 55432（IPv6 vs IPv4），已停止并弃用；
+  **统一用 AppData 现有集群**。
+- 可复用脚本与连接信息：`tools/pgsql/README.md`、`tools/pgsql/install-pgvector.ps1`。
+
+Kiwi × MMTR P1（multitenant PG 表 + 回填 + consolidate）现在具备本地环境，
+下一步可直接在 `kiwi` 库上做迁移与算法接线。
