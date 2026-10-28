@@ -1,0 +1,73 @@
+# ELEPHANT — DengTa 长期账本（当前事实）
+
+> 给后续全新上下文用。最后更新：2026-10-29 04:40 Asia/Shanghai。
+> 详细逐轮记录见 `D:\GZdeepseek\dengta-home\docs\OPTIMIZATION-LEDGER.md`。
+
+## 目标状态
+
+- 目标是「持续约 8 小时全面优化 DengTa」，方法 Elephant（账本）/ Goldfish（外部只读复核）/ 深检索 + 真实浏览器验证。
+- 当前 goal 仍 active；外部凭据项（CNB 写权限、高德开发者认证、部分凭据轮换）未完成，不应标记 complete。
+
+## 已在线版本（已核对）
+
+- backend：`https://dengta-home-backend-rkmq.onrender.com/health` → revision `59af43d`（最近一次；更早已部署 `1d74d59`/`ec88074`）。
+- frontend：Vercel production 最新 `37cef72` READY（含 art-studio 清理 flake 修复）。
+- VPS 音乐稳定版：`https://music.dengtahome.com/health` → 200 `ok`，网易云登录态保留。
+- X MCP quick tunnel + API key：DengTa 连接 `4bcdbfeb-64c8-46e7-9d2f-9c9c217d36f2`，`/test` 200，12 工具。
+  连接必须用 `protocol_version=2024-11-05`，不能是 `auto`。
+
+## 已验证的关键事实
+
+- 前端完整 `npm test` 最近一次：**exit 0**，3924 行日志，0 failure（full6）。
+- 后端 `npm run test:module-coverage`：**124/124**。
+- 真机布局 6 视口（360×640、360×780、393×873、412×915、480×1040、800×1280）：**6/6 无布局问题**。
+  报告：`_audit/browser-remaining/layout-matrix.json`。
+- 每用户网易云扫码入口已挂载 `MusicSettings`；后端有 per-user MUSIC_U 存储。
+- 时间胶囊：网页 status 写入会保留 capsule keys；qq-bridge 保存前读最新 status 并用 `applyCapsuleJobs` 合并 marker。
+  runtime 写入已用 `services/keyed-lock.js` 按 `user:companion` 串行化（Render 单实例前提）。
+- `time_capsule.active` 使用保存后的实际胶囊条数，qq-bridge 测试断言 active=1。
+- NetEase `service.songUrl` 是 2 参 async resolver（返回 Promise），三处调用正常；importPlaylist 查询错误会抛出。
+- X 可复现工具：`dengta-home/tools/x-mcp/`（patches/capture/smoke/README）；
+  `git apply --check --ignore-whitespace` 两个 twikit patch 均 exit 0；smoke 得 tools=12 + get_user_info。
+- Muse 1.1 私有 release `companion-muse-v1.1`：本地模式/强度 SeekBar + ACTION_MODE，versionCode=2。
+
+## 已知修复过的坑（勿重复误报）
+
+- 旧说“music 许可证 MIT”是错的，实际 CC BY-NC-SA 4.0。
+- 旧说“Muse 可独立分发”不成立；仍需年龄门槛/隐私政策/更新源。
+- 旧说“时间胶囊已完全修好”在 36174d5 时过强；后续补了 keyed-lock/active 修复。
+- `test:module-coverage` 曾 121/121 但 qq active 测试是假绿；现在 124/124 且真实断言。
+- frontend full5 曾因 `art-studio` ENOTEMPTY 临时目录 flake 失败；已加 `rm maxRetries/retryDelay`，full6 exit 0。
+- 旧 X 连接 `/test` 400 根因是 `protocol_version=auto`，不是网络/API key。
+- 旧本机 18012 cloudflared 公网裸奔已停止；不要重开。
+- 之前工具输出曾打印凭据；建议轮换，但尚未完成。
+
+## 验证命令
+
+```powershell
+# backend tests
+cd D:\GZdeepseek\_refs\backend-prod
+D:\GZdeepseek\_tools\node\npm.cmd run test:module-coverage
+
+# frontend full tests (long)
+cd D:\GZdeepseek\_refs\frontend-gh
+D:\GZdeepseek\_tools\node\npm.cmd test
+
+# frontend build/lint
+D:\GZdeepseek\_tools\node\npm.cmd run lint
+D:\GZdeepseek\_tools\node\npm.cmd run build
+
+# X smoke (cookie path outside repo)
+$env:X_COOKIES_PATH='D:\GZdeepseek\_credentials\x-cookies-full.json'
+$env:TWITTER_PROXY='http://127.0.0.1:10809'
+$env:TWIKIT_ONDEMAND_URL='<capture-ondemand 输出>'
+D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\smoke-test.py
+```
+
+## 仍未完成
+
+- CNB 写权限：本地无 CNB write token，需用户提供或等 11/1 GitHub Actions `sync-cnb.yml`。
+- 高德/Amap：开发者认证与 Key 仍需用户完成。
+- 凭据轮换：Vercel/GitHub/Render/VPS 凭据此前异常输出过，建议轮换。
+- X twikit ondemand 补丁需随 X 前端更新重新抓 URL；quick tunnel URL 重启会变。
+- 全量测试仍未覆盖真实多用户并发（锁只保证单 Render 实例内）。
