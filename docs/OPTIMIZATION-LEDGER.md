@@ -838,3 +838,23 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - mock 全链路验证通过（fetch 一条「自动回复测试」→ DengTa 回复 38 秒）；
   真实循环已启动（pid 98680），等待用户给 ClawBot 发消息做真实回环验证。
 - 微信手工收取/回复已在上一轮验证；QQ/SnowLuma 仍在线，qq-bridge 仍在跑。
+
+## 轮次 22（2026-10-28 · 通道同步设计 + 自动回复防封号加固）
+
+### 新增设计/迁移（未执行 DDL）
+- `backend/supabase/068_channel_persona_sync.sql`：`persona_sections`（正常/私密/NSFW/风格小节）、
+  `channel_sync_preferences`（每用户+伴侣+微信/QQ 的选择：小节、风格、记忆模式/ID/关键词/条数、媒体开关）、
+  `channel_bindings`（外部身份 → DengTa user/companion，一次性 token 哈希），全部 RLS 按 auth.uid()。
+- `docs/CHANNEL-PERSONA-SYNC.md`：数据模型、接口、前端交互、媒体矩阵、封号风险清单。
+- Supabase SQL Editor 未执行：官网控制台用应用账号密码登录一直停在 “Signing in...”，
+  需要用户手动跑 SQL 或提供 Personal Access Token。前端仓库 PAT 仍 404，UI 无法上线。
+
+### 自动回复防封号加固（已生效）
+- 限速：30 条/小时、全局 8s、同用户 15s；发送前 0.8–2.2s 拟人停顿；单条截断 900 字。
+- `SESSION_EXPIRED` 直接停止轮询，不反复重试；新增孤儿锁自愈（读 accounts/*.lock 的 pid，
+  进程已死则删除），修复强杀 fetch 后的 `STATE_LOCK_TIMEOUT`。
+- 自动回复进程重启后持续运行；微信真实回环仍待主人给 ClawBot 发一条消息。
+
+### 已知风险（必须让用户知情）
+- SnowLuma 注入的是用户主 QQ 号，属于第三方注入，主号有封禁风险；建议换专用小号做机器人。
+- 微信建议固定家庭宽带出口、weixin.qq.com 直连、不频繁重扫码、`.wxb` 只留本机。

@@ -19,10 +19,16 @@ const CLI = path.join(CLI_DIR, "src", "cli", "index.js");
 const STATE_DIR = cfg.stateDir || "D:\\GZdeepseek\\wechat-auto-reply-state";
 const POLL_MS = Number(cfg.pollIntervalMs || 60000);
 const MAX_PROCESSED = 2000;
+// 防封号：限速、拟人停顿、单条长度上限。宁可回复慢，也不做机器式连发。
+const MAX_REPLIES_PER_HOUR = 30;
+const MIN_GLOBAL_GAP_MS = 8000;
+const MIN_USER_GAP_MS = 15000;
+const MAX_REPLY_CHARS = 900;
 
 fs.mkdirSync(STATE_DIR, { recursive: true });
 const processedPath = path.join(STATE_DIR, "processed.json");
 const conversationsPath = path.join(STATE_DIR, "conversations.json");
+const ratePath = path.join(STATE_DIR, "rate.json");
 const logPath = path.join(STATE_DIR, "bridge.log");
 const lockPath = path.join(STATE_DIR, "bridge.lock");
 
@@ -43,6 +49,41 @@ function saveJson(file, value) {
 
 const processed = new Set(loadJson(processedPath, []));
 const conversations = loadJson(conversationsPath, {});
+const rate = loadJson(ratePath, { hourStart: 0, hourCount: 0, lastSentAt: 0, lastByUser: {} });
+
+function canReplyNow(userId) {
+    const now = Date.now();
+    if (now - rate.hourStart >= 3600_000) {
+        rate.hourStart = now;
+        rate.hourCount = 0;
+    }
+    if (rate.hourCount >= MAX_REPLIES_PER_HOUR) {
+        log(`[rate-limit] hourly cap ${MAX_REPLIES_PER_HOUR} reached; skipping reply`);
+        return false;
+    }
+    if (now - (rate.lastSentAt || 0) < MIN_GLOBAL_GAP_MS) {
+        log("[rate-limit] global gap not elapsed; skipping this round");
+        return false;
+    }
+    if (now - (rate.lastByUser?.[userId] || 0) < MIN_USER_GAP_MS) {
+        log(`[rate-limit] per-user gap not elapsed for ${userId}; skipping`);
+        return false;
+    }
+    return true;
+}
+
+function markReplySent(userId) {
+    const now = Date.now();
+    rate.hourCount = (rate.hourCount || 0) + 1;
+    rate.lastSentAt = now;
+    rate.lastByUser = { ...(rate.lastByUser || {}), [userId]: now };
+    saveJson(ratePath, rate);
+}
+
+function humanPause() {
+    const ms = 800 + Math.floor(Math.random() * 1400);
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function rememberProcessed(id) {
     processed.add(String(id));
@@ -66,6 +107,28 @@ function releaseLock() {
 }
 process.on("exit", releaseLock);
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { releaseLock(); process.exit(0); });
+
+function healStateLocks() {
+    // 上一轮 fetch 被强杀会留下 accounts/*.lock；按教程只清 pid 已死的孤儿锁。
+    const accountsDir = path.join(cfg.wechatStateDir, "accounts");
+    let entries = [];
+    try { entries = fs.readdirSync(accountsDir); } catch { return; }
+    for (const name of entries) {
+        if (!name.endsWith(".lock")) continue;
+        const file = path.join(accountsDir, name);
+        try {
+            const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+            const pid = Number(parsed?.pid);
+            if (pid) {
+                try { process.kill(pid, 0); continue; }
+                catch { fs.unlinkSync(file); log(`[self-heal] removed orphan lock ${name} (pid ${pid})`); }
+            } else if (Date.now() - fs.statSync(file).mtimeMs > 300000) {
+                fs.unlinkSync(file);
+                log(`[self-heal] removed stale lock ${name}`);
+            }
+        } catch {}
+    }
+}
 
 function runCli(args, timeoutMs) {
     return new Promise((resolve, reject) => {
@@ -148,6 +211,7 @@ async function chatWithDengTa(text, conversationId) {
 async function pollOnce() {
     if (!acquireLock()) return;
     try {
+        healStateLocks();
         const data = await fetchMessages();
         const accountId = data.accountId || "";
         const messages = (data.messages || []).filter((message) => message.trusted !== false);
@@ -157,6 +221,10 @@ async function pollOnce() {
             const userId = message.fromUserId;
             const text = messageText(message);
             log(`[in] ${userId} ${text.slice(0, 80).replace(/\s+/g, " ")}`);
+            if (!canReplyNow(userId)) {
+                rememberProcessed(message.id);
+                continue;
+            }
             let reply = "";
             try {
                 const result = await chatWithDengTa(text, conversations[userId]?.conversationId);
@@ -170,8 +238,11 @@ async function pollOnce() {
                 reply = "我这会儿有点卡住了，等我一下再回你。";
             }
             if (reply) {
+                reply = reply.slice(0, MAX_REPLY_CHARS);
                 try {
+                    await humanPause();
                     await sendText(accountId, userId, reply);
+                    markReplySent(userId);
                     log(`[out] ${userId} ${reply.slice(0, 80).replace(/\s+/g, " ")}`);
                 } catch (error) {
                     log(`[send-error] ${error.message}`);
@@ -189,7 +260,12 @@ while (true) {
     try {
         await pollOnce();
     } catch (error) {
-        log(`[poll-error] ${error.message}`);
+        const message = String(error.message || error);
+        log(`[poll-error] ${message}`);
+        if (message.includes("SESSION_EXPIRED")) {
+            log("[fatal] WeChat iLink session expired; stop polling and wait for a fresh QR login");
+            process.exit(2);
+        }
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
 }
