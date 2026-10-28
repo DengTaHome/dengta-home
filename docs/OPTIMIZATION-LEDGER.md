@@ -1200,3 +1200,14 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 旧本机 18012 quick tunnel 已停止；VPS music 登录态保留。
 - 未完成：X `/test` 400（原始 initialize/notifications/list 手工复现 200）、全量 frontend test design-polish
   环境挂起、CNB 写权限/Amap 认证/凭据轮换。
+
+## 轮次 42（2026-10-29 · 全量前端测试转绿）
+
+- 完整 `npm test`（frontend）在后台跑完：**exit 0**，日志 3912 行，**0 个 failure 标记**。
+  之前是 design-polish 环境挂起；重跑完整链路后通过，包含 music-listening（新增 per-user 网易云入口测试）、
+  background-notification、MCP/视频/设置/语音等全部脚本。
+- backend `npm run test:module-coverage` **119/119**（NetEase import 回归 + capsule state + qq-bridge）。
+- Vercel 最新 `59ee05c9` READY；Render `36174d5a`；Muse 1.1 私有 release 已上传。
+- X MCP tools/list=12、`get_user_info("jack")` 实测成功；旧 auth=none 连接删除。
+- 已知未闭环：X `/connections/:id/test` 仍 400（原始 initialize/notifications/tools-list 手工均 200）；
+  CNB 写权限；高德开发者认证；凭据轮换。
