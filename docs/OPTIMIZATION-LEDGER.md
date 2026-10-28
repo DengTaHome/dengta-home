@@ -1310,3 +1310,14 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - backend module coverage 通过；backend `1d74d59` 已在线；frontend `86637b4` 已推送。
 - 真机剩余视口：393x873 通过；其余 3 个仍在跑。
 - 最新完整 frontend `npm test` 在本轮两处小修前为 exit 0；本轮后 build/lint + qq test 通过。
+
+## 轮次 53（2026-10-29 · 卸载泄漏 + 测试假/脆修复）
+
+- frontend NeteaseQrLogin 卸载 cleanup 先 `loginAttemptRef.current += 1` 再 stopPolling，防止 begin/check 在途
+  在卸载后重新弹码/建 interval；新增 `test/netease-qr-state-guards.test.mjs` 4 项静态状态机守卫。
+- backend keyed-lock 测试补异常释放、异 key 并行；module coverage **124/124**（qq-bridge active=1 真实断言）。
+- 全量前端 full5 出现 `art-studio` 临时目录 ENOTEMPTY 清理 flake（exit 1）；已给 `rm` 加 maxRetries/retryDelay，
+  单测通过；full6 全量重跑进行中。
+- 当前 hash：backend `59af43d`、frontend `b8240bd`（art flake 修复后另有一个提交）。
+- 真机布局：393、412 两个视口通过；480/800 仍在跑。
+- ledger 旧“121/121”已过时，以 124/124 为准。
