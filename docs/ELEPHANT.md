@@ -92,3 +92,11 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - 语音 preflight 每个 await 后检查 submitRun，取消不再上传。
 - 情绪关闭/无分析时不挂 voiceAnalysis，避免伪“未确定”。
 - 性能：静态 mark + 移动端 blur off + hidden/scroll pause；浏览器 animation/local-build/touch 均通过。
+
+## 流畅度/语音/无障碍（2026-10-29 轮次 64）
+
+- TTS stop abort fetch、避免重叠 audio；voice.test 覆盖 fetch 中 stop。
+- 语音 preflight 每个 await 后检查取消 token。
+- 情绪关闭/无分析不挂 voiceAnalysis。
+- 歌词弹层 focus trap/Escape/44px target。
+- 浏览器：local-build 11/11、animation-budget 全通过、touch 0<44px。

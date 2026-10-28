@@ -1418,3 +1418,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 情绪：关闭情绪理解或服务未返回分析时不再挂 `voiceAnalysis`，避免“未确定”伪展示。
 - 流畅度：静态 rainbow mark、移动端关闭 backdrop-filter、隐藏/滚动暂停动画；`verify-animation-budget` 全通过、`verify-local-build` 11/11、touch 0<44。
 - 最新前端提交已 push，Vercel 待确认。
+
+## 轮次 64（2026-10-29 · 流畅度/语音/无障碍续）
+
+- TTS：`stopVoiceSpeech` abort 在途 speech fetch；新播放先停旧 audio；voice.test 增加“fetch 期间 stop 不播放”测试。
+- 语音 preflight：`submitVoiceBlob` 每个 await 后检查 submitRun，取消后不再创建会话/上传/写消息。
+- 情绪：关闭情绪理解或无 analysis 时不挂 voiceAnalysis，避免伪“未确定”展示。
+- 歌词弹层：接入 `useSettingsSheetNavigation`（focus trap/返回/Escape），关闭按钮和歌词行 44px 触摸目标。
+- 真机：verify-local-build 11/11、verify-animation-budget 全通过、touch targets 0<44px。
+- 前端最新提交已 push，Vercel 待确认。
