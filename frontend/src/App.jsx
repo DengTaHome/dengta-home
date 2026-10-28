@@ -1023,6 +1023,12 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   const [settingsSaveError, setSettingsSaveError] = useState("");
   const [settingsSaveReceipt, setSettingsSaveReceipt] = useState(null);
   const privateMediaScope = JSON.stringify([accountStorageScope, companionScope]);
+  // 用 ref 保存作用域：三个启动刷新回调因此保持稳定引用，
+  // 否则伴侣 ID 被发现时 useCallback 身份变化 → 启动 effect 清理重跑 → bootstrap 发两轮。
+  const privateMediaScopeRef = useRef(privateMediaScope);
+  useLayoutEffect(() => {
+    privateMediaScopeRef.current = privateMediaScope;
+  }, [privateMediaScope]);
   const {
     catalog: privateMediaCatalog, loading: privateMediaLoading, error: privateMediaError,
     refresh: refreshPrivateMediaCatalog, updateCatalog: setPrivateMediaCatalog,
@@ -1996,7 +2002,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         {
           ...STARTUP_REQUEST_OPTIONS,
           signal: controller.signal,
-          authSession: createScopedSettingsSession(authSession, privateMediaScope, controller.signal),
+          authSession: createScopedSettingsSession(authSession, privateMediaScopeRef.current, controller.signal),
         },
       );
       if (!componentMountedRef.current || controller.signal.aborted || editRevision !== chatSkinEditRevisionRef.current) return;
@@ -2011,7 +2017,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     } catch {
       // Local skin preferences remain available during a backend reconnect.
     }
-  }, [accountStorageScope, privateMediaScope]);
+  }, [accountStorageScope]);
 
   const loadComposerHint = useCallback(async (sessionId) => {
     const token = ++composerHintLoadTokenRef.current;
@@ -2095,7 +2101,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     try {
       const config = await getVoiceOutput({
         signal: controller.signal,
-        authSession: createScopedSettingsSession(authSession, privateMediaScope, controller.signal),
+        authSession: createScopedSettingsSession(authSession, privateMediaScopeRef.current, controller.signal),
       });
       if (!componentMountedRef.current || controller.signal.aborted) return;
       applyVoiceOutputStatus(config);
@@ -2103,7 +2109,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       // The regular health request remains the fallback. This account-scoped
       // request must never delay or block the main startup path.
     }
-  }, [applyVoiceOutputStatus, privateMediaScope]);
+  }, [applyVoiceOutputStatus]);
 
   // 冷启动时后端可能还没醒：失败后按 2/5/10/20 秒退避重试，
   // 否则麦克风会整场停在「语音暂不可用」，用户必须刷新页面。
@@ -2117,7 +2123,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     }
     const requestOptions = {
       signal: controller.signal,
-      authSession: createScopedSettingsSession(authSession, privateMediaScope, controller.signal),
+      authSession: createScopedSettingsSession(authSession, privateMediaScopeRef.current, controller.signal),
     };
     setServiceHealth((current) => ({
       ...current,
@@ -2208,7 +2214,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         }, delay);
       }
     }
-  }, [privateMediaScope]);
+  }, []);
 
   useEffect(
     () => () => {
@@ -2217,7 +2223,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         refreshServiceHealth.retryTimer = 0;
       }
     },
-    [],
+    [refreshServiceHealth],
   );
 
   useEffect(() => {
@@ -2227,7 +2233,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     const startupRequestOptions = {
       ...STARTUP_REQUEST_OPTIONS,
       signal: startupController.signal,
-      authSession: createScopedSettingsSession(authSession, privateMediaScope, startupController.signal),
+      authSession: createScopedSettingsSession(authSession, privateMediaScopeRef.current, startupController.signal),
     };
 
     voiceOutputStatusRef.current = null;
@@ -2301,7 +2307,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         ...startupRequestOptions,
         cache: "no-store",
         signal,
-        authSession: createScopedSettingsSession(authSession, privateMediaScope, signal),
+        authSession: createScopedSettingsSession(authSession, privateMediaScopeRef.current, signal),
       };
       const settingsRevisionAtRead = settingsWriteRevisionRef.current;
       const bootstrapData = await apiRequest(
@@ -2420,9 +2426,6 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       hasLoadedSettingsRef.current = true;
       setIsLoading(false);
       void loadInitialModels(nextSettings.model, requestOptions, isCurrent);
-      void refreshServiceHealth();
-      void refreshVoiceOutputStatus();
-      void loadChatSkinPreferences();
       return { settings: nextSettings, sessions: nextSessions };
     }
 
@@ -2435,6 +2438,12 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       },
     });
     startupReconnectRef.current = reconnectController;
+    // 服务健康 / 语音输出 / 皮肤偏好都不依赖 bootstrap 载荷。冷启动时
+    // bootstrap 可能占用十几秒，排在它后面会让麦克风长时间显示「语音暂不可用」；
+    // 这里与 bootstrap 并行发出（健康检查自身带 2/5/10/20 秒退避重试）。
+    void refreshServiceHealth();
+    void refreshVoiceOutputStatus();
+    void loadChatSkinPreferences();
     void reconnectController.start();
     return () => {
       cancelled = true;
@@ -2446,7 +2455,6 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     };
   }, [
     accountStorageScope,
-    privateMediaScope,
     loadChatSkinPreferences,
     refreshServiceHealth,
     refreshVoiceOutputStatus,

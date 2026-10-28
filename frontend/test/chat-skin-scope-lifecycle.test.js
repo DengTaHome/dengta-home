@@ -70,7 +70,7 @@ async function harness() {
   }) });
   const context = {
     apiRequest: (path, options = {}) => apiRequest(path, { ...options, authSession: options.authSession || manager }),
-    authSession: manager, privateMediaScope: settingsSaveScope(manager.getSnapshot()), accountStorageScope: ACCOUNT_A,
+    authSession: manager, privateMediaScope: settingsSaveScope(manager.getSnapshot()), privateMediaScopeRef: { current: settingsSaveScope(manager.getSnapshot()) }, accountStorageScope: ACCOUNT_A,
     AbortController, createScopedSettingsSession,
     STARTUP_REQUEST_OPTIONS: { retry: false },
     chatSkinPreferencesApiPayload, normalizeChatSkinPreferences, writeStoredChatSkinPreferences,
@@ -81,7 +81,7 @@ async function harness() {
     releasePendingScreenGlanceTurn() {}, revokeAttachmentDraft() {},
     setChatSkinPreferences(next) { writes++; preferences = typeof next === "function" ? next(preferences) : next; },
   };
-  for (const name of new Set((preferencesSource + mountedSource).match(/\b\w+Ref\b/g))) context[name] = { current: null };
+  for (const name of new Set((preferencesSource + mountedSource).match(/\b\w+Ref\b/g))) if (!(name in context)) context[name] = { current: null };
   Object.assign(context, {
     componentMountedRef: { current: true }, hasLoadedSettingsRef: { current: true }, chatAttachmentsRef: { current: [] },
     chatSkinPreferencesRef: { current: preferences }, chatSkinSaveRunRef: { current: Promise.resolve() },

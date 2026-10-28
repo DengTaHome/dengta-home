@@ -97,6 +97,7 @@ async function startupHarness({ initialCompanion = COMPANION_A } = {}) {
     apiRequest: (path, options = {}) => apiRequest(path, { ...options, authSession: options.authSession || manager }),
     authSession: manager,
     privateMediaScope: settingsSaveScope(manager.getSnapshot()),
+    privateMediaScopeRef: { current: settingsSaveScope(manager.getSnapshot()) },
     AbortController,
     Error,
     STARTUP_REQUEST_OPTIONS,
@@ -125,7 +126,7 @@ async function startupHarness({ initialCompanion = COMPANION_A } = {}) {
     refreshVoiceOutputStatus() {},
     loadChatSkinPreferences() {},
   };
-  for (const name of new Set(effectBody.match(/\b\w+Ref\b/g))) context[name] = { current: null };
+  for (const name of new Set(effectBody.match(/\b\w+Ref\b/g))) if (!(name in context)) context[name] = { current: null };
   Object.assign(context, {
     settingsWriteRevisionRef: { current: 0 },
     componentMountedRef: { current: true },

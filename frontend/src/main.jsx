@@ -38,6 +38,17 @@ if (!isReceiverRoute) {
   installChunkRecovery();
   void prewarmBackend();
   pwaInstallController.start();
+  // 聊天主界面 520KB 只在登录态确定后才被 lazy 引入：登录校验、token 刷新
+  // 期间这段下载完全空转。这里先并行发起，lazy() 会复用同一模块实例。
+  // performance mark 让真机验证能证明「预加载先于登录态」而不是只看请求存在。
+  try {
+    globalThis.performance?.mark?.("dengta:app-prefetch");
+  } catch {
+    // 性能标记失败不影响加载
+  }
+  void import("./App.jsx").catch(() => {
+    // 预加载失败由 lazy 的正式加载与错误边界兜底
+  });
 }
 
 // 缺陷 1 修复：接收 dengta://auth... 深度链接回跳（邮箱验证 / 密码重置）。

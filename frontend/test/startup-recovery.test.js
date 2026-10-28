@@ -79,4 +79,37 @@ assert.match(
     "成功或卸载时必须清掉待重试的定时器"
 );
 
+// 首屏：App chunk 预加载（否则登录校验期间 520KB 完全空转）
+assert.match(
+    main,
+    /performance\?\.mark\?\.\("dengta:app-prefetch"\)/,
+    "预加载需要 performance mark，真机时间线才能证明它先于登录态"
+);
+assert.match(
+    main,
+    /void import\("\.\/App\.jsx"\)/,
+    "主界面 chunk 必须在登录态解析前就开始下载"
+);
+
+// 首屏：健康检查/语音输出/皮肤偏好与 bootstrap 并行，而不是排在后面
+const startup = read("App.jsx");
+const parallelIndex = startup.indexOf("void refreshServiceHealth();");
+const reconnectIndex = startup.indexOf("void reconnectController.start();");
+assert.ok(
+    parallelIndex > 0 && reconnectIndex > parallelIndex,
+    "三个启动刷新必须在 reconnectController.start() 之前发出（与 bootstrap 并行）"
+);
+assert.ok(
+    !/void loadInitialModels\([^)]*\);\s*\n\s*void refreshServiceHealth\(\);/s.test(startup),
+    "刷新请求不应再排在 bootstrap 成功之后"
+);
+
+// 启动回调需要稳定引用：否则伴侣 ID 被发现会让 effect 清理重跑、bootstrap 发两轮
+assert.match(startup, /const privateMediaScopeRef = useRef\(privateMediaScope\);/, "启动刷新回调需要作用域 ref");
+assert.match(
+    startup,
+    /refreshServiceHealth\.retryTimer/,
+    "健康检查重试仍挂在回调自身"
+);
+
 console.log("startup-recovery: 4 项结构断言通过");

@@ -68,6 +68,7 @@ async function serviceHarness() {
   const context = {
     authSession: manager,
     privateMediaScope: settingsSaveScope(manager.getSnapshot()),
+    privateMediaScopeRef: { current: settingsSaveScope(manager.getSnapshot()) },
     componentMountedRef: { current: true },
     settingsScopeControllerRef: { current: controller },
     voiceOutputStatusRef: { current: null },

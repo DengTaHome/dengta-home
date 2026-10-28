@@ -134,6 +134,7 @@ function harness() {
     context[name] = { current: null };
   }
   Object.assign(context, {
+    privateMediaScopeRef: { current: context.privateMediaScope },
     draftSettingsRef: { current: initialSettings },
     confirmedSettingsRef: { current: initialSettings },
     hasLoadedSettingsRef: { current: true },
@@ -407,7 +408,7 @@ test("same-scope reconnect preserves dirty editor content and a failed older PUT
 test("late bootstrap settings never roll back a PUT confirmed after the read started", async () => {
   const h = harness();
   const reload = h.subject.loadInitialData();
-  const oldRead = h.requests[0];
+  const oldRead = h.requests.find(request => request.path === "/api/v2/bootstrap");
   h.subject.updateDraft("user_details", "  synthetic newly saved details\n");
   const flush = h.subject.flushLatestSettingsDraft();
   h.writes()[0].resolveSettings();

@@ -311,3 +311,31 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
 本机没有 adb/emulator，**无法真机/模拟器跑 APK**。APK 侧已确认：
 `android:windowSoftInputMode="adjustResize"`、`viewport-fit=cover` + `env(safe-area-inset-top)`
 最小 40px 顶部让位；但 Android 15 强制 edge-to-edge 之后的真实表现仍需在手机上验一次。
+---
+
+## 轮次 8（2026-10-28 · 首屏：App chunk 预加载 + 启动请求并行）
+
+### 改动
+- `main.jsx`：非接收端路由在启动最早期 `performance.mark("dengta:app-prefetch")` 后
+  `void import("./App.jsx")`——聊天主界面 520KB 不再等登录态解析完才 lazy 加载，
+  下载与登录校验并行；mark 让真机验证能证明"先于登录态"而不是只看请求存在。
+- `App.jsx`：`refreshServiceHealth` / `refreshVoiceOutputStatus` / `loadChatSkinPreferences`
+  从 bootstrap 成功之后移到启动 effect 开头，与 bootstrap 并行（健康检查自带退避重试）；
+  三个回调改用 `privateMediaScopeRef` 读作用域，身份稳定，启动 effect 不会因伴侣 ID
+  被发现而清理重跑。
+- 新增 `tools/browser-verify/verify-startup-timeline.mjs`（已接入 run-all）：
+  注入真实登录态 + 伴侣 ID，记录 App chunk / bootstrap / health / 首条消息时间线，
+  断言预加载 mark ≤800ms、health 在 bootstrap 结束前发出、bootstrap 只 1 次、首条消息 <12s。
+
+### 验证
+- 时间线实测：prefetch mark 47-52ms、App chunk 55-64ms 开始；health 与 bootstrap 同刻
+  （561ms / 562ms）；bootstrap 1 次；首条消息 6.9-10s（跨境后端冷启动）。
+- 布局 6 视口 0 问题；流式全过；前端全量测试 exit 0（17 个 vm harness 同步更新作用域 ref）。
+
+### 过程中的教训
+- 探针一开始看到 2 次 bootstrap、2 个 App chunk，误判为产品 bug；实际是**注入的登录态
+  缺伴侣 ID**：真实登录用户本地同步存着伴侣 ID，测试注入不会。注入后 bootstrap=1。
+  结论：探针要先复刻真实登录态，否则会把"首次发现伴侣"当成 App 重挂。
+- 改启动回调签名后，4 个 vm 测试 harness 的 ref 初始化会把预设 ref 覆盖成 null
+  （`context[name] = { current: null }`），表现为 `createScopedSettingsSession(null)` 抛错。
+  修法：`if (!(name in context))` 再初始化——测试工具自身的坑，已一并加固。
