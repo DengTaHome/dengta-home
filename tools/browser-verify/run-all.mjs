@@ -28,6 +28,7 @@ const CHECKS = [
     { name: "冷启动健康检查重试", script: "verify-health-retry.mjs", blocking: true },
     { name: "登录页体验（3 视口 + 键盘顶起）", script: "verify-login.mjs", blocking: true },
     { name: "启动时间线（预加载 / 并行请求 / 无重复 bootstrap）", script: "verify-startup-timeline.mjs", blocking: true },
+    { name: "动画预算（滚动暂停 / 后台暂停）与录音倒计时", script: "verify-animation-budget.mjs", blocking: true },
 ];
 
 function sleep(ms) {

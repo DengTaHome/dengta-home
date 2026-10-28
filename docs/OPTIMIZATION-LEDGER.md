@@ -339,3 +339,29 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
 - 改启动回调签名后，4 个 vm 测试 harness 的 ref 初始化会把预设 ref 覆盖成 null
   （`context[name] = { current: null }`），表现为 `createScopedSettingsSession(null)` 抛错。
   修法：`if (!(name in context))` 再初始化——测试工具自身的坑，已一并加固。
+---
+
+## 轮次 9（2026-10-28 · 动画预算 + 录音倒计时）
+
+### 改动
+- **滚动/切后台暂停常驻动画**：App 在 document 上 capture 监听所有滚动容器，
+  滚动期间给 `<html data-dengta-scrolling="1">`，160ms 无滚动后移除；
+  visibilitychange 同步 `data-dengta-hidden`。新增 `animation-budget.css`
+  （最后导入）：两个属性下 `* { animation-play-state: paused !important; }`。
+  聊天页当前有 2 个 infinite 装饰动画，滚动路径上不再持续绘制。
+- **录音倒计时**：新增纯函数 `formatVoiceRemainingSeconds(elapsed, max=60s)`；
+  按钮内由「1.2s」改为剩余秒数「58s」，最后 10 秒加 `.is-ending` 警示色
+  （`prefers-reduced-motion` 下不加脉冲）；输入区提示改为「松开发送 · 还能说 N 秒」。
+- 新增 `tools/browser-verify/verify-animation-budget.mjs`（已接入 run-all）：
+  验证滚动属性/暂停/恢复、切后台暂停/恢复、倒计时递减与警示态。
+- 新增 `frontend/test/animation-budget.test.js` + voice 倒计时纯函数断言。
+
+### 验证
+- `verify-animation-budget` 13 项全过；滚动用注入高占位块 + 合成冒泡 scroll
+  验证「监听 → 属性 → CSS 暂停」链路（真实滚动手感仍留给真机，账本记录该限制）。
+- `verify-voice-ui` 19 项全过（计时断言同步改为倒计时格式）。
+- 布局 6 视口 0 问题；启动时间线全过；前端全量测试 exit 0。
+
+### 已知限制
+- 测试会话消息很少，聊天容器没有真实溢出，无法在自动化里产生真实滚动；
+  用合成 scroll 事件验证链路，滚动时的实际掉帧需要真机确认。

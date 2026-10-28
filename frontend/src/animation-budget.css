@@ -1,0 +1,34 @@
+/*
+ * 动画预算：滚动 / 切后台时暂停常驻动画。
+ *
+ * 背景：聊天页有多个 infinite 装饰动画（光晕、呼吸、旋转封面等）。它们即使在
+ * 滚动或切到后台时也持续绘制，在中低端安卓上会和滚动抢 GPU/主线程，表现为
+ * 掉帧与发热。滚动期间暂停、160ms 无滚动后恢复，既保住入场动画，又让滚动
+ * 路径上没有常驻动画开销。
+ */
+html[data-dengta-scrolling="1"] *,
+html[data-dengta-hidden="1"] * {
+  animation-play-state: paused !important;
+}
+
+/* 录音最后 10 秒：倒计时进入警示态（不依赖颜色动画，减少动态效果） */
+.chat-voice-timer.is-ending {
+  color: #c8485a;
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-voice-timer.is-ending {
+    animation: voice-countdown-warning 1s ease-in-out infinite;
+  }
+}
+
+@keyframes voice-countdown-warning {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}

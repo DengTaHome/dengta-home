@@ -2,7 +2,7 @@
 //
 // 用假麦克风（--use-fake-device-for-media-stream）真实触发录音，验证：
 //   1. 按下就发出 /voice/warmup 预热请求（这是本轮新增的延迟优化）
-//   2. 长按进入录音态，按钮显示「松开发送 · x.x 秒」且秒数在走
+//   2. 长按进入录音态，按钮显示剩余秒数倒计时（58s）且秒数在减
 //   3. 录音开始与松手都有震动反馈（navigator.vibrate）
 //   4. 松手后进入上传/思考，最终要么给出回复，要么给出可读错误，
 //      不会卡死在中间状态
@@ -224,8 +224,8 @@ if (buttonVisible) {
         recordingState
     );
     record(
-        "录音时显示秒数计时",
-        /\d\.\d/.test(recordingState.text) && recordingState.pressed === "true",
+        "录音时显示剩余秒数倒计时",
+          /(^|·)?\s*还能说 \d+ 秒|\d+s/.test(recordingState.text) && recordingState.pressed === "true",
         recordingState.text
     );
 

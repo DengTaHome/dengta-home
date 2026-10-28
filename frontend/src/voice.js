@@ -2,6 +2,17 @@ import { API_BASE_URL } from "./api.js";
 import { authSession as defaultAuthSession } from "./auth-session.js";
 
 export const VOICE_MAX_DURATION_MS = 60_000;
+
+// 录音剩余秒数：界面显示"还能说 N 秒"，最后 10 秒进入警示态。
+// 独立成纯函数便于单测（60s 上限与取整规则是最容易回归的地方）。
+export function formatVoiceRemainingSeconds(
+  elapsedMs,
+  maxMs = VOICE_MAX_DURATION_MS,
+) {
+  const elapsed = Math.max(0, Number(elapsedMs) || 0);
+  const limit = Math.max(0, Number(maxMs) || 0);
+  return Math.max(0, Math.ceil((limit - elapsed) / 1000));
+}
 export const VOICE_MIN_DURATION_MS = 650;
 export const VOICE_TURN_TIMEOUT_MS = 75_000;
 

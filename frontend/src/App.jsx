@@ -309,6 +309,7 @@ import {
   buildVoiceTurnFormData,
   createVoiceTurnRequest,
   formatVoiceConfidence,
+  formatVoiceRemainingSeconds,
   normalizeVoiceAnalysis,
   normalizeVoicePlaybackMode,
   selectRecorderMimeType,
@@ -2214,6 +2215,41 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         }, delay);
       }
     }
+  }, []);
+
+  // 滚动 / 切后台时暂停所有 infinite CSS 动画：中低端安卓上无限动画会与滚动
+  // 抢 GPU 与主线程。capture 监听所有滚动容器（聊天、设置、弹层），160ms
+  // 无滚动后恢复，避免入场动画被永久暂停。
+  useEffect(() => {
+    const root = document.documentElement;
+    let scrollTimer = 0;
+    function markScrolling() {
+      root.dataset.dengtaScrolling = "1";
+      window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        delete root.dataset.dengtaScrolling;
+      }, 160);
+    }
+    function markHidden() {
+      if (document.visibilityState === "hidden") {
+        root.dataset.dengtaHidden = "1";
+      } else {
+        delete root.dataset.dengtaHidden;
+      }
+    }
+    document.addEventListener("scroll", markScrolling, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("visibilitychange", markHidden);
+    markHidden();
+    return () => {
+      document.removeEventListener("scroll", markScrolling, { capture: true });
+      document.removeEventListener("visibilitychange", markHidden);
+      window.clearTimeout(scrollTimer);
+      delete root.dataset.dengtaScrolling;
+      delete root.dataset.dengtaHidden;
+    };
   }, []);
 
   useEffect(
@@ -7088,8 +7124,14 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                           {voiceState === VOICE_STATES.recording ? "●" : "🎙"}
                         </span>
                         {voiceState === VOICE_STATES.recording && (
-                          <span className="chat-voice-timer">
-                            {(voiceElapsedMs / 1000).toFixed(1)}s
+                          <span
+                            className={`chat-voice-timer${
+                              formatVoiceRemainingSeconds(voiceElapsedMs) <= 10
+                                ? " is-ending"
+                                : ""
+                            }`}
+                          >
+                            {formatVoiceRemainingSeconds(voiceElapsedMs)}s
                           </span>
                         )}
                     </button>
@@ -7236,7 +7278,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                     {!voiceServiceAvailable
                       ? "语音暂不可用"
                       : voiceState === VOICE_STATES.recording
-                        ? `松开发送 · ${(voiceElapsedMs / 1000).toFixed(1)} 秒`
+                        ? `松开发送 · 还能说 ${formatVoiceRemainingSeconds(voiceElapsedMs)} 秒`
                         : VOICE_STATE_LABELS[voiceState] || "按住说话"}
                   </span>
                 </button>

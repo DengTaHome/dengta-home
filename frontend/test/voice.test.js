@@ -9,6 +9,7 @@ import {
   VOICE_TURN_TIMEOUT_MS,
   buildVoiceTurnFormData,
   createVoiceTurnRequest,
+  formatVoiceRemainingSeconds,
   formatVoiceConfidence,
   hydrateStoredVoiceAnalysis,
   hydrateStoredVoiceMessages,
@@ -255,6 +256,18 @@ await assert.rejects(
   /凭据已失效/,
 );
 assert.equal(missingCredentialFetches, 0);
+
+// 录音倒计时：60s 上限与"最后 10 秒警示"依赖这个纯函数
+{
+  assert.equal(formatVoiceRemainingSeconds(0), 60);
+  assert.equal(formatVoiceRemainingSeconds(1_200), 59);
+  assert.equal(formatVoiceRemainingSeconds(55_000), 5);
+  assert.equal(formatVoiceRemainingSeconds(59_200), 1);
+  assert.equal(formatVoiceRemainingSeconds(60_000), 0);
+  assert.equal(formatVoiceRemainingSeconds(75_000), 0, "超过上限不能出现负数");
+  assert.equal(formatVoiceRemainingSeconds(-500), 60, "异常负数不能放大剩余时间");
+  assert.equal(formatVoiceRemainingSeconds(undefined), 60);
+}
 
 // abort-before-send：token 刷新期间点取消，不能再 open+send（真机评审发现的行为缺口）
 class AbortableFakeXhr {
