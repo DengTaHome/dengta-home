@@ -343,3 +343,14 @@ node tools/browser-verify/run-all.mjs
 
 按 CLS 规范，用户输入引起的位移本来就不该计入；脚本的模拟点击不算真实输入，
 所以必须显式清空，而不是把点击位移也算成产品问题。
+
+## 多尺寸安卓适配
+
+- `verify-layout-matrix.mjs` —— 在 6 种安卓机型视口（360×640 → 800×1280，DPR 2–3）下
+  检查水平溢出、交互元素出界、触摸目标 <44、聊天气泡文本被裁。
+  会排除 off-canvas 抽屉和 visually-hidden 输入，避免误报。
+- `verify-startup-recovery.mjs` —— 把 `bootstrap` 延迟 20 秒，强制进入「正在唤醒后端」状态，
+  检查恢复横幅是否真的可见（命中测试 + 有效 opacity）、是否与浮动状态胶囊叠压、
+  按钮是否 ≥44。启动动画 DengTaPrelude（约 3.18s）是刻意开场，脚本会等它退场再判断。
+
+两者都输出 `_audit/browser/*.json` 与截图；有失败时退出码非 0。

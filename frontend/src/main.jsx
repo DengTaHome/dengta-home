@@ -14,6 +14,7 @@ import "./room-invite.css";
 import "./settings-media-polish.css";
 import "./interaction-polish.css";
 import "./interface-polish.css";
+import "./startup-recovery.css";
 import LoadedApp from "./LoadedApp.jsx";
 import AuthGate from "./AuthGate.jsx";
 import { authSession } from "./auth-session.js";

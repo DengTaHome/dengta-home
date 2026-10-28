@@ -1,0 +1,22 @@
+/*
+ * 启动恢复（正在唤醒 / 重新连接后端）时的层叠修复。
+ *
+ * 实测问题：重连横幅在正常文档流里，而顶部状态胶囊是浮动的，
+ * 两者在 360×780、393×873 等常见安卓尺寸上直接叠压——
+ * 横幅里的按钮被胶囊盖住、文字被裁，用户看不到也点不到。
+ *
+ * 恢复期间隐藏浮动状态区：此时状态数据本身就是陈旧的，
+ * 让「正在唤醒」横幅成为唯一焦点，既消除遮挡也减少误导。
+ *
+ * 注意：这个文件必须最后一个导入，且规则保持顶层——
+ * 之前把同样的规则追加到 apple-ui.css 尾部，结果落进了未闭合的 @media 里，
+ * 只在特定宽度生效，等于没修。
+ */
+.main-panel.startup-recovering .chat-presence-stack {
+  display: none;
+}
+
+.main-panel.startup-recovering .connection-recovery {
+  position: relative;
+  z-index: 30;
+}

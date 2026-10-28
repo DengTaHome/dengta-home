@@ -9294,6 +9294,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       <main
         className={`main-panel view-${activeView}${
           isStatusPanelExpanded ? " status-panel-open" : ""
+          }${
+          showStartupRecovery ? " startup-recovering" : ""
         }`}
       >
         <header className="topbar">
