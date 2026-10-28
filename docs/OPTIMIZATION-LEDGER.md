@@ -1072,3 +1072,22 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - 详见 `docs/DEPLOY-SCHEDULE.md`。
 - 本轮前端 MCP 应用目录已上线，网易云 MCP（本机 quick tunnel）连接已启用 6 个只读工具；
   这些仍是上一轮成果，不在本轮重复。
+
+## 轮次 34（2026-10-29 · 网易云稳定部署到 VPS + 命名隧道）
+
+- 用户提供 VPS 密码（末位含句点，已存 `_credentials` 仓库外）。
+- VPS `ubuntu@124.223.164.212`：
+  - 新建 `DengTaHome/dengta-music-mcp` 公共仓库（Docker：网易云 player + MCP + 反向代理 + cookie 网关）；
+  - VPS 拉取并构建 `dengta-music-mcp:latest`，容器 `dengta-music-mcp` 绑定 `127.0.0.1:10080`，
+    data volume `/home/ubuntu/music-data`，`--restart unless-stopped`；
+  - 现有 cloudflared 命名隧道 `dengtalianjie` 增加 `music.dengtahome.com` ingress，
+    `cloudflared tunnel route dns` 创建 CNAME，隧道重启健康；
+  - 公网 `https://music.dengtahome.com/health` 200，`/mcp` Bearer 鉴权后 initialize 200。
+- DengTa：旧 quick tunnel 连接已删除；新建 **网易云音乐 · VPS 稳定版（Anko3o）**
+  (`8596d346-…`)，endpoint `https://music.dengtahome.com/mcp`，Bearer，12 工具、6 个只读 auto。
+- 播放器加「登录」顶栏按钮 + `#login` 直达二维码；访问链接 `?token=` 换 HttpOnly cookie，
+  反向代理注入 `X-Music-Gateway`，二维码接口不再 403。
+- 手机：ADB 已识别 V2454A（Android 15），X/高德/DengTa 已安装；X 已登录、高德已登录。
+  - X MCP 需要网页版 `auth_token`/`ct0`，手机 App 登录不能导出；需要用户给 X 登录凭据或网页 cookie。
+  - navi-shell 需要高德开放平台 Android Key（绑定包名+签名 SHA1），高德 App 登录不能代替。
+- 待用户：扫网易云二维码 → 我保存 MUSIC_U 到容器 env；X/高德凭据。
