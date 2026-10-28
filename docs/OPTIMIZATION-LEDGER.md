@@ -1091,3 +1091,17 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - X MCP 需要网页版 `auth_token`/`ct0`，手机 App 登录不能导出；需要用户给 X 登录凭据或网页 cookie。
   - navi-shell 需要高德开放平台 Android Key（绑定包名+签名 SHA1），高德 App 登录不能代替。
 - 待用户：扫网易云二维码 → 我保存 MUSIC_U 到容器 env；X/高德凭据。
+
+## 轮次 35（2026-10-29 · 网易云登录完成，按上游教程复刻）
+
+- 重读上游 README 后确认：官方教程走 **MUSIC_U Cookie**，QR API 只是备选；
+  VPS 上 QR API 返回风控 8821，属数据中心 IP/非浏览器客户端触发，不再硬刚。
+- 用户已在 Edge 登录 music.163.com；通过 CDP 提取 `MUSIC_U`，写入 VPS data volume
+  `.netease_cred`，重启后 `/music/netease/status` 返回 `logged_in: true`，昵称“你算那块小饼干2333”。
+- MCP `tools/list` 12 个工具正常，`her_netease` 实测返回累计听歌 1879 首 / Lv.7；
+  DengTa 稳定连接 `8596d346-…` 重新测试通过 12 个工具。
+- 容器补齐 `MUSIC_CARD_BASE` / `MUSIC_PUBLIC_URL`；README 更正上游许可证为
+  **CC BY-NC-SA 4.0（禁止商用）**，保留 eryu 归属。
+- X：已从 Edge 提取 `auth_token`/`ct0`；twikit 2.3.3 报 `Couldn't get KEY_BYTE indices`
+  （X 前端变更/风控），MCP 还未接通，需换实现或升级。
+- 高德：开放平台登录成功但账号未完成开发者认证，控制台要求个人/企业认证后才能建 Key。
