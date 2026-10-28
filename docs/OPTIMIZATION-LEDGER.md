@@ -1356,3 +1356,16 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - `v2-core-routes` 假 DB 补 `limit()`；`co-watch-room-access` 静态断言更新为 4mb。
 - backend module coverage 通过；backend `8afbee7` 已在线。
 - 仍未修（P2）：流式断连取消/背压、记忆压缩内联、keyed-lock 无超时、401 写日志、DB health abort、优雅停机。
+
+## 轮次 58（2026-10-29 · 语音权限 P1 + 后端 P1 上线）
+
+- 前端 P1：首次麦克风授权期间松手后仍启动录音/60s 自动发送。
+  已加 `voiceShouldAbortAfterPermission()`：getUserMedia resolve 后若手指已松开，立即 release stream、
+  回 idle 并提示重新按住；`endVoiceCapture` 在 requesting 阶段也作废本次 capture。
+  新增纯函数测试；lint/build 通过。
+- 后端 P1：JSON body 从 30mb 降至 4mb + Content-Length>4MB 前置 413；聊天历史最新 500 条分页
+  （desc + reverse），修复超行上限丢最新消息；`v2-core-routes` fake DB 补 limit；
+  backend `8afbee7` 已在线，module coverage 通过。
+- 前端审计另有 P2：TTS 在途请求不可取消、取消 preflight 后仍上传、情绪关闭仍显示“未确定”、
+  连点更多回复、CSS 字体/动图体积、语音按钮键盘不可达、歌词弹层无 focus trap。
+- 真机布局 6/6；full6 全绿（本轮语音/后端改动后未重跑全量，build/lint/voice test 已过）。
