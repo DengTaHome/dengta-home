@@ -1273,3 +1273,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 后端 `53ca5db9`、前端 `f2cd03e4` READY；后端 module coverage 121/121。
 - 真机布局矩阵前两个视口通过；后 4 个待跑；全量前端测试后台仍在运行。
 - 未闭环：CNB 写权限、Amap 认证、凭据轮换；X twikit 补丁仍需在 X 前端更新时重新抓 ondemand。
+
+## 轮次 49（2026-10-29 · QR 改动后全量前端测试再次全绿）
+
+- 最新完整 `npm test`（frontend，含 QR 状态机修复）：**exit 0**，3912 行日志，**0 failure 标记**。
+- 后端 `test:module-coverage` 121/121；Render `53ca5db`；Vercel `f2cd03e` READY。
+- X：连接 `protocol_version=2024-11-05` 后 `/test` 通过；`tools/x-mcp` 补丁 `git apply --check --ignore-whitespace` 通过，
+  capture 抓到当前 ondemand URL，smoke 实测 12 工具 + get_user_info。
+- 真机布局：历史上 6 视口 0 问题报告；本轮重跑 360x640、360x780 通过，后 4 个待跑。
+- 未闭环：6 视口重跑、CNB 写权限、Amap 认证、凭据轮换、X twikit 补丁随 X 前端更新维护。
