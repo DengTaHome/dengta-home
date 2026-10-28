@@ -703,3 +703,34 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 顺带修复：openai_compatible speed 不再被 Deepgram 0.7–1.5 clamp；日志级大写单词
   （INFO/ERROR…）不再被当聊天发送者，并加 nginx 日志测试。
 - 复跑 18 个后端套件 + 前端 voice 测试 + vite build 全绿。
+
+---
+
+## 轮次 19（2026-10-28 · kiwi 服务器部署侦察与 P1 部署包）
+
+### 线上事实（已验证）
+- kiwi 线上地址 **https://kiwi.dengtahome.com**（Cloudflare → 用户 VPS），
+  `GET /` 返回 `Kiwi-Mem v1.6.2`，`memory_enabled=true`；与本地 fork 基线 1.6.2 完全一致。
+- Render 生产后端 `KIWI_MEM_URL=https://kiwi.dengtahome.com`（只读环境变量确认），
+  因此 kiwi 升级无需改 DengTa 后端配置。
+- 线上 kiwi **未部署 P1**（无 mmtr 字段/表）；服务器 SSH 22 端口开放，
+  已知主机记录 `119.8.185.219`，但本机没有私钥/密码 → 部署需要用户提供登录方式。
+- 生产 DengTa 后端仓库 `DengTaHome/dengta-home-backend` 版本 **0.29.76**，
+  本地 monorepo 是 0.29.28；本轮语音/导入改动需要先移植/回到生产版本再部署，
+  不能直接推旧基线。
+
+### 部署包（已提交，可在服务器一键执行）
+- `tools/kiwi-deploy/p1-bundle.tar.gz`（35KB 自包含）：`p1.patch` + `mmtr_brain/` +
+  `docs/MMTR-P1.md` + `deploy-p1.sh` + `verify-p1.sql`。
+- `deploy-p1.sh`：校验 VERSION=1.6.2 → pg_dump + 仓库 tar 备份 → `git apply --check`
+  → 应用补丁/复制模块 → `.env` 加两个开关 → `docker compose up -d --build`
+  → 容器内 `migrate` + `backfill` → SQL 验证 + dry-run consolidate → 打印回滚命令。
+- 已在**干净 1.6.2 基线副本**上验证：补丁可应用、`py_compile` 通过、
+  P0 29 条与 P1 主链路/守卫测试全部通过。
+- 另修复：仓库镜像 `fork-integration.patch` 之前被 PowerShell 重定向写成 UTF-16，
+  已用 `git diff --output` 重新生成为 UTF-8（否则服务器 `git apply` 会失败）。
+
+### 待办
+- 用户提供 SSH 登录方式（root 密码或私钥）→ 我执行部署；或用户自行运行 3 条命令。
+- 部署后观察 daily_digest 的 MMTR 巩固日志与 `/memory/status`。
+- 下一轮：把语音/导入改动移植到 0.29.76 生产后端并部署；QQ↔DengTa 适配器；分块蒸馏。
