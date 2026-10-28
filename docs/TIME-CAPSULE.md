@@ -64,3 +64,10 @@
   `companion_runtime_states.status` 的其他键（content.js 共用该 status）。
 - 时间胶囊上下文放在 `userTurnContext` 之前，避免长上下文把时钟/任务截断。
 - 测试：`test/time-capsule.test.js` 3 项 + `test/qq-bridge.test.js` 2 项通过。
+
+## 双向保留（2026-10-29 修复）
+
+网页端每次启动会 PUT 一个白名单 `companion-status` 对象；服务端现在用
+`preserveCapsuleKeys()` 保留 `time_capsules` 与 `last_capsule_interaction_at`。
+qq-bridge 保存前先读取最新 `companion_runtime_states.status` 再合并，避免聊天前快照覆盖网页端更新。
+测试：`test/time-capsule-state.test.js` + `test/time-capsule.test.js`。

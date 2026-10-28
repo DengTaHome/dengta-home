@@ -1146,3 +1146,19 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   X 12 工具 stdio 实测；VPS music 登录态保留。
 - 剩余：X `/test` 400；X tunnel 仍为 quick URL；frontend 全量 test 的 design-polish 环境挂起；
   CNB 写权限；Amap 开发者认证；Muse 本地控制/分发门槛。
+
+## 轮次 38（2026-10-29 · P0 修复：网易云导入崩溃 / 胶囊清空 / X 工具真正可用）
+
+- **P0 NetEase import**：`netease-qr-login.js` 内层 `async function songUrl(scope,id)` 遮蔽外层纯函数，
+  导致 `external_url` 为 rejected Promise，Node 未处理拒绝可杀进程；另 `rows` 未定义会让已存在歌单导入 500。
+  已把内层改名 `resolveSongUrl`（对外仍暴露 `songUrl`）、删除 DBG/STEP 调试；新增静态回归测试。
+- **P0 时间胶囊**：网页端 `PUT /companion-state` 会整块替换 status，把 channel bridge 写入的
+  `time_capsules` 清掉；qq-bridge 又用聊天前快照整块写回。已新增 `services/time-capsule-state.js`：
+  web 写入保留 capsule keys，qq-bridge save 先读最新 status 再合并；3 个纯函数测试 + 既有测试。
+- **P1 QR 429**：前端自动换码不再重置计数；最多自动换 2 次、120s 间隔；begin 失败立即 stopPolling。
+- **X MCP**：修 FastMCP 兼容、cookie 文件加载、wrapper 显式 env；supergateway API key 生效；
+  12 工具、`get_user_info` 实测成功；删除重复的 auth=none 连接，仅保留 bearer。
+- **P1 部署脚本**：非 success 结论/feed 空窗/CNB 失败均 exit 1；CNB 直推检查退出码；proxy URL 脱敏。
+- **P1 旧隧道**：停止本机 `cloudflared --url 18012`、local player/MCP，消除绕过 proxy 的公网裸奔。
+- 验证：backend `npm run test:module-coverage` 119/119；frontend build/lint；VPS music 登录态保留；
+  backend revision `36174d5a`；Vercel `c3457d8` READY（`59ee05c` building）。
