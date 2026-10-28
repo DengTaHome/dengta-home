@@ -156,4 +156,29 @@ test("数字 id 也要能缓存（真机上后端返回的就是数字）", () =
   const cached = readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, storage });
   assert.deepEqual(cached.messages.map((item) => item.id), ["4571", "4572"], "读回时统一成字符串");
 });
+test("决定行高的字段必须保留（否则替换时列表会跳）", () => {
+  const storage = memoryStorage();
+  const wrote = writeChatHistoryCache({
+    accountScope: ACCOUNT_A, companionScope: COMPANION_A, sessionId: SESSION_A,
+    messages: [{
+      id: 4586, role: "assistant", content: "在呢",
+      visible_monologue: "这是可见心声，会渲染成一张卡片",
+      tool_calls: {
+        music_card: { title: "小幸运", artist: "田馥甄", duration_seconds: 264 },
+        co_watch_session_id: "cw-1", is_co_watch: true,
+        processing_stages: ["thinking", "writing"], resolved_model: "DeepSeek-V4-Flash",
+        response_mode: "openai-compatible",
+      },
+    }],
+    storage,
+  });
+  assert.equal(wrote, true);
+  const cached = readChatHistoryCache({ accountScope: ACCOUNT_A, companionScope: COMPANION_A, storage });
+  const message = cached.messages[0];
+  assert.equal(message.visible_monologue, "这是可见心声，会渲染成一张卡片", "心声卡片会改变行高，必须保留");
+  assert.deepEqual(message.tool_calls.music_card, { title: "小幸运", artist: "田馥甄", duration_seconds: 264 }, "歌曲卡片必须保留");
+  assert.equal(message.tool_calls.co_watch_session_id, "cw-1");
+  assert.equal(message.tool_calls.processing_stages, undefined, "内部阶段不影响行高，可以丢");
+  assert.equal(message.tool_calls.resolved_model, undefined);
+});
 console.log("Chat history cache: isolation, versioning, expiry, trimming and quota handling passed");

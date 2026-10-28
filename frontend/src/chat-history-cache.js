@@ -12,7 +12,8 @@
  * - 超过 7 天不用就丢弃，避免展示极旧内容。
  */
 
-export const CHAT_CACHE_VERSION = 3;
+// v4：开始保留 visible_monologue 与 music_card 等「决定行高」的字段，旧缓存结构作废。
+export const CHAT_CACHE_VERSION = 4;
 // 上限提高过常见历史条数（实测这段历史 43 条）。
 // 注意：把它从 40 提到 60 并没有降低 CLS（仍是 0.116），
 // 所以「闪」另有原因，这条只当容量余量，别再当成位移修复。
@@ -36,7 +37,31 @@ function safeStorage(storage) {
   }
 }
 
-/** 只保留展示真正需要的字段，避免把 tool_calls / 大附件塞进缓存。 */
+/**
+ * 决定「这一行有多高」的字段必须保留，否则预览行比真实行矮，
+ * 替换瞬间整个列表被撑高、可见内容位移——实测 CLS 0.1159 就是这么来的。
+ *
+ * 实测真实消息里影响行高的有：
+ *   - visible_monologue（心声卡片）
+ *   - tool_calls.music_card（一起听歌的歌曲卡片）
+ *   - tool_calls 里 co_watch_* / notification_kind（一起看提示）
+ * 而 processing_stages / resolved_model / response_mode 这类只影响内部逻辑，
+ * 不产生可见高度，可以丢。
+ */
+const KEPT_TOOL_CALL_KEYS = Object.freeze([
+  "music_card",
+  "is_co_watch",
+  "co_watch_session_id",
+  "co_watch_quick_reply",
+  "notification_kind",
+  "message_kind",
+  "partial_reply",
+  "refusal_detected",
+  "art_alt",
+  "artwork_id",
+]);
+
+/** 只保留展示真正需要的字段，避免把整段工具结果塞进缓存。 */
 function trimMessage(message) {
   if (!message || typeof message !== "object") return null;
   // 注意：后端返回的 id 是**数字**（4572），不是 UUID 字符串。
@@ -48,14 +73,16 @@ function trimMessage(message) {
   if (!id || (!content && !message.tool_calls)) return null;
   const trimmed = { id, role, content };
   if (message.created_at) trimmed.created_at = message.created_at;
+  // 心声卡片会显著改变行高，必须留着，否则预览和真实行高对不上。
+  if (typeof message.visible_monologue === "string" && message.visible_monologue) {
+    trimmed.visible_monologue = message.visible_monologue;
+  }
   if (message.tool_calls && typeof message.tool_calls === "object") {
-    // 只留轻量标记，避免把整段工具结果写进缓存。
-    const { partial_reply, refusal_detected, message_kind, art_alt } = message.tool_calls;
     const light = {};
-    if (partial_reply) light.partial_reply = true;
-    if (refusal_detected) light.refusal_detected = true;
-    if (typeof message_kind === "string") light.message_kind = message_kind;
-    if (typeof art_alt === "string") light.art_alt = art_alt;
+    for (const key of KEPT_TOOL_CALL_KEYS) {
+      const value = message.tool_calls[key];
+      if (value !== undefined) light[key] = value;
+    }
     if (Object.keys(light).length) trimmed.tool_calls = light;
   }
   return trimmed;
