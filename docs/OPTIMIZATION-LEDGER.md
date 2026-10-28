@@ -1244,3 +1244,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 真机多尺寸布局验证（6 个 Android 视口）已启动：360x640、360x780 前两项“未发现布局问题”，
   单视口约 272s（真实登录/网络等待），后台继续跑其余 4 个。
 - 未闭环：X `/connections/:id/test` 400；twikit 补丁可复现性；CNB/Amap/凭据轮换；全量前端测试本轮改动后未重跑。
+
+## 轮次 46（2026-10-29 · X /test 400 根因修复）
+
+- 根因：X 连接 `protocol_version` 存的是 `"auto"`，backend test 把它作为
+  `MCP-Protocol-Version: auto` 发给 supergateway，返回 400；discover 能让步，test 不行。
+- 已把连接更新为 `protocol_version="2024-11-05"`；`/connections/:id/test` 现在 **成功**，
+  server_name=`twitter-twikit`，12 工具读取正常。
+- 真机布局矩阵：360x640、360x780 通过；第三视口登录等待过久已停止，后续重跑。
+- 全量前端测试（QR 改动后）已在后台重跑；build/lint 已通过。
+- 未闭环：twikit 补丁/ondemand 可复现性、CNB 写权限、Amap 认证、凭据轮换。

@@ -44,3 +44,9 @@ cloudflared.exe tunnel --url http://127.0.0.1:8765 --no-autoupdate
 - 要稳定给所有用户：需要把 twikit 事务补丁做成可自动更新（抓 ondemand hash），
   或改为不依赖 transaction-id 的读取通道；写工具必须做二次确认/审计。
 - 短期只读工具可用；发推/私信等写工具默认禁用。
+
+## 连接参数
+
+DengTa MCP 连接必须显式填 `protocol_version = 2024-11-05`（不要用 `auto`）。
+`auto` 会让 `/connections/:id/test` 发送 `MCP-Protocol-Version: auto`，supergateway 返回 400；
+discover 可能碰巧通过，但 test 会失败。
