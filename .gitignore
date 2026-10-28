@@ -39,3 +39,5 @@ frontend/src/assets/
 docs/assets/*.png
 private-storage-export/
 storage-snapshot/
+# P1 部署包（自包含，约 35KB；只允许这一个 tar.gz）
+!tools/kiwi-deploy/*.tar.gz
