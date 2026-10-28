@@ -812,3 +812,29 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   （trusted=true），`send` 回复成功，收/发双通已验证。
 - 下一步：微信侧 60s 轮询 + 唤醒自动回复；QQ 侧端到端测试；QQ/微信 ↔ DengTa 绑定与
   人设/记忆同步（QQ 未绑定用户允许自动创建 DengTa 账号）。
+
+## 轮次 21（2026-10-28 · 微信自动回复 + DengTa 通道接口上线）
+
+### Supabase / DengTa 账号
+- 本机登录 Supabase 之前失败是 curl 传 JSON 被 PowerShell 改写；改为把 JSON 写文件 +
+  `--data-binary @file`（HTTP 代理）后登录成功：demo 账号 user id `3a86a0d7-…`，
+  companion id `d99ebbd8-…`（小小灯）；会话只存 `_credentials/dengta-account-session.json`。
+- 生产后端 `GET /api/v2/bootstrap` 可读设置；Supabase REST 用用户 token 可读
+  companions / user_profiles（RLS 正常）。
+
+### 生产 DengTa 通道接口
+- 生产仓库已有 `routes/v2/qq-bridge.js`：token 鉴权 + `config.bindings` 把 QQ 映射到
+  userId/companionId，`/chat` 执行真实人设对话。
+- 新增 env 配置支持（`QQ_BRIDGE_CONFIG_JSON` / `QQ_BRIDGE_TOKEN` / `QQ_BRIDGE_BINDINGS`），
+  不把 token/绑定写进公开仓库；提交 `a2fda50`，推送后 Render 部署 live（需要一次新部署
+  才能拿到 env，旧实例不会热更新）。
+- Render 已写入 `QQ_BRIDGE_TOKEN`、`QQ_BRIDGE_BINDINGS`（2458077782 → 上述 user/companion），
+  实测 `POST /api/v2/qq-bridge/chat` 返回 ok + 33 字人设回复（client_message_id 必须是 UUID，
+  路由默认值 `qq-<ts>` 不合法，调用方要自己生成）。
+
+### 微信自动回复
+- 新增 `tools/wechat-dengta-bridge/auto-reply.mjs`：60s 轮询 wxb fetch → DengTa `/chat`
+  → wxb send；同用户复用 conversation_id，processed.json 去重，失败写 bridge.log。
+- mock 全链路验证通过（fetch 一条「自动回复测试」→ DengTa 回复 38 秒）；
+  真实循环已启动（pid 98680），等待用户给 ClawBot 发消息做真实回环验证。
+- 微信手工收取/回复已在上一轮验证；QQ/SnowLuma 仍在线，qq-bridge 仍在跑。
