@@ -46,7 +46,7 @@ function splitSections(prompt) {
             id: `section-${index + 1}`,
             title,
             category,
-            enabled: category === "normal" || category === "style",
+            enabled: false,
             content,
         };
     });
@@ -99,7 +99,7 @@ async function main() {
         enabled_sections: sections.filter((section) => section.enabled).length,
         memories: memories.length,
         enabled_memories: 0,
-        note: "私密/NSFW 小节与全部记忆默认关闭；编辑 selection.json 的 enabled 字段后再同步。",
+        note: "所有小节与记忆默认关闭（fail-closed）；只有显式 enabled:true 的内容会进入微信。",
     }, null, 2));
 }
 

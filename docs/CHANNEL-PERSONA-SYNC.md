@@ -71,3 +71,16 @@
   控制台账号），需要用户执行 SQL 或提供 Supabase Personal Access Token。
 - 前端生产仓库 `DengTaHome/dengta-home-frontend` 对当前 GitHub PAT 返回 404，
   UI 无法上线；需要仓库访问权限或用户自行推送。
+
+
+## 当前实现状态（2026-10-29）
+
+- **已上线（微信/owner）**：`channel_persona` per-turn 覆盖 + 服务端过滤
+  `user_details` / DB memories / knowledge / worldbook / special dates / interests，
+  并强制 `intimate_expression_enabled=false`；仅内部 `isChannelBridge` 路由可传该字段。
+- **已上线（本地工具）**：selection.json + `select-ui.mjs`（127.0.0.1:3111）；所有小节/记忆
+  默认关闭，缺失/损坏/全空 fail-closed 到最小安全人设。
+- **draft 未执行**：`068_channel_persona_sync.sql` 尚未在数据库执行；RLS/默认值已按
+  “全部默认关闭 + companion 归属校验 + 绑定只读”修正，但仍需人工确认后再执行。
+- **未完成**：QQ 多用户绑定/自动建号、DengTa 前端勾选 UI、媒体收发管线；
+  微信桥的 rate-limit 队列/重试策略仍待改进。

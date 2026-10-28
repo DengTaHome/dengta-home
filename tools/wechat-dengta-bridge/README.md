@@ -21,9 +21,10 @@ $node = 'D:\GZdeepseek\_tools\node\node.exe'
 
 生成 `wechat-auto-reply-state\selection.json`：
 - 按空行把 DengTa 统一人设拆成小节；
-- 含性/私密关键词的小节标为 `nsfw`，**默认关闭**；
-- 含风格/语气词的小节标为 `style`，默认开启；
-- 记忆条目全部默认关闭，只有 `enabled: true` 的词条会进入通道 prompt。
+- 关键词只做风险提示；**所有小节默认关闭**，必须显式勾选；
+- 风格小节也默认关闭；
+- 记忆条目全部默认关闭；只有 `enabled: true` 的词条才拼进本回合 prompt。
+- selection 缺失/损坏/全空时 **fail-closed**：只发送最小安全人设（普通聊天、无角色扮演/无成人内容），绝不回落到完整原生人设。
 
 手动编辑 `selection.json` 的 `enabled` 字段即可选择；每次聊天都会重新读取。
 发送时作为 `channel_persona` 传给后端，只覆盖本回合，不写回 DengTa 网页端设置。
@@ -44,7 +45,7 @@ $node = 'D:\GZdeepseek\_tools\node\node.exe'
 - 已处理消息 id 落盘到状态目录的 `processed.json`，重启不重复回复；
 - 限速 30 条/小时、全局 8s、同用户 15s、发送前 0.8–2.2s 拟人停顿；
 - `SESSION_EXPIRED` 停止轮询等重扫码；孤儿锁自动清理；
-- 发送失败/接口失败写入 `bridge.log`，不会把异常当正常回复。
+- 发送/接口失败写入 `bridge.log`；当前失败会发一句简短占位，不会重试（后续改进）。
 
 ## 验证
 

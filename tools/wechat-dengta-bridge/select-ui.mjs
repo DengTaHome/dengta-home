@@ -63,7 +63,7 @@ button{padding:8px 20px;font-size:14px;cursor:pointer}
 <div class="toolbar"><button id="save">保存勾选</button> <span id="status" class="hint"></span></div>
 <script>
 function collect(){
-  const selection = ${JSON.stringify(JSON.stringify(selection))};
+  const selection = ${JSON.stringify(JSON.stringify(selection)).replace(/</g, "\\u003c")};
   const data = JSON.parse(selection);
   document.querySelectorAll("[data-section]").forEach((el)=>{ data.sections[Number(el.dataset.section)].enabled = el.checked; });
   document.querySelectorAll("[data-memory]").forEach((el)=>{ data.memories[Number(el.dataset.memory)].enabled = el.checked; });
@@ -74,7 +74,7 @@ function collect(){
 document.getElementById("save").onclick = async () => {
   const status = document.getElementById("status");
   status.textContent = "保存中…";
-  const response = await fetch("/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(collect()) });
+  const response = await fetch("/save", { method: "POST", headers: { "Content-Type": "application/json", "X-Channel-Sync": "1" }, body: JSON.stringify(collect()) });
   const result = await response.json();
   status.textContent = result.ok ? "已保存，下一条微信消息生效" : ("失败: " + (result.error || ""));
 };
@@ -83,7 +83,7 @@ document.getElementById("save").onclick = async () => {
 
 const server = http.createServer((req, res) => {
     if (req.url === "/" && req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'" });
         res.end(renderPage(loadSelection()));
         return;
     }
@@ -94,6 +94,15 @@ const server = http.createServer((req, res) => {
         return;
     }
     if (req.url === "/save" && req.method === "POST") {
+        const contentType = String(req.headers["content-type"] || "");
+        const origin = String(req.headers.origin || "");
+        const requestedWith = String(req.headers["x-channel-sync"] || "");
+        const originOk = !origin || origin === `http://127.0.0.1:${PORT}`;
+        if (!contentType.includes("application/json") || requestedWith !== "1" || !originOk) {
+            res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ ok: false, error: "forbidden" }));
+            return;
+        }
         let body = "";
         req.on("data", (chunk) => { body += chunk; if (body.length > 2_000_000) req.destroy(); });
         req.on("end", () => {
@@ -109,7 +118,9 @@ const server = http.createServer((req, res) => {
                     style_text: String(incoming.style_text || "").slice(0, 4000),
                     updatedAt: new Date().toISOString(),
                 };
-                fs.writeFileSync(SELECTION_PATH, JSON.stringify(next, null, 2));
+                const temporaryPath = `${SELECTION_PATH}.${process.pid}.tmp`;
+                fs.writeFileSync(temporaryPath, JSON.stringify(next, null, 2));
+                fs.renameSync(temporaryPath, SELECTION_PATH);
                 res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
                 res.end(JSON.stringify({ ok: true }));
             } catch (error) {

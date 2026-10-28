@@ -907,3 +907,21 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 建议轮换 `SUPABASE_SECRET_KEY` 及各 provider key（本次只删了本机副本，未轮换外部密钥）。
 - QQ 已再次从 SnowLuma 卸载；QQ 客户端仍登录旧号，需用户退出登录→登小号→告知新 UIN，
   再更新 qq-bridge `ownerQQ/allow` 并重新注入。
+
+## 轮次 25（2026-10-29 · 按复核修复 S2–S5 / M1 / M7-M10 / M14）
+
+- **S2 已修**：微信发送改 `--stdin`，拒绝空/控制字符；不再把模型输出拼成 CLI flag。
+- **S3 已修（服务端）**：`channelScoped` 回合清空 `user_details`、强制
+  `intimate_expression_enabled=false`；generationInput 的 memories/knowledge/worldbook/
+  specialDates/funLabs 全部置空；只使用桥接方拼好的 `channel_persona`。
+- **M1 已修**：`channel_persona` 仅当 `isChannelBridge===true` 时生效；公开 `/api/v2/chat`
+  伪造该字段会被丢弃。
+- **S4/S5 已修**：selection 缺失/损坏/全空 → 最小安全人设（fail-closed）；
+  `make-selection` 所有小节/记忆默认 `enabled:false`，已重新生成（41 节全部关闭、19 记忆全关）。
+- **M14 已修**：qq-bridge 默认 client_message_id 改 `crypto.randomUUID()`。
+- **M7/M8 已修（SQL draft）**：068 默认值改为 enabled=false、memory_mode='none'、limit=0、
+  status='pending'；RLS 增加 companion 归属校验；channel_bindings 只允许本人 select、
+  写入留给 service role；绑定 token 加唯一索引与过期字段。**仍未执行**。
+- **M10 已修**：select-ui 增加 CSP、JSON+Origin+X-Channel-Sync 校验、`<` 转义、tmp+rename 原子写。
+- 后端提交 `4b039fc` 已推送并部署 live；验证 `channel_persona` 过滤回复「过滤成功」。
+- 微信自动回复仍保持**停止**，等复核确认后再启用；QQ 小号仍待用户登录。
