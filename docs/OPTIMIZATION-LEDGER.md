@@ -1380,3 +1380,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - full7 在语音修复前启动，仍在跑；latest change 后 build/lint 通过。
 - 前端审计剩余 P2：TTS 在途取消、取消 preflight 后仍上传、情绪“未确定”伪展示、
   CSS/字体/动图体积、语音按钮键盘、歌词 focus trap。
+
+## 轮次 60（2026-10-29 · 收尾核验）
+
+- 最终在线：backend `8afbee7`、Vercel `9d570d1` READY。
+- 最新改动后定向测试：voice / QR state guards / NetEase entry 6/6 通过，build+CSP 通过。
+- 后端 module coverage 124/124；完整前端 full6（3924 行、0 failure）；full7 在最终语音/回复提交前启动，已停止，最终以 full6 + 最新定向测试为准。
+- 真机布局 6/6 视口 0 问题。
+- 已修：NetEase 导出/导入、胶囊并发/active、QR 竞态/卸载、语音权限松手、更多回复去重、后端 JSON 4MB 守卫与历史 500 条分页、X `/test` protocol、可复现 X 补丁、Muse 1.1。
+- 未闭环（外因/后续）：CNB 写权限、高德认证、凭据轮换；TTS 在途取消、preflight 取消、情绪伪展示、首屏 CSS/字体/动图成本、语音按钮键盘、歌词 focus trap、stream 断连取消、优雅停机等 P2。

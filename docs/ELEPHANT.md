@@ -71,3 +71,10 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - 凭据轮换：Vercel/GitHub/Render/VPS 凭据此前异常输出过，建议轮换。
 - X twikit ondemand 补丁需随 X 前端更新重新抓 URL；quick tunnel URL 重启会变。
 - 全量测试仍未覆盖真实多用户并发（锁只保证单 Render 实例内）。
+
+## 最终收尾（2026-10-29）
+
+- 最终在线：backend `8afbee7`、Vercel `9d570d1` READY。
+- 最新定向测试 6/6（voice/QR guards/NetEase entry），build+CSP 通过；backend 124/124；真机 6/6 视口。
+- 已修包括：NetEase 导出/导入、胶囊并发与 active、QR 竞态/卸载、语音权限松手、更多回复去重、JSON 4MB 守卫、聊天历史 500 条分页、X `/test` protocol、X 可复现补丁、Muse 1.1。
+- 未闭环：CNB 写权限、高德认证、凭据轮换；前端/后端若干 P2（TTS 在途取消、preflight 取消、情绪伪展示、首屏 CSS/字体/动图成本、语音键盘可达性、歌词 focus trap、stream 断连取消、优雅停机）。
