@@ -180,3 +180,26 @@ SOCKS `127.0.0.1:10808`、Playwright Edge、登录态从 `_audit/browser/auth.js
   麦克风按钮出现、页面没有整页刷新。`verify-health-retry.mjs` 3/3 通过，已加入 run-all。
 - 刘海/安全区适配：未开始。
 - 动画细节打磨：未开始（待办清单见轮次 1 尾部第 3、4、5 条）。
+---
+
+## 轮次 3（2026-10-28 · 刘海/安全区）
+
+### 审计结论
+- 安全区不是空白区：9 个 CSS 文件共 70+ 处 `env(safe-area-inset-*)`，
+  `index.html` 已有 `viewport-fit=cover`（没有它 env 恒为 0）。
+- 规则级扫描出 15 条「贴边固定/吸顶但未写 safe-area」的规则，绝大多数是
+  全屏遮罩（本身不需要 padding），真正承载内容且缺让位的只有两处：
+  `.cast-actions`（放映室贴底操作条）与 `.netease-qr-modal`（网易云登录弹窗）。
+
+### 已修
+- `.cast-actions`：`margin-bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px))`
+- `.netease-qr-modal`：`padding-bottom: max(2rem, calc(env(safe-area-inset-bottom) + 1rem))`
+- 新增 `frontend/test/safe-area.test.js`：守卫 `viewport-fit=cover`、
+  两处让位规则、以及「全站 env() 覆盖数不得低于 70」的基线。
+- 构建通过；布局扫描 6 视口 0 问题（零 inset 下无回归）。
+
+### 验证边界（必须诚实标注）
+headless 浏览器里 `env(safe-area-inset-*)` 恒为 0，**没有带刘海的设备就无法真实
+验证刘海遮挡**。本轮只做到：静态覆盖审计 + 零 inset 回归 + 规则守卫。
+真机验证需要用户在带刘海/挖孔手机上打开一次，或后续用 Chrome DevTools 的
+「设备边框 / 显示刘海」模拟（Playwright 目前没有直接暴露该能力）。

@@ -226,6 +226,11 @@
   border-radius: var(--cast-radius-md);
   overflow: hidden;
 }
+
+/* cast-actions 安全区：贴底操作条让开 iOS 底部手势条 / 安卓导航条 */
+.cast-actions {
+  margin-bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
+}
 .cast-action-btn {
   flex: 1;
   height: 48px;

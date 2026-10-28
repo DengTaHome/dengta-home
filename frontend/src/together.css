@@ -244,7 +244,7 @@
 .netease-qr-connected,
 .netease-qr-disconnected { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
 .netease-qr-connected span { flex: 1 1 220px; }
-.netease-qr-modal { position: fixed; inset: 0; background: rgb(10 12 22 / 0.72); display: grid; place-items: center; overflow-y: auto; z-index: 90; padding: 2rem 1rem; }
+.netease-qr-modal { position: fixed; inset: 0; background: rgb(10 12 22 / 0.72); display: grid; place-items: center; overflow-y: auto; z-index: 90; padding: 2rem 1rem; padding-bottom: max(2rem, calc(env(safe-area-inset-bottom) + 1rem)); }
 .netease-qr-card { background: var(--surface, #ffffff); color: var(--text, #10121f); border-radius: 18px; padding: 1.2rem; display: grid; gap: 0.8rem; justify-items: center; max-width: 320px; max-height: 88vh; overflow-y: auto; box-shadow: 0 18px 50px rgb(0 0 0 / 0.35); }
 .netease-qr-card canvas { width: 220px; height: 220px; background: #fff; border-radius: 10px; }
 .netease-qr-actions { display: flex; gap: 0.6rem; }
