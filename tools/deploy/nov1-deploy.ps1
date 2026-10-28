@@ -45,6 +45,7 @@ if ($cred.proxy -is [string]) {
   $proxy = "127.0.0.1:10809"
 }
 if ($proxy -notmatch '^https?://') { $proxy = "http://$proxy" }
+$proxyDisplay = $proxy -replace "(?<=//)[^/@]+@", "***@"
 if ($proxy -notmatch '^https?://[^/]+:[0-9]+$') { throw "proxy 地址无效（应为 http://host:port）" }
 
 $repo = "DengTaHome/dengta-home-frontend"
@@ -134,7 +135,7 @@ function Get-Feed {
 
 if ($DryRun) {
   Log "DRY RUN：校验凭据/代理/GitHub API，不触发任何 workflow"
-  Log "proxy=$proxy"
+Log "proxy=$proxyDisplay"
   $workflows = Invoke-GitHub -Method GET -Uri "https://api.github.com/repos/$repo/actions/workflows"
   Log ("GitHub API OK；workflow 数=" + @($workflows.workflows).Count)
   $feed = Get-Feed
@@ -155,7 +156,12 @@ if (-not $SkipCnbSync) {
 
 $beforeFeed = $null
 if (-not $SkipPublish) {
-  try { $beforeFeed = Get-Feed; Log ("发版前 feed code=" + $beforeFeed.latest.version_code) } catch { Log "发版前 feed 读取失败: $($_.Exception.Message)" }
+  try {
+      $beforeFeed = Get-Feed
+      Log ("发版前 feed code=" + $beforeFeed.latest.version_code)
+  } catch {
+      throw "发版前 feed 读取失败，拒绝在无法对比版本时发版: $($_.Exception.Message)"
+  }
 
   Log "开始 Android 发版"
   $run = Dispatch-Workflow -File "publish-android-apk.yml" -Inputs @{ dry_run = $false }
@@ -187,7 +193,10 @@ if ($env:CNB_USERNAME -and $env:CNB_TOKEN -and (Test-Path (Join-Path $frontend "
     $git = "D:\GZdeepseek\_tools\git\cmd\git.exe"
     $env:GIT_TERMINAL_PROMPT = "0"
     $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($env:CNB_USERNAME):$($env:CNB_TOKEN)"))
-    & $git -C $frontend -c "http.extraheader=Authorization: Basic $basic" -c "http.proxy=$proxy" -c "https.proxy=$proxy" push "https://cnb.cool/dengtahome/dengtahome.git" "HEAD:refs/heads/frontend-main" 2>&1 | ForEach-Object { Log "  $_" }
+    $cnbOutput = & $git -C $frontend -c "http.extraheader=Authorization: Basic $basic" -c "http.proxy=$proxy" -c "https.proxy=$proxy" push "https://cnb.cool/dengtahome/dengtahome.git" "HEAD:refs/heads/frontend-main" 2>&1
+    $cnbExit = $LASTEXITCODE
+    $cnbOutput | ForEach-Object { Log "  $_" }
+    if ($cnbExit -ne 0) { throw "CNB push exit=$cnbExit" }
     $results.cnbDirect = "pushed"
   } catch {
     Log "CNB 直推失败: $($_.Exception.Message)"
@@ -200,4 +209,8 @@ if ($env:CNB_USERNAME -and $env:CNB_TOKEN -and (Test-Path (Join-Path $frontend "
 
 $results | ConvertTo-Json -Depth 4 -Compress | Set-Content -Path (Join-Path $LogDir "nov1-deploy-$Stamp.result.json") -Encoding UTF8
 Log ("DONE " + ($results | ConvertTo-Json -Depth 4 -Compress))
-if ($results.publish -eq "failure" -or $results.feed -eq "error") { exit 1 }
+$publishFailed = $results.publish -and $results.publish -ne "success"
+$feedFailed = $results.feed -and $results.feed -ne "ok"
+$cnbFailed = $results.cnb -and $results.cnb -ne "success"
+$cnbDirectFailed = $results.cnbDirect -eq "error"
+if ($publishFailed -or $feedFailed -or $cnbFailed -or $cnbDirectFailed) { exit 1 }
