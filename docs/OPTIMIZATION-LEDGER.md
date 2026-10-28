@@ -944,3 +944,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   GET / 200、POST /save 往返 ok。`auto-reply.mjs` 改为只发 `channel:"wechat"`，
   服务端按 DB 选择回复；已重启运行，当前因无勾选走最小安全人设。
 - 仍待：QQ 小号登录/重新注入、媒体收发、绑定码/自动建号、正式前端 UI。
+
+- 追加 `069_channel_sync_hardening.sql`：对已执行的 068 表补默认值（enabled=false、
+  memory_mode='none'、memory_limit=0、status='pending'）、补绑定 token 唯一索引/过期列，
+  并把 RLS 改为 companion 归属校验、channel_bindings 仅 owner SELECT。**待用户在 SQL Editor 执行**，
+  因为 068 创建时可能用的是修补前版本。
+- `select-ui.mjs` 已验证：GET / 200、POST /save 返回 `{ok:true,sections:0,memories:0}`；
+  页面读取生产 DB 的 41 个小节；勾选保存会写回 DB，下一轮微信回复由后端组装。
