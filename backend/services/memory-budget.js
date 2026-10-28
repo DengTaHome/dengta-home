@@ -60,6 +60,14 @@ function lexicalRelevance(query, summary) {
 }
 
 function memoryHeat(memory, now = new Date()) {
+    // 网关（kiwi-mem）已经算好热度：它包含访问次数、真实召回时间、情绪权重
+    // 与「永久记忆 = 1」的语义。本地再按另一套半衰期重算，会让同一个记忆在
+    // 两边得到不同冷热判断（网关刚升温、这边仍按旧 updated_at 衰减）。
+    // 所以网关给出的 heat 直接采用；只有本地记忆（没有 heat 字段）才走本地公式。
+    const gatewayHeat = Number(memory?.heat);
+    if (Number.isFinite(gatewayHeat) && gatewayHeat >= 0) {
+        return Math.max(0, Math.min(1, gatewayHeat));
+    }
     const updated = new Date(memory?.updated_at || memory?.created_at || 0);
     if (Number.isNaN(updated.getTime())) return 0.35;
     const ageDays = Math.max(0, (now.getTime() - updated.getTime()) / DAY_MS);

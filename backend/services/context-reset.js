@@ -112,6 +112,16 @@ async function loadMainChatContextRows({
     const latestUserMessage = [...messages]
         .reverse()
         .find((message) => message.role === "user");
+
+    // kiwi-mem 多租户记忆网关召回（未配置 KIWI_MEM_URL 时为空数组，零开销）；
+    // 按当前租户（user_id:companion_id）隔离检索。先发出去，与下面的 nursery 加载并行。
+    const kiwiMemoriesPromise = recallMemories(
+        latestUserMessage?.content || "",
+        {
+            userId: settings?.user_id,
+            companionId: settings?.companion_id
+        }
+    );
     let nursery = null;
     if (isNurseryRelevant(latestUserMessage?.content || "")) {
         nursery = await loadNurseryRuntimeSnapshot({ database }).catch(
@@ -129,15 +139,9 @@ async function loadMainChatContextRows({
             }
         );
     }
-    // kiwi-mem 多租户记忆网关召回（未配置 KIWI_MEM_URL 时为空数组，零开销）。
-    // 按当前租户（settings.user_id/companion_id）隔离检索，与其他用户互不可见。
-    const kiwiMemories = await recallMemories(
-        latestUserMessage?.content || "",
-        {
-            userId: settings?.user_id,
-            companionId: settings?.companion_id
-        }
-    );
+    // 网关召回在 latestUserMessage 确定后立刻发出，等 nursery 加载完再取结果，
+    // 避免把最多 3 秒的网关超时串行叠加在首字延迟上。
+    const kiwiMemories = await kiwiMemoriesPromise;
     const allMemoryCandidates = [...kiwiMemories, ...(memoriesResult.data || [])];
     const allMemories = useMemoryBudget
         ? selectMemoriesForContext(

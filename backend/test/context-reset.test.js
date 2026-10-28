@@ -518,7 +518,22 @@ Promise.resolve()
     .then(testMigrationAddsNullableCutoffWithoutRewritingSettings)
     .then(testChatHistoryEndpointRemainsOutsideModelCutoff)
     .then(testCreativePlanningCannotReuseResetBeforeSources)
-    .then(() => console.log("context reset cutoff tests passed"))
+    .then(() => {
+        // 网关召回与 nursery 加载必须并行：先发 promise，再 await。
+        const contextResetSource = fs.readFileSync(
+            require("node:path").join(__dirname, "..", "services", "context-reset.js"),
+            "utf8"
+        );
+        const promiseIndex = contextResetSource.indexOf("const kiwiMemoriesPromise = recallMemories(");
+        const nurseryIndex = contextResetSource.indexOf("nursery = await loadNurseryRuntimeSnapshot(");
+        const awaitIndex = contextResetSource.indexOf("const kiwiMemories = await kiwiMemoriesPromise;");
+        assert.ok(
+            promiseIndex >= 0 && nurseryIndex > promiseIndex && awaitIndex > nurseryIndex,
+            "网关召回应先发出，等 nursery 加载完再 await"
+        );
+
+        console.log("context reset cutoff tests passed");
+    })
     .catch((error) => {
         console.error(error);
         process.exitCode = 1;

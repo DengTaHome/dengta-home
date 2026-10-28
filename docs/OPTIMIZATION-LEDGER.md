@@ -229,3 +229,20 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
 不新增外部绑定，vm harness 与真实组件都能用。
 更新了 `startup-recovery.test.js` 的两条结构断言；前端全量测试回到 exit 0，
 `verify-health-retry` 仍 3/3 通过。
+---
+
+## 轮次 5（2026-10-28 · MMTR × kiwi-mem 融合调研）
+
+### 做了什么
+- 找到并拉取截图里的项目 `CRTNET8866/MMTR`（TS、零依赖、node:sqlite）；
+- 读透 MMTR 的 decay/promise/relation/config 源码，提取全部公式与默认参数；
+- 确认 kiwi-mem 与 MMTR 不可代码级合并（Python/Postgres vs TS/sqlite，且都是完整记忆系统），
+  确定「算法级融合」路线：把 MMTR 脑层移植进 kiwi-mem；
+- **P0 原型已跑通**：`_refs/kiwi-mem-dengta/mmtr_brain/brain.py` + `test_brain.py`，
+  31 条不变量测试全过（三通道衰减/地板/回血递减/压缩阶梯/约定曲线/关系约束/检索降权）；
+- 方案文档：`docs/MMTR-KIWI-FUSION.md`（数据层映射、P0–P4 计划、不搬清单、待拍板事项）。
+
+### 待办
+- 用户拍板：改哪个 kiwi 仓库、部署形态；
+- P1：kiwi Postgres 加列 + 回填 + consolidate 定时任务；
+- P2：`/memory/recall` 返回通道权重/约定/关系，DengTa 侧消费。
