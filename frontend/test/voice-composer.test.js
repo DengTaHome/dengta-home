@@ -96,4 +96,10 @@ assert.match(
   "移动端弹层终态应为 transform: none"
 );
 
+// 点按未达长按阈值：必须给轻反馈，不能完全沉默
+assert.match(app, /navigator\.vibrate\?\.\(8\)/, "点按未达阈值需要一次轻震动");
+assert.match(app, /按住麦克风说话，说完再松手/, "点按未达阈值需要文字提示");
+
+// 60 秒到点自动发送：必须明确告知
+assert.match(app, /已经达到 60 秒上限/, "60 秒自动发送需要提示用户");
 console.log("voice-composer: 结构断言通过");

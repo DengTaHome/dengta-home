@@ -3834,6 +3834,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           setVoiceElapsedMs(Date.now() - voiceStartedAtRef.current);
         }, 200);
         voiceMaxTimerRef.current = window.setTimeout(() => {
+          setNotice("已经达到 60 秒上限，这段录音自动发送了。");
           voicePointerHeldRef.current = false;
           void finishVoiceCapture({ send: true });
         }, VOICE_MAX_DURATION_MS);
@@ -3868,6 +3869,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         voiceLongPressTimerRef.current = null;
       }
       voiceCaptureRunRef.current += 1;
+        navigator.vibrate?.(8);
+        setNotice("按住麦克风说话，说完再松手。");
       return;
     }
     if (voiceStateRef.current === VOICE_STATES.recording) {
