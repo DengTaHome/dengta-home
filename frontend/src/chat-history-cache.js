@@ -13,7 +13,10 @@
  */
 
 export const CHAT_CACHE_VERSION = 3;
-export const CHAT_CACHE_LIMIT = 40;
+// 上限提高过常见历史条数（实测这段历史 43 条）。
+// 注意：把它从 40 提到 60 并没有降低 CLS（仍是 0.116），
+// 所以「闪」另有原因，这条只当容量余量，别再当成位移修复。
+export const CHAT_CACHE_LIMIT = 60;
 export const CHAT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_BYTES = 160 * 1024;
 
