@@ -6616,6 +6616,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     // 那会让预览在关键时刻消失（实测只能省 1 秒而不是 4 秒）。
     const cachedPreviewMessages =
       messages.length > 0 || !initialChatCache ? null : initialChatCache.messages;
+    // 有缓存时跳过「正在加载 DengTa home…」占位：
+    // 先让用户看到上次的对话，网络结果回来后再静默对账。
+    const previewMessages = messages.length > 0 ? messages : (cachedPreviewMessages || []);
 
   const chatBackgroundAsset = selectedPrivateMedia(
       privateMediaCatalog,
@@ -6656,11 +6659,11 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         >
           <div className="message-list-content">
           {!isLoading && renderAchievementGuide()}
-          {isLoading ? (
+          {isLoading && previewMessages.length === 0 ? (
             <div className="empty-state">正在加载 DengTa home…</div>
-          ) : messages.length === 0 && historyLoadState?.sessionId === activeSessionId && !isSending ? (
+          ) : previewMessages.length === 0 && historyLoadState?.sessionId === activeSessionId && !isSending ? (
             <ChatHistoryFeedback state={historyLoadState} onRetry={retrySessionHistory} onInspect={() => { setSettingsCategory("logs"); setIsSettingsOpen(true); }} />
-          ) : messages.length === 0 ? (
+          ) : previewMessages.length === 0 ? (
             <div className="empty-state">
               {settings.user_display_name || settings.ai_name !== "伴侣" ? (
                 <h2>{effectiveAiName}</h2>
@@ -6672,7 +6675,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           ) : (
               <ChatTranscript
                 textImpactScope={privateMediaScope}
-                messages={messages.length ? messages : (cachedPreviewMessages || [])}
+                messages={previewMessages}
                 preferences={chatSkinPreferences}
                 aiName={effectiveAiName}
                 aiPronoun={companionPronoun(settings)}
