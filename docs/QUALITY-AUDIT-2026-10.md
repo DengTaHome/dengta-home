@@ -78,7 +78,18 @@
 ## 七、已知未完成（需要人或环境）
 
 1. **首次冷启动仍是 8–11 秒**：受跨境网络往返限制；要真正解决需要缓存预热或就近部署。
-2. **Supabase 迁移 062/063/064 尚未在生产库执行**：xinchao 与 stream_partials 在线仍不生效。
+2. **仓库的三个迁移在生产库不适用（已查证，不是「未执行」）**：
+   - 生产库的迁移版本是时间戳格式（`20261018023642`…），不是仓库的 001–070 编号；
+     线上 schema 有大量仓库没有的表（`companion_runtime_states`、`nursery_*`、`world_book_entries`…）
+   - `companion_xinchao_state`、`stream_partials` 在生产库**不存在**，但心潮接口在线能返回真实数据
+   - `companion_runtime_states` 只有 6 列，`status`/`interaction_stats` 两个 jsonb；
+     bootstrap 返回的 `state` 正好来自这张表（含 `revision: 593`）
+   - 全库列名扫描（drives/emotion/consciousness/partial/is_streaming/draft…）只命中
+     `music_playback_queue.revision`，**没有任何心潮或流式中间态列**
+   - 063 的两件事线上已完成：8 张表 `rowsecurity = true`，
+     且 `anon`/`authenticated` 对它们都没有 SELECT 权限
+   → 结论：**生产库不需要执行任何迁移**。这三个迁移只适用于用仓库后端自托管/本地部署的场景。
+   也正因如此，「逐字立即保存」只在**仓库后端**这边验证过，线上 0.29.76 的实现方式未知。
 3. **音乐真实播放未验证**：网易云登录态存在 App 内置浏览器会话里，自动化环境拿不到。
 4. **Vercel / Render / GitHub 的空间清理**需要登录控制台。
 5. **13 处源码切片测试**尚未重构为真实挂载（属技术债，不影响功能）。
