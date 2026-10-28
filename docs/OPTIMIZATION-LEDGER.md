@@ -951,3 +951,23 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   因为 068 创建时可能用的是修补前版本。
 - `select-ui.mjs` 已验证：GET / 200、POST /save 返回 `{ok:true,sections:0,memories:0}`；
   页面读取生产 DB 的 41 个小节；勾选保存会写回 DB，下一轮微信回复由后端组装。
+
+## 轮次 27（2026-10-29 · MCP 应用目录 + 依赖项目定时追踪）
+
+- 读完用户给的两个仓库：
+  - `yxiy171866-boop/x-twikit-mcp`：Python stdio MCP，12 个 X 工具，Cookie(auth_token+ct0)；
+    DengTa 只接 HTTP，需要 supergateway/mcp-proxy 包装 + HTTPS 反代。
+  - `Anko3o/Music-Mcp-Netease`（用户链接拼写为 Anko30）：自带播放器 + HTTP MCP `/mcp`，
+    12 个点歌工具，MUSIC_U Cookie，需公网反代/随机路径。
+- 生产后端新增 **MCP 应用目录** `GET /api/v2/mcp/catalog`（登录后）：
+  返回两个应用的端点要求、工具、分步教程、安全注意事项；提交 `0e9807b` 部署 live，
+  已用 token 验证 `apps=x-twitter,netease-music`。目录不含任何用户凭据。
+- 新增 `docs/MCP-APPS.md`：网易云直接接 HTTP；X 用 stdio→HTTP 包装；含反代/tunnel、
+  DengTa 连接、安全与只读优先建议。
+- 新增 `tools/repo-watch/`：`repos.json` 覆盖 12 个已给/已发现项目，`watch.mjs` 拉取最新
+  commit/release、对比状态、生成 `docs/REPO-WATCH.md`（🆕 标记）与 state JSON；已跑首轮，
+  12 个项目记录完成（前端仓库 404 记为错误）；Windows 计划任务 `DengTaRepoWatch` 每天 09:10
+  运行，另建 DSH 每日 09:20 复核提醒。
+- **真实 UI 仍未上线**：生产前端仓库对 PAT 404；目录/教程 API 已就绪，等前端可部署后接成
+  「MCP 应用」卡片与一键向导。用户当前可用 DengTa 现有 MCP 连接表单按教程手动添加。
+- 待办：前端访问权限；X 包装层实测；NetEase MCP 实测（需用户自建实例）；媒体/绑定仍待。
