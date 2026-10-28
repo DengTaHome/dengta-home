@@ -1211,3 +1211,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - X MCP tools/list=12、`get_user_info("jack")` 实测成功；旧 auth=none 连接删除。
 - 已知未闭环：X `/connections/:id/test` 仍 400（原始 initialize/notifications/tools-list 手工均 200）；
   CNB 写权限；高德开发者认证；凭据轮换。
+
+## 轮次 43（2026-10-29 · P0 导出别名修复 + 运行时测试）
+
+- Goldfish 找到 P0：`netease-qr-login.js` 返回对象仍是裸 `songUrl`，闭包解析到 1 参网页 URL 构造器，
+  导致 `server.js:928`、`routes/v2/music.js:346`、`music-understanding.js:423` 的 2 参调用同步 400。
+  已改为 `songUrl: resolveSongUrl`；补回 `if (existing.error) throw existing.error`；删除调试输出。
+- 新增运行时测试：断言 `service.songUrl.name === "resolveSongUrl"`、`length === 2`、返回 Promise；
+  `test:module-coverage` **121/121**（含 NetEase import 回归）。
+- backend revision `ec88074`（Render 自动部署；等待/确认中）。
+- Goldfish 另指出时间胶囊并发覆盖、前端自动换码双发/取消、X twikit 补丁可复现性等 P2，尚未全部闭环。
