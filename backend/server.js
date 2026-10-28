@@ -4423,7 +4423,8 @@ async function executeChatTurnOnce(
     input,
     onStatus,
     onModelEvent,
-    processingStages
+    processingStages,
+    { deferNonCritical = false } = {}
 ) {
     const database = input.requestScope?.db || supabase;
     const userDisplayName = cleanText(
@@ -4448,6 +4449,15 @@ async function executeChatTurnOnce(
     let effectiveModel = ""; // 同上
     let settings = null; // 同上：catch 分支也要访问 settings.user_id / companion_id
     const generationLeaseId = input.clientMessageId ? randomUUID() : "";
+    // 非关键收尾任务：回复已经生成/落库后，这些任务失败不能让成功的一轮变成错误。
+    const fireAndLog = (tag, promise) => {
+        void Promise.resolve(promise).catch((error) => {
+            console.error("chat_tail_task_failed", {
+                tag,
+                message: error?.message || String(error)
+            });
+        });
+    };
 
     async function stopLeaseHeartbeat() {
         if (!leaseHeartbeat) return;
@@ -5075,23 +5085,48 @@ async function executeChatTurnOnce(
             );
         }
         assistantCommitted = true;
-        // 正式消息已经在 messages 里了，缓冲行可以删掉。
-        if (streamPersister) await streamPersister.finish();
-        await touchConversation(conversationId, database);
-        await tryScheduleProactiveMessageEvaluation({
+        // 从这里开始，助手回复已经落库：任何收尾失败都不能再把成功的一轮变成错误。
+        // 之前的实现里，缓冲行清理/会话时间戳/排期/记忆压缩全部串行 await 在
+        // done 之前，其中记忆压缩还会再调一次 LLM，等于让用户盯着"正在输入"多等数秒。
+        try {
+            // 正式消息已经在 messages 里了，缓冲行可以删掉。
+            if (streamPersister) await streamPersister.finish();
+            await touchConversation(conversationId, database);
+        } catch (tailError) {
+            console.error("chat_tail_persist_failed", {
+                message: tailError?.message || String(tailError)
+            });
+        }
+        // 主动消息/自主内容只是"排期"，压缩是后台维护：全部后台执行，不阻塞 done。
+        fireAndLog("proactive_message_schedule", tryScheduleProactiveMessageEvaluation({
             database,
             settings,
             sourceMessageId: savedAssistantMessage.id
-        });
-        await tryScheduleAutonomousContentEvaluations({
+        }));
+        fireAndLog("autonomous_content_schedule", tryScheduleAutonomousContentEvaluations({
             database,
             sourceMessageId: savedAssistantMessage.id
-        });
-        const memoryCompression = await tryCompressMemory(
-            conversationId,
-            settings,
-            database
-        );
+        }));
+        let memoryCompression = null;
+        if (deferNonCritical) {
+            fireAndLog("memory_compression", tryCompressMemory(
+                conversationId,
+                settings,
+                database
+            ));
+        } else {
+            try {
+                memoryCompression = await tryCompressMemory(
+                    conversationId,
+                    settings,
+                    database
+                );
+            } catch (compressionError) {
+                console.error("chat_tail_compression_failed", {
+                    message: compressionError?.message || String(compressionError)
+                });
+            }
+        }
         // kiwi-mem 多租户记忆网关：每轮对话结束后上报（未配置时零开销，失败不影响回复）。
         // 拒绝回答（模型拒答模板）禁止进入任何记忆：拒答时 assistantMessage 传空，不上报内容。
         void reportChatTurn({
@@ -5194,7 +5229,8 @@ async function executeChatTurn(req, hooks = {}) {
                 input,
                 emitStatus,
                 onModelEvent,
-                processingStages
+                processingStages,
+                { deferNonCritical: hooks.deferNonCritical === true }
             ),
         ownership
     );
@@ -6534,6 +6570,8 @@ app.post("/chat/stream", acceptChatBody, async (req, res, next) => {
         res.flushHeaders();
         streamStarted = true;
         const result = await executeChatTurn(req, {
+            // 流式回复的重点是"文字立即显示"：done 事件不能被记忆压缩等后台任务拖住。
+            deferNonCritical: true,
             onStatus: (event) => {
                 if (event?.type === "meta" && event.user_message) {
                     userMessageCommitted = true;

@@ -393,3 +393,31 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
 
 ### 验证
 - run-all **13/13 全过**（新增登录页、启动时间线、动画预算，媒体 E2E 165s 稳定通过）。
+---
+
+## 轮次 11（2026-10-28 · 聊天收尾阻塞：done 不再等后台任务）
+
+### 问题
+`assistantCommitted = true` 之后仍串行 `await`：缓冲行清理、会话时间戳、
+主动消息评估排期、自主内容评估排期、**记忆压缩（会再调一次 LLM）**。
+任何一步抛错都会让已经成功落库的一轮变成 error；记忆压缩尤其拖慢 done 事件。
+
+### 改动（backend/server.js）
+- 签名增加 `{ deferNonCritical }`，wrapper 透传；`/chat/stream` 传 `deferNonCritical: true`。
+- `fireAndLog(tag, promise)`：非关键任务后台执行，失败只记 `chat_tail_task_failed`。
+- 落库后的缓冲清理/会话时间戳包 try/catch（`chat_tail_persist_failed`），不再把成功变错误。
+- 主动消息/自主内容排期改为 fire-and-forget，不等。
+- 记忆压缩：流式请求后台执行；非流式 `/chat` 保持 await（响应字段 `memory_compression` 不变），
+  失败只记 `chat_tail_compression_failed`。
+
+### 测试
+- `backend/test/chat-latency.test.js` 扩展为结构回归：断言收尾任务全部不 await、
+  `deferNonCritical: true` 存在、压缩在流式路径走 `fireAndLog`。
+- `npm run check`（node --check + prompt 架构守卫）通过；
+  `test:chat-latency`、`test:chat-contract`、`test:chat-idempotency`、
+  `test:stream-persistence`、`test:stream-forwarder`、`test:stream-immediacy`、
+  `test:v2-core`、`test:v2-content` 全过。
+
+### 限制（诚实标注）
+生产后端不是本仓库构建（生产 0.29.76），所以"done 提前多少毫秒"无法在线上验证；
+本轮以结构回归测试保证行为，部署本仓库后端后应再用流式时间线实测一次。
