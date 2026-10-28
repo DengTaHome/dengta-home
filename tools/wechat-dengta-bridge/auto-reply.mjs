@@ -155,14 +155,18 @@ function healStateLocks() {
     }
 }
 
-function runCli(args, timeoutMs) {
+function runCli(args, timeoutMs, stdinText = null) {
     return new Promise((resolve, reject) => {
         const child = spawn(process.execPath, [CLI, ...args], {
             cwd: CLI_DIR,
             env: { ...process.env, WX_STATE_DIR: cfg.wechatStateDir, WX_FETCH_TIMEOUT_MS: "100000" },
             windowsHide: true,
-            stdio: ["ignore", "pipe", "pipe"],
+            stdio: [stdinText === null ? "ignore" : "pipe", "pipe", "pipe"],
         });
+        if (stdinText !== null) {
+            child.stdin.on("error", () => {});
+            child.stdin.end(stdinText);
+        }
         let stdout = "";
         let stderr = "";
         const timer = setTimeout(() => {
@@ -197,9 +201,13 @@ async function fetchMessages() {
 }
 
 async function sendText(accountId, userId, text) {
-    const args = ["send", "--user", userId, "--text", text];
+    // 安全：绝不把模型输出拼成 --text 后面的独立 argv（以 --file/--image 开头
+    // 会被 wxb 当成 flag，读取任意本地文件外发）。一律走 --stdin，并去掉控制字符。
+    const safeText = String(text || "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim();
+    if (!safeText) throw new Error("refusing to send empty/control-only reply");
+    const args = ["send", "--user", userId, "--stdin"];
     if (accountId) args.unshift("--account", accountId);
-    const { stdout } = await runCli(args, 120000);
+    const { stdout } = await runCli(args, 120000, safeText);
     const parsed = parseCliJson(stdout);
     if (!parsed.ok) throw new Error(`send failed: ${parsed.error?.code || "unknown"} ${parsed.error?.message || ""}`);
     return parsed.data;

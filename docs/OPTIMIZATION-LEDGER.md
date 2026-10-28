@@ -880,3 +880,30 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 新增 `tools/wechat-dengta-bridge/select-ui.mjs`：本机 `http://127.0.0.1:3111` 勾选界面
   （41 小节、19 条记忆、风格文本），保存到 selection.json；curl GET / 与 /api/selection、
   POST /save 往返均 200/ok。DengTa 正式前端 UI 仍受仓库权限阻塞，这是临时可用界面。
+
+## 轮次 24（2026-10-29 · 安全事件处置：CLI 参数注入 + 本地密钥泄漏面）
+
+### 外部复核发现（Goldfish）
+1. **高危**：`auto-reply.mjs` 把模型回复作为独立 argv 传给 `wxb send --text <reply>`；
+   若回复以 `--file=...` 开头，wxb 会解析成 flag 并上传任意本地文件到微信。
+2. **高危**：早期排查在 `_audit` 留下 `render-env-update.json`（含全部 Render env 真值），
+   另有 `mock-auto-reply-config.json`、`supabase-login-body.json`、登录/健康 JSON 等明文副本；
+   `_credentials`/state 目录 ACL 对 Authenticated Users 可写。
+
+### 已处置
+- **停止**微信自动回复，改为 `--stdin` 传回复内容，并拒绝空/控制字符回复；
+  不再把模型输出拼进 `--text` argv。真实发送路径待复核后再启用（已重启，观察中）。
+- 删除 `_audit` 下含密钥/密码/会话的副本与日志（render env、supabase login body、
+  mock config、health/login JSON、SnowLuma 明文初始密码日志等），并清理 mock 测试目录。
+- 收紧 `_credentials`、`.wxb`、`wechat-auto-reply-state`、SnowLuma config、qq-bridge config/state、
+  `_audit` 的 ACL：移除继承，仅当前用户 + SYSTEM/Administrators。
+- **轮换 `QQ_BRIDGE_TOKEN`**：生成新 token → 更新本地桥接配置 → 更新 Render env →
+  触发新部署 live；验证新 token 可用（人设覆盖回复「正常」），旧/无效 token 返回
+  `qq_bridge_auth_required`。
+- 真实微信回环已在此前验证：主人发「自动回复测试」→ 16:07:52 收到 → 16:08:18 自动回复
+  「收到收到，测试通过~ 凌晨十二点还在折腾…」，说明收→DengTa→发链路可用。
+
+### 仍需用户决策
+- 建议轮换 `SUPABASE_SECRET_KEY` 及各 provider key（本次只删了本机副本，未轮换外部密钥）。
+- QQ 已再次从 SnowLuma 卸载；QQ 客户端仍登录旧号，需用户退出登录→登小号→告知新 UIN，
+  再更新 qq-bridge `ownerQQ/allow` 并重新注入。
