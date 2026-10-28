@@ -88,8 +88,15 @@
      `music_playback_queue.revision`，**没有任何心潮或流式中间态列**
    - 063 的两件事线上已完成：8 张表 `rowsecurity = true`，
      且 `anon`/`authenticated` 对它们都没有 SELECT 权限
+   - 关键补充：`messages` 共 19 列，其中含
+     `chat_generation_state`（text）+ `chat_generation_started_at` / `_lease_expires_at` /
+     `_failed_at` / `_completed_at` 四个时间戳 + `client_message_id`（uuid）
+     → 线上是**在 messages 行上做「生成中状态 + 租约」**，边生成边更新同一行；
+     这比仓库单独的 `stream_partials` 表更直接，也解释了线上为何不需要 064
    → 结论：**生产库不需要执行任何迁移**。这三个迁移只适用于用仓库后端自托管/本地部署的场景。
-   也正因如此，「逐字立即保存」只在**仓库后端**这边验证过，线上 0.29.76 的实现方式未知。
+   → 关于「逐字立即保存」：线上很可能就是用 messages 行 + 生成状态实现的（同一行持续更新），
+     但**更新频率从库外无法验证**；仓库方案（独立表 + 串行写链）与线上方案是两套设计，
+     不能互相作为证据。
 3. **音乐真实播放未验证**：网易云登录态存在 App 内置浏览器会话里，自动化环境拿不到。
 4. **Vercel / Render / GitHub 的空间清理**需要登录控制台。
 5. **13 处源码切片测试**尚未重构为真实挂载（属技术债，不影响功能）。
