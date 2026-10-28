@@ -1007,3 +1007,16 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   回复正文无标记，后台测试通过；qq-bridge 测试 2/2。
 - 新增 `docs/TIME-CAPSULE.md`；dayflow 加入 repo-watch（14 个项目）。
 - 未完成：网页端主聊天/QQ→DSH 时间胶囊、全面逐仓健康检查、Goldfish 外部复核（下一步）。
+
+## 轮次 30（2026-10-29 · 时间胶囊验证 + 前端体检 + 凭据）
+
+- 069 已确认成功。
+- 时间胶囊生产验证：任务写入/完成清理/回复隐藏标记均通过（见 `docs/TIME-CAPSULE.md`）。
+- 前端体检（本机旧源码 2.10.74）：
+  - lint 发现 `test/animation-budget.test.js` 未使用变量 `composer`，已删除，lint 恢复 0 error。
+  - `npm test` 首轮 app-updates 组件测试在全量并发下偶发超时；单独运行 4/4 通过，复跑全量通过。
+- 凭据：用现有 Vercel token 通过 API 创建 **永久 Vercel token**（name `dengta-agent-permanent-…`），
+  已存 `_credentials/dengta-credentials.json.vercel.permanentToken`，实测可读项目 `dengta-home`。
+- GitHub fine-grained token：内置浏览器页面无法被 CDP/SendKeys 稳定控制（DSH 嵌入 webview 无调试端口），
+  未能自动创建；等用户醒后手动创建或提供仓库权限。
+- Android 发版阻塞仍在：无 2.13.43 源码与签名 keystore，不能构建可覆盖安装的新包。

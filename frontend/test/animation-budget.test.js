@@ -10,7 +10,6 @@ const read = (name) => fs.readFileSync(path.join(SRC, name), "utf8");
 const app = read("App.jsx");
 const main = read("main.jsx");
 const css = read("animation-budget.css");
-const composer = read("voice-composer.css");
 
 // 滚动/隐藏都必须暂停常驻动画
 assert.match(css, /html\[data-dengta-scrolling="1"\][^{]*\{[^}]*animation-play-state:\s*paused\s*!important;/s, "滚动期间必须暂停动画");
