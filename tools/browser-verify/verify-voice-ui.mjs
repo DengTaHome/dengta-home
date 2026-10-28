@@ -266,7 +266,8 @@ if (buttonVisible) {
         Boolean(postRelease.error) ||
         postRelease.pressed === "true" ||
         postRelease.bubbles > bubblesBefore ||
-        Boolean(postRelease.directDisabled);
+        Boolean(postRelease.directDisabled) ||
+        /chat-voice-cancel/.test(postRelease.directClass || "");
 
     record("松手后进入处理流程", processing, postRelease);
 
@@ -280,10 +281,13 @@ if (buttonVisible) {
                 const direct = document.querySelector(".chat-voice-button");
                 const busy =
                     direct &&
-                    (direct.disabled || direct.getAttribute("aria-pressed") === "true");
+                    (direct.disabled ||
+                        direct.getAttribute("aria-pressed") === "true" ||
+                        /chat-voice-cancel/.test(direct.className || ""));
                 const error = document.querySelector(".voice-inline-error");
                 const bubbles = document.querySelectorAll(".message-bubble").length;
-                return !busy || Boolean(error && error.textContent.trim()) || bubbles > before;
+                const cancel = document.querySelector(".chat-voice-cancel");
+                return (!busy && !cancel) || Boolean(error && error.textContent.trim());
             },
             bubblesBefore,
             { timeout: 80_000 }
@@ -301,16 +305,34 @@ if (buttonVisible) {
         };
     });
     record("语音流程最终收敛（不永久卡住）", settled, finalState);
-    record("失败时给出可读提示", settled, finalState.error || "(未失败)");
+      // 「失败时给出可读提示」依赖真实后端返回 502，属环境相关；
+      // 该行为的确定性覆盖在场景 3（取消中止请求 + 晚到响应不污染）。
+
+    // 场景 2 开始前先等回到可录音状态（上一场景可能还停在错误/处理中）
+    const micBeforeScenario2 = page.locator(".chat-voice-button:not(.chat-voice-cancel)").first();
+    await micBeforeScenario2.waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
+
+    // 记录本轮出现的所有提示（提示会被后续错误覆盖，只看历史）
+    await page.evaluate(() => {
+        globalThis.__noticeHistory = [];
+        const observer = new MutationObserver(() => {
+            const node = document.querySelector(".notice");
+            if (node && node.textContent) {
+                globalThis.__noticeHistory.push(node.textContent.replace(/\s+/g, " "));
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+        globalThis.__noticeObserver = observer;
+    });
 
     // 场景 2：长按阈值已到、麦克风还在授权中时松手 —— 不能开始无人按着的录音
     await page.evaluate(() => {
         globalThis.__delayMicMs = 1_500;
     });
-    const box3 = await button.boundingBox();
+    const box3 = await micBeforeScenario2.boundingBox();
     const x3 = box3 ? box3.x + box3.width / 2 : DEVICE.width / 2;
     const y3 = box3 ? box3.y + box3.height / 2 : DEVICE.height - 80;
-    await button.dispatchEvent("pointerdown", {
+    await micBeforeScenario2.dispatchEvent("pointerdown", {
         pointerId: 11,
         pointerType: "touch",
         isPrimary: true,
@@ -320,7 +342,7 @@ if (buttonVisible) {
         clientY: y3,
     });
     await page.waitForTimeout(500);
-    await button.dispatchEvent("pointerup", {
+    await micBeforeScenario2.dispatchEvent("pointerup", {
         pointerId: 11,
         pointerType: "touch",
         isPrimary: true,
@@ -345,14 +367,151 @@ if (buttonVisible) {
             !/is-recording/.test(releaseDuringPermission.cls || ""),
         releaseDuringPermission
     );
-    record(
-        "授权期间松手有明确提示",
-        /松开|没有录音/.test(releaseDuringPermission.notice || ""),
-        releaseDuringPermission.notice
-    );
+    const releaseNotice = await page.evaluate(() => {
+        const history = globalThis.__noticeHistory || [];
+        const current = Array.from(document.querySelectorAll(".notice, .voice-inline-error"))
+            .map((node) => (node.textContent || "").replace(/\s+/g, " "));
+        return [...history, ...current].some((text) => /松开|没有录音/.test(text));
+    });
+    record("授权期间松手有明确提示", releaseNotice, releaseDuringPermission.notice);
     await page.evaluate(() => {
         globalThis.__delayMicMs = 0;
     });
+
+    // 记录被浏览器判定失败的请求，稍后断言取消确实中止了 /voice/turn
+    let voiceTurnFailedCount = 0;
+    page.on("requestfailed", (request) => {
+        if (
+            request.url().includes("/voice/turn") &&
+            String(request.failure()?.errorText || "").includes("ERR_ABORTED")
+        ) {
+            voiceTurnFailedCount += 1;
+        }
+    });
+
+    // 场景 3：上传卡住时必须能在输入框一级取消（此前取消入口被菜单锁死）
+    let voiceTurnRouteHits = 0;
+    await page.route("**/voice/turn", (route) => {
+        voiceTurnRouteHits += 1;
+        return new Promise((resolve) => {
+            setTimeout(
+                () =>
+                    resolve(
+                        route.fulfill({
+                            status: 500,
+                            contentType: "application/json",
+                            body: JSON.stringify({ message: "synthetic stall" }),
+                        })
+                    ),
+                15_000
+            );
+        });
+    });
+    await page.waitForTimeout(800);
+    const micButton = page.locator(".chat-voice-button:not(.chat-voice-cancel)").first();
+    await micButton.waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+    const box4 = await micButton.boundingBox();
+    const x4 = box4 ? box4.x + box4.width / 2 : DEVICE.width / 2;
+    const y4 = box4 ? box4.y + box4.height / 2 : DEVICE.height - 80;
+    await micButton.dispatchEvent("pointerdown", {
+        pointerId: 21,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        clientX: x4,
+        clientY: y4,
+    });
+    await page.waitForTimeout(2_000);
+    await micButton.dispatchEvent("pointerup", {
+        pointerId: 21,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        buttons: 0,
+        clientX: x4,
+        clientY: y4,
+    });
+    const cancelVisible = await page
+        .waitForSelector(".chat-voice-cancel", { state: "visible", timeout: 45_000 })
+        .then(() => true)
+        .catch(() => false);
+    record("上传中可以取消（一级入口）", cancelVisible, cancelVisible);
+    if (cancelVisible) {
+        await page.locator(".chat-voice-cancel").click();
+        await page.waitForTimeout(900);
+        const afterCancel = await page.evaluate(() => {
+            const mic = document.querySelector(".chat-voice-button:not(.chat-voice-cancel)");
+            const cancel = document.querySelector(".chat-voice-cancel");
+            const notice = document.querySelector(".notice, .voice-inline-error");
+            return {
+                micBack: Boolean(mic),
+                cancelGone: !cancel,
+                notice: notice ? notice.textContent.replace(/\s+/g, " ").trim().slice(0, 60) : "",
+            };
+        });
+        record("取消后回到可录音状态", afterCancel.micBack && afterCancel.cancelGone, afterCancel);
+        record("取消后给出提示", /取消/.test(afterCancel.notice || ""), afterCancel.notice);
+
+        // 等合成 500 在 15 秒后真正返回：如果取消没有中止请求，界面会出现错误提示
+        await page.waitForTimeout(16_000);
+        const afterLateResponse = await page.evaluate(() => {
+            const cancel = document.querySelector(".chat-voice-cancel");
+            const error = document.querySelector(".voice-inline-error");
+            const notice = document.querySelector(".notice");
+            const mic = document.querySelector(".chat-voice-button:not(.chat-voice-cancel)");
+            return {
+                cancelGone: !cancel,
+                micBack: Boolean(mic),
+                error: error ? error.textContent.replace(/\s+/g, " ").trim().slice(0, 80) : "",
+                notice: notice ? notice.textContent.replace(/\s+/g, " ").trim().slice(0, 80) : "",
+            };
+        });
+        record("取消中止了进行中的语音请求", voiceTurnFailedCount > 0, voiceTurnFailedCount);
+        const lateErrorText = (afterLateResponse.error || "") + (afterLateResponse.notice || "");
+        record(
+            "晚到的失败响应不污染已取消的界面",
+            afterLateResponse.cancelGone &&
+                afterLateResponse.micBack &&
+                !/(synthetic|失败|错误|无法|不可用)/.test(lateErrorText),
+            afterLateResponse
+        );
+        record("取消后没有任何红色错误提示", !afterLateResponse.error, afterLateResponse.error);
+        record("取消请求确实打到了 /voice/turn", voiceTurnRouteHits > 0, voiceTurnRouteHits);
+    }
+
+
+    // 场景 4：不取消、后端立即 500 —— 必须让用户看到可读错误，而不是静默吞掉
+    await page.unroute("**/voice/turn").catch(() => {});
+    await page.route("**/voice/turn", (route) =>
+        route.fulfill({
+            status: 500,
+            contentType: "application/json",
+            body: JSON.stringify({ message: "语音服务暂时不可用，请稍后重试。" }),
+        })
+    );
+    const micFor500 = page.locator(".chat-voice-button:not(.chat-voice-cancel)").first();
+    await micFor500.waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
+    const box5 = await micFor500.boundingBox();
+    const x5 = box5 ? box5.x + box5.width / 2 : DEVICE.width / 2;
+    const y5 = box5 ? box5.y + box5.height / 2 : DEVICE.height - 80;
+    await micFor500.dispatchEvent("pointerdown", { pointerId: 31, pointerType: "touch", isPrimary: true, button: 0, buttons: 1, clientX: x5, clientY: y5 });
+    await page.waitForTimeout(2_000);
+    await micFor500.dispatchEvent("pointerup", { pointerId: 31, pointerType: "touch", isPrimary: true, button: 0, buttons: 0, clientX: x5, clientY: y5 });
+    const readableError = await page
+        .waitForFunction(
+            () => {
+                const notice = document.querySelector(".notice");
+                const inline = document.querySelector(".voice-inline-error");
+                const text = ((notice && notice.textContent) || "") + ((inline && inline.textContent) || "");
+                return /语音|失败|不可用|重试|服务/.test(text.replace(/\s+/g, " "));
+            },
+            null,
+            { timeout: 30_000 }
+        )
+        .then(() => true)
+        .catch(() => false);
+    record("后端立即 500 时给出可读错误", readableError, readableError);
 
     await page.screenshot({ path: `${OUT}/voice-ui-390x844.png`, timeout: 120_000 });
 }

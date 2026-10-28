@@ -1385,6 +1385,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   const messagesSessionIdRef = useRef(null);
   const messageLoadTokenRef = useRef(0);
   const streamingSessionIdRef = useRef(null);
+  // 语音轮次专用的取消控制器：用于中断「新建会话」这类可取消的前置请求。
+  const voiceTurnAbortRef = useRef(null);
   const companionStatusRef = useRef(companionStatus);
   const ambientContextRef = useRef({});
   const deviceActivitySummaryRef = useRef(null);
@@ -2713,10 +2715,29 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
 
   useEffect(() => {
     function releaseVoiceWhenPageLeaves() {
-      if (document.visibilityState === "hidden") {
-        voiceLifecycleRef.current.cancel({ updateState: false });
-        void voiceLifecycleRef.current.stopPlayback({ updateState: false });
-      }
+      if (document.visibilityState !== "hidden") return;
+      const voiceActive =
+        [
+          VOICE_STATES.requesting,
+          VOICE_STATES.recording,
+          VOICE_STATES.uploading,
+          VOICE_STATES.thinking,
+        ].includes(voiceStateRef.current) ||
+        Boolean(voiceTurnAbortRef.current) ||
+        Boolean(voiceRequestRef.current);
+      // 没有语音在跑（例如纯文字聊天）切后台不该产生任何取消提示。
+      if (!voiceActive) return;
+      // 必须 updateState：请求会被 abort，而 finally 归属校验不会再替
+      // 「已被取消的旧 run」复位状态；不复位的话切后台回来会卡在取消按钮/录音态。
+      // 只有处理中才说「已取消」；requesting/recording 由录音侧的错误/提示负责。
+      const message = [
+        VOICE_STATES.uploading,
+        VOICE_STATES.thinking,
+      ].includes(voiceStateRef.current)
+        ? "切到后台后，这次语音处理已取消。"
+        : "";
+      voiceLifecycleRef.current.cancel({ message, updateState: true });
+      void voiceLifecycleRef.current.stopPlayback({ updateState: false });
     }
 
     function releaseVoiceOnPageHide() {
@@ -3365,6 +3386,17 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
 
   function cancelVoiceCapture({ message = "", updateState = true } = {}) {
     voiceCaptureRunRef.current += 1;
+    voiceTurnAbortRef.current?.abort?.();
+    voiceTurnAbortRef.current = null;
+    // 只清语音自己设置的流式标记：文本流也共用这个 ref，不能无条件清掉。
+    if (
+      streamingSessionIdRef.current &&
+      [VOICE_STATES.recording, VOICE_STATES.uploading, VOICE_STATES.thinking].includes(
+        voiceStateRef.current,
+      )
+    ) {
+      streamingSessionIdRef.current = null;
+    }
     voicePointerHeldRef.current = false;
     voicePointerIdRef.current = null;
     voiceLongPressArmedRef.current = false;
@@ -3450,9 +3482,20 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     }
   }
 
-  async function submitVoiceBlob(blob, durationMs) {
+  async function submitVoiceBlob(
+    blob,
+    durationMs,
+    captureRunAtSubmit = voiceCaptureRunRef.current,
+  ) {
     setVoiceError("");
     setVoiceMode(VOICE_STATES.uploading);
+    // 取消令牌由 finishVoiceCapture 传入：录音器 stop 的等待期间也可能被取消。
+    // 从上传到插入消息/朗读之前，任何一次取消都要让这条链路停下；
+    // 否则「取消」只是把界面改回 idle，后台仍会上传、插入消息并朗读。
+    const cancelledSinceSubmit = () =>
+      voiceCaptureRunRef.current !== captureRunAtSubmit;
+    const turnAbortController = new AbortController();
+    voiceTurnAbortRef.current = turnAbortController;
     const turnContextDraftAtRequest = turnContextRef.current;
     const turnContextSnapshot = turnContextDraftAtRequest
       .trim()
@@ -3472,16 +3515,22 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           "最新角色设置还没有保存成功，语音没有发送。请恢复网络后再试一次。",
         );
       }
+      if (cancelledSinceSubmit()) return;
       await refreshDeviceActivityContext({ silent: true });
+      if (cancelledSinceSubmit()) return;
       if (activeSessionIdRef.current) {
         await sessionModelSaveQueueRef.current;
       }
+      if (cancelledSinceSubmit()) return;
 
       if (!sessionId) {
         const created = await apiRequest("/api/v2/sessions", {
           method: "POST",
           body: JSON.stringify({ title: "语音对话" }),
+          signal: turnAbortController.signal,
         });
+        // 取消必须发生在任何 UI mutation 之前：慢网下取消后不应把用户切到新建的空会话。
+        if (cancelledSinceSubmit()) return;
         sessionId = created.session.id;
         moveSessionDraft(null, sessionId);
         voiceSessionId = sessionId;
@@ -3498,6 +3547,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         initializeSessionChatModel(sessionId, voiceModel);
       }
 
+      if (cancelledSinceSubmit()) return;
       streamingSessionIdRef.current = sessionId;
       const formData = buildVoiceTurnFormData({
         blob,
@@ -3522,6 +3572,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       });
       voiceRequestRef.current = requestHandle;
       const data = await requestHandle.promise;
+      if (cancelledSinceSubmit()) return;
 
       const responseSessionId = data.session_id || sessionId;
       voiceSessionId = responseSessionId;
@@ -3560,6 +3611,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         voiceAnalysis,
       };
 
+      if (cancelledSinceSubmit()) return;
       applyPromptReceipt(data.prompt_receipt);
       if (data.companion_status) {
         setCompanionStatus((current) =>
@@ -3599,6 +3651,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         console.warn("语音回复已保存，但刷新会话列表失败：", error.message);
       }
 
+      if (cancelledSinceSubmit()) return;
       if (voiceAutoSpeakEnabled) {
         await playAssistantReply(
           serverAssistantMessage.content,
@@ -3610,21 +3663,30 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         setVoiceMode(VOICE_STATES.idle);
       }
     } catch (error) {
+      if (cancelledSinceSubmit()) return;
       if (requestHandle && voiceRequestRef.current !== requestHandle) return;
       setVoiceFailure(error);
     } finally {
+      // 引用清理只清「属于自己的」：即使 run 已被取消/被新一轮顶替，
+      // 这些 stale 引用也不能留给下一轮（否则会干扰推送/历史刷新判断）。
       if (voiceRequestRef.current === requestHandle) {
         voiceRequestRef.current = null;
       }
       if (streamingSessionIdRef.current === voiceSessionId) {
         streamingSessionIdRef.current = null;
       }
-      if (
-        [VOICE_STATES.uploading, VOICE_STATES.thinking].includes(
-          voiceStateRef.current,
-        )
-      ) {
-        setVoiceMode(VOICE_STATES.idle);
+      if (voiceTurnAbortRef.current === turnAbortController) {
+        voiceTurnAbortRef.current = null;
+      }
+      // 状态复位才需要归属保护：已取消的旧 run 不能把新一轮的取消按钮隐藏掉。
+      if (voiceCaptureRunRef.current === captureRunAtSubmit) {
+        if (
+          [VOICE_STATES.uploading, VOICE_STATES.thinking].includes(
+            voiceStateRef.current,
+          )
+        ) {
+          setVoiceMode(VOICE_STATES.idle);
+        }
       }
     }
   }
@@ -3632,6 +3694,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   async function finishVoiceCapture({ send = true } = {}) {
     const recorder = voiceRecorderRef.current;
     if (!recorder) return;
+    // 这里的 token 要贯穿「录音器 stop → 上传」：stop 的 await 期间可能发生
+    // visibilitychange/pagehide 触发的取消，不能让取消之后又冒出一条上传。
+    const captureRunAtFinish = voiceCaptureRunRef.current;
 
     voiceRecorderRef.current = null;
     setVoiceTapToSendMode(false);
@@ -3650,10 +3715,13 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     } catch (error) {
       releaseVoiceStream();
       voiceChunksRef.current = [];
-      setVoiceFailure(error);
+      if (voiceCaptureRunRef.current === captureRunAtFinish) {
+        setVoiceFailure(error);
+      }
       return;
     }
 
+    if (voiceCaptureRunRef.current !== captureRunAtFinish) return;
     releaseVoiceStream();
     setVoiceElapsedMs(durationMs);
     if (!send) {
@@ -3681,7 +3749,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       return;
     }
 
-    await submitVoiceBlob(blob, durationMs);
+    await submitVoiceBlob(blob, durationMs, captureRunAtFinish);
   }
 
   async function beginVoiceCapture(event) {
@@ -3802,7 +3870,11 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           // 用户在授权期间就松手了：不能替用户开始一段没人按着的录音，
           // 更不能让它跑满 60 秒后自动上传发送。
           setVoiceMode(VOICE_STATES.idle);
-          setNotice("已经松开了，这次没有录音。按住麦克风说完再松手。");
+          setNotice(
+            document.visibilityState === "hidden"
+              ? "切到后台后，这次录音已取消。"
+              : "已经松开了，这次没有录音。按住麦克风说完再松手。",
+          );
           return;
         }
         voicePermissionReadyRef.current = true;
@@ -6970,34 +7042,50 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
               >
                 <RainbowAgentMark />
               </button>
-              {voiceServiceAvailable && (
-                <button
-                  className={`chat-voice-button${
-                    voiceState === VOICE_STATES.recording ? " is-recording" : ""
-                  }`}
+              {[VOICE_STATES.uploading, VOICE_STATES.thinking].includes(
+                  voiceState,
+              ) ? (
+                  <button
+                  className="chat-voice-button chat-voice-cancel"
                   type="button"
-                  aria-label="长按说话"
-                  aria-pressed={voiceState === VOICE_STATES.recording}
-                  title="长按说话，松开发送"
-                  disabled={
-                    isSending ||
-                    isCompanionResponding ||
-                    [VOICE_STATES.uploading, VOICE_STATES.thinking].includes(voiceState)
+                  aria-label="取消语音处理"
+                  title="取消语音处理"
+                  onClick={() =>
+                    cancelVoiceCapture({
+                      message: "语音处理已取消，文字聊天仍可继续。",
+                    })
                   }
-                  onPointerDown={beginVoiceCapture}
-                  onPointerUp={endVoiceCapture}
-                  onPointerCancel={endVoiceCapture}
-                  onContextMenu={(event) => event.preventDefault()}
-                >
-                  <span className="chat-voice-icon" aria-hidden="true">
-                    {voiceState === VOICE_STATES.recording ? "●" : "🎙"}
-                  </span>
-                  {voiceState === VOICE_STATES.recording && (
-                    <span className="chat-voice-timer">
-                      {(voiceElapsedMs / 1000).toFixed(1)}s
+                  >
+                    <span className="chat-voice-icon" aria-hidden="true">
+                      ✕
                     </span>
-                  )}
-                </button>
+                  </button>
+              ) : (
+                  voiceServiceAvailable && (
+                    <button
+                        className={`chat-voice-button${
+                          voiceState === VOICE_STATES.recording ? " is-recording" : ""
+                        }`}
+                        type="button"
+                        aria-label="长按说话"
+                        aria-pressed={voiceState === VOICE_STATES.recording}
+                        title="长按说话，松开发送"
+                        disabled={isSending || isCompanionResponding}
+                        onPointerDown={beginVoiceCapture}
+                        onPointerUp={endVoiceCapture}
+                        onPointerCancel={endVoiceCapture}
+                        onContextMenu={(event) => event.preventDefault()}
+                    >
+                        <span className="chat-voice-icon" aria-hidden="true">
+                          {voiceState === VOICE_STATES.recording ? "●" : "🎙"}
+                        </span>
+                        {voiceState === VOICE_STATES.recording && (
+                          <span className="chat-voice-timer">
+                            {(voiceElapsedMs / 1000).toFixed(1)}s
+                          </span>
+                        )}
+                    </button>
+                  )
               )}
               <button
                 className="send-button"

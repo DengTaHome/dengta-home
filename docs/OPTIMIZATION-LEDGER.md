@@ -246,3 +246,39 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
 - 用户拍板：改哪个 kiwi 仓库、部署形态；
 - P1：kiwi Postgres 加列 + 回填 + consolidate 定时任务；
 - P2：`/memory/recall` 返回通道权重/约定/关系，DengTa 侧消费。
+---
+
+## 轮次 6（2026-10-28 · 语音处理中的一级取消 + 四轮 Goldfish 审查）
+
+### 问题（第一轮审计 P1）
+上传/理解阶段没有任何一级取消入口：取消按钮只在「+」菜单里，而上传时该菜单按钮被禁用，
+用户最长 75 秒无出口。
+
+### 最终改动
+- 输入框一级：uploading/thinking 时用「取消」替换麦克风按钮，不依赖 voiceServiceAvailable；
+- `cancelVoiceCapture` 可中止 `voice/turn`、清定时器/录音器/流、回 idle + 提示；
+- `submitVoiceBlob` 增加贯穿式取消令牌（finish 传入），在 preflight 每个 await 后、
+  promise 之后、插入消息前、朗读前校验；`/api/v2/sessions` POST 带 AbortSignal，
+  取消发生在 UI mutation 之前；
+- `createVoiceTurnRequest.abort()` 在未 send 时也 reject 且阻止后续 open/send；
+- `finally` 拆成「引用清理（按对象身份）」+「状态复位（按 run token 归属）」两段；
+- 切后台：只在语音活跃时取消并复位，纯文字聊天不再被误提示；授权期切后台提示改为准确文案；
+- CSS 窄屏取消按钮保持 44px。
+
+### 验证（真机模拟：Playwright + 假麦克风）
+- `verify-voice-ui.mjs` 19 项全过，含：上传中可取消、取消中止请求（requestfailed
+  ERR_ABORTED）、取消后无红色错误、晚到 500 不污染、后端立即 500 给出可读错误；
+- `verify-layout-matrix` 6 视口 0 问题；streaming / startup-recovery 全过；
+- 前端全量测试 exit 0；
+- 单测新增 abort-before-send 行为断言（未 send 时取消必须 reject 且不发送）。
+
+### Goldfish 四轮审查（外部裁判，均未参与实现）
+1. 第一轮：驳回——取消只对已发出请求有效（preflight/响应后/未 send 三窗口），验证 settled 假通过；
+2. 第二轮：驳回——新建会话 UI mutation 在取消校验前、finish→submit 换 token、finally 清新状态、
+   settled bubbles OR 等；
+3. 第三轮：驳回——**本轮修复自身引入的 P1**：切后台 cancel(updateState:false) + finally 归属校验
+   导致 UI 卡在取消按钮/录音态；P2 stale 引用；fake XHR 假通过；
+4. 第四轮：P1 已修，另指出切后台无条件提示（纯文字聊天也被提示）与 verify 未覆盖 notice；
+   两处小修后，全量测试与 19 项真机断言全绿。
+
+教训：**取消/竞态类改动必须让外部裁判评审，且验证必须先做"删掉实现会不会红"的负向检查**。

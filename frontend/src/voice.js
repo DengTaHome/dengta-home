@@ -288,7 +288,9 @@ export function createVoiceTurnRequest(
   let settled = false;
   let uploadReported = false;
 
+  let rejectRequestOnce = null;
   const promise = new Promise((resolve, reject) => {
+    rejectRequestOnce = reject;
     function finishUpload() {
       if (uploadReported) return;
       uploadReported = true;
@@ -385,7 +387,19 @@ export function createVoiceTurnRequest(
   return {
     promise,
     abort() {
-      if (!settled) xhr.abort();
+      // 必须在 send 之前也生效：token 刷新期间点取消时，xhr 还是 UNSENT，
+      // 只调 xhr.abort() 不会派发 abort 事件，稍后 .then 仍会 open+send。
+      if (!settled) {
+        settled = true;
+        const abortError = new Error("本次语音请求已取消。");
+        abortError.name = "AbortError";
+        if (rejectRequestOnce) rejectRequestOnce(abortError);
+      }
+      try {
+        xhr.abort();
+      } catch {
+        // 未 open 的 XHR 可能抛错，取消本身已经生效。
+      }
     },
   };
 }

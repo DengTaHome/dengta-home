@@ -84,11 +84,10 @@
 /* 窄屏：语音按钮留 40px，把宽度让给输入框，避免 360px 机型输入区过窄 */
 @media (max-width: 380px) {
   .main-panel.view-chat .composer {
-    grid-template-columns: 44px minmax(0, 1fr) 40px 44px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
   }
 
   .main-panel.view-chat .composer .chat-voice-button {
-    min-width: 40px;
     padding: 0;
   }
 }
@@ -107,5 +106,30 @@
   .sun-glass-jelly-popover.is-open,
   .sun-glass-time-menu.is-open {
     transform: none;
+  }
+}
+/*
+ * 语音处理中（上传/理解）的取消按钮。
+ * 之前取消入口只在「+」菜单里，而上传时该菜单按钮是禁用的——
+ * 一旦上传卡住，用户最长 75 秒没有任何出口。这里把它放到输入框一级。
+ */
+.chat-voice-button.chat-voice-cancel {
+  color: #b42318;
+  background: color-mix(in srgb, #b42318 14%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-voice-button.chat-voice-cancel .chat-voice-icon {
+    animation: chat-voice-cancel-breathe 1.25s ease-in-out infinite;
+  }
+}
+
+@keyframes chat-voice-cancel-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
   }
 }

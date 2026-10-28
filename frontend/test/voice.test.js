@@ -8,6 +8,7 @@ import {
   VOICE_STATE_LABELS,
   VOICE_TURN_TIMEOUT_MS,
   buildVoiceTurnFormData,
+  createVoiceTurnRequest,
   formatVoiceConfidence,
   hydrateStoredVoiceAnalysis,
   hydrateStoredVoiceMessages,
@@ -254,5 +255,65 @@ await assert.rejects(
   /凭据已失效/,
 );
 assert.equal(missingCredentialFetches, 0);
+
+// abort-before-send：token 刷新期间点取消，不能再 open+send（真机评审发现的行为缺口）
+class AbortableFakeXhr {
+  constructor() {
+    this.upload = { addEventListener() {} };
+    this.listeners = {};
+    this.opened = false;
+    this.sent = false;
+    this.aborted = false;
+    this.status = 0;
+    this.response = null;
+    this.responseText = "";
+    AbortableFakeXhr.last = this;
+  }
+  addEventListener(type, handler) {
+    this.listeners[type] = handler;
+  }
+  setRequestHeader() {}
+  getResponseHeader() {
+    return "";
+  }
+  open() {
+    this.opened = true;
+  }
+  send() {
+    this.sent = true;
+  }
+  abort() {
+    this.aborted = true;
+    // 真实 XHR 在 UNSENT 状态调 abort 不派发 abort 事件，保持一致才能验证
+    // 「未 send 时取消必须靠 reject 生效」。
+    if (this.opened) this.listeners.abort?.();
+  }
+}
+
+let releaseContext = null;
+const contextGate = new Promise((resolve) => {
+  releaseContext = resolve;
+});
+const abortFormData = buildVoiceTurnFormData({
+  blob: new Blob(["bytes"], { type: "audio/webm" }),
+  timestamp: 11,
+});
+const abortHandle = createVoiceTurnRequest(abortFormData, {
+  XMLHttpRequestImpl: AbortableFakeXhr,
+  authSession: { getRequestContext: () => contextGate },
+});
+abortHandle.abort();
+// 用 race 加超时：如果实现的 abort 在未 send 时不 reject，这条会快速失败而不是挂住。
+await Promise.race([
+  assert.rejects(abortHandle.promise, (error) => error.name === "AbortError"),
+  new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("abort-before-send 超时：取消没有 reject")), 800),
+  ),
+]);
+releaseContext({ accessToken: "token" });
+await new Promise((resolve) => setTimeout(resolve, 20));
+assert.equal(AbortableFakeXhr.last.sent, false, "取消发生在 send 之前时绝不能发出请求");
+abortHandle.abort();
+assert.ok(true, "abort-before-send：未发送时取消生效且可重复调用");
 
 console.log("voice helper tests passed");

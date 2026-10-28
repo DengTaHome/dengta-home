@@ -102,4 +102,14 @@ assert.match(app, /按住麦克风说话，说完再松手/, "点按未达阈值
 
 // 60 秒到点自动发送：必须明确告知
 assert.match(app, /已经达到 60 秒上限/, "60 秒自动发送需要提示用户");
+// 语音处理中必须有一级取消入口：此前取消按钮只在「+」菜单里，
+// 而上传时该菜单按钮被禁用，用户最长 75 秒没有任何出口。
+assert.match(app, /chat-voice-button chat-voice-cancel/, "语音处理中要在一级显示取消按钮");
+assert.match(app, /aria-label="取消语音处理"/, "取消按钮需要可读标签");
+// 直接匹配「一级取消按钮」这一整块，避免被菜单里旧取消按钮的同名调用满足。
+const cancelEntryBlock = app.match(
+  /chat-voice-button chat-voice-cancel[\s\S]{0,700}?cancelVoiceCapture\(\{/,
+);
+assert.ok(cancelEntryBlock, "cancel-entry-block 一级取消按钮必须绑定取消处理，而不是只渲染文案");
+assert.match(css, /\.chat-voice-button\.chat-voice-cancel/, "取消按钮需要独立样式");
 console.log("voice-composer: 结构断言通过");
