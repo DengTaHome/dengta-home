@@ -1020,3 +1020,14 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - GitHub fine-grained token：内置浏览器页面无法被 CDP/SendKeys 稳定控制（DSH 嵌入 webview 无调试端口），
   未能自动创建；等用户醒后手动创建或提供仓库权限。
 - Android 发版阻塞仍在：无 2.13.43 源码与签名 keystore，不能构建可覆盖安装的新包。
+
+## 轮次 31（2026-10-29 · 找到生产前端源码 + GitHub Actions 发版诊断）
+
+- 用户提供 GitHub classic token；验证 scopes 含 repo/workflow，私有前端仓库可访问。
+- 从浏览器历史找到 CNB 公开源码 `cnb.cool/dengtahome/dengtahome`，克隆 `frontend-main`
+  到 `_refs/cnb-dengtahome`；确认 version 2.13.43 / versionCode 301，含完整 Android 源码与
+  `publish-android-apk.yml`（签名 secret 证书锚点 38a03ab2…，与线上 APK 一致）。
+- 触发 publish workflow（dry_run=false）：GitHub 接受后 run 立即 failure，steps=0、runner_id=0；
+  近两天所有 health/publish run 同样失败。计费 API 显示 10 月 Linux Actions 2814 分钟，
+  判断为私有仓库 Actions 额度/支出上限耗尽。需用户提高 GitHub Actions spending limit。
+- 源码/CI 细节写入 `docs/ANDROID-RELEASE.md`；token 已存 `_credentials`（仓库外），建议用后轮换。

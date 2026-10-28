@@ -44,3 +44,21 @@
 - 原生插件：`frontend/android/app/src/main/java/home/dengta/app/AppUpdatesPlugin.java`
 - 构建 workflow：`.github/workflows/android-apk.yml`（当前只构建 debug artifact，不发版）
 - 备份 APK：`D:\GZdeepseek\backup\releases\`
+
+## 2026-10-29 更新：源码与 CI 已定位
+
+- 生产前端源码在腾讯 CNB 公开仓库：`https://cnb.cool/dengtahome/dengtahome`
+  - 分支 `frontend-main` 指向 `0d69ede`（与 Vercel 线上一致）
+  - `package.json` version = **2.13.43**，Android versionCode 默认 301
+  - 已克隆到 `D:\GZdeepseek\_refs\cnb-dengtahome`
+- GitHub 前端私有仓库 `DengTaHome/dengta-home-frontend` 已用新 token 访问；发版 workflow
+  `.github/workflows/publish-android-apk.yml` 存在，使用 secrets：
+  `ANDROID_STABLE_DEBUG_KEYSTORE_BASE64_V2`（证书 SHA-256 38a03ab2…）、
+  `VITE_SUPABASE_*`、`SUPABASE_*`、`VERCEL_DEPLOY_HOOK`。
+- 触发 `workflow_dispatch` 被接受，但 run 立即 failure、**steps=0、runner 未分配**；
+  最近所有 health/publish run 同样失败。GitHub 用量接口显示 10 月 Linux Actions 已 **2814 分钟**
+  （私有仓库免费额度通常 2000 分钟），极可能是 **Actions 分钟耗尽/支出上限** 导致 job 无法启动。
+- 解决：GitHub → Settings → Billing → Spending limits 提高/启用 Actions 预算（或等下月额度重置），
+  然后重新触发 workflow；它会自动构建下一个 versionCode、用现有 secret 签名、发布 Supabase、
+  更新 `public/updates/android.json`、提交并触发 Vercel，完成后线上/应用内更新自动生效。
+- 旧版（<2.12.18）第一次仍会打开浏览器；2.12.18+ 走应用内下载/安装（源码里的 AppUpdatesPlugin 已实现）。
