@@ -145,6 +145,15 @@ for (const device of DEVICES) {
             if (selector !== ".topbar" && (r.bottom > vh + 2 || r.top < 0)) issues.push({ kind: "container-out-of-viewport", selector, detail: `top=${Math.round(r.top)} bottom=${Math.round(r.bottom)} vs ${vh}` });
         }
 
+        // 输入框不能被挤得太窄（新增按钮后尤其要盯）
+        const composerInput = document.querySelector(".composer textarea");
+        if (composerInput) {
+            const width = composerInput.getBoundingClientRect().width;
+            if (width < 120) {
+                issues.push({ kind: "composer-too-narrow", detail: Math.round(width) + "px < 120px" });
+            }
+        }
+
         // 触摸目标
         const small = [];
         for (const el of document.querySelectorAll('button, a[href], input:not([type="hidden"]), select, textarea, [role="button"]')) {

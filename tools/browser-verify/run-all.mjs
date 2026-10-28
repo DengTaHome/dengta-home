@@ -22,6 +22,9 @@ const CHECKS = [
     { name: "流式渲染（无 undefined、无未捕获异常）", script: "verify-streaming.mjs", blocking: true },
     { name: "私密媒体端到端（头像 / 背景）", script: "verify-media-e2e.mjs", blocking: true },
     { name: "界面稳定性（CLS / 状态栏位移）", script: "verify-stability.mjs", blocking: false },
+    { name: "多尺寸安卓适配（360×640 至 800×1280）", script: "verify-layout-matrix.mjs", blocking: true },
+    { name: "启动恢复横幅可见性（3 个安卓视口）", script: "verify-startup-recovery.mjs", blocking: true },
+    { name: "语音输入链路（长按 / 预热 / 震动 / 收敛）", script: "verify-voice-ui.mjs", blocking: true },
 ];
 
 function sleep(ms) {

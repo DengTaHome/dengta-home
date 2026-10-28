@@ -1,0 +1,94 @@
+/*
+ * 输入框一级的语音按钮。
+ *
+ * 之前麦克风只存在于「+」菜单的第二层：用户要先点加号，才看得到「长按说话」。
+ * 语音是高频入口，不该埋在菜单里。这里把它放到输入框操作行，
+ * 与附件、发送并列；菜单里的旧入口保留，不删。
+ */
+.chat-voice-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease, transform 120ms ease;
+}
+
+.chat-voice-button:disabled {
+  opacity: 0.45;
+}
+
+.chat-voice-button.is-recording {
+  background: color-mix(in srgb, var(--apple-blue, #0a84ff) 22%, transparent);
+}
+
+.chat-voice-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.chat-voice-timer {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-voice-button.is-recording .chat-voice-icon {
+    animation: chat-voice-pulse 1.1s ease-in-out infinite;
+  }
+}
+
+@keyframes chat-voice-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* 聊天输入框是 3 列网格（附件 / 输入 / 发送）。
+ * 直接插入的语音按钮没有网格定位，会掉到第二行最左边（实测截图确认）。
+ * 这里把输入框改成 4 列：附件 / 输入 / 语音 / 发送。
+ */
+.main-panel.view-chat .composer {
+  grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+}
+
+.main-panel.view-chat .composer .chat-voice-button {
+  grid-row: 1;
+  grid-column: 3;
+  justify-self: center;
+  align-self: center;
+}
+
+.main-panel.view-chat .composer .send-button {
+  grid-row: 1;
+  grid-column: 4;
+}
+
+/* 窄屏：语音按钮留 40px，把宽度让给输入框，避免 360px 机型输入区过窄 */
+@media (max-width: 380px) {
+  .main-panel.view-chat .composer {
+    grid-template-columns: 44px minmax(0, 1fr) 40px 44px;
+  }
+
+  .main-panel.view-chat .composer .chat-voice-button {
+    min-width: 40px;
+    padding: 0;
+  }
+}

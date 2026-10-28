@@ -1,0 +1,70 @@
+// 语音入口与输入框布局的回归测试
+//
+// 背景（2026-10-28）：
+//   1. 麦克风原本只存在于「+」菜单第二层，用户要先点加号才看得到
+//   2. 把按钮插到输入框后，因为没有网格定位掉到了第二行最左边
+//   3. 长按录音前没有预热，语音理解服务冷启动时首句要等很久
+//
+// 这里把三件事的结构约束钉死，避免以后重构时悄悄退回。
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src");
+const read = (name) => fs.readFileSync(path.join(SRC, name), "utf8");
+
+const app = read("App.jsx");
+const main = read("main.jsx");
+const css = read("voice-composer.css");
+
+// 输入框一级的麦克风按钮，并复用同一套长按处理函数
+assert.match(app, /className=\{`chat-voice-button\$\{/, "输入框一级必须有语音按钮");
+assert.match(app, /onPointerDown=\{beginVoiceCapture\}/, "语音按钮必须复用长按开始处理");
+assert.match(app, /onPointerUp=\{endVoiceCapture\}/, "语音按钮必须复用松手处理");
+assert.match(
+  app,
+  /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/,
+  "语音按钮要阻止长按弹出的上下文菜单"
+);
+
+// 按下即预热：调用必须出现在设置指针之后、长按计时器之前
+const pressIdx = app.indexOf("voicePointerIdRef.current = event.pointerId;");
+const warmupIdx = app.indexOf('apiRequest("/voice/warmup"', pressIdx);
+const timerIdx = app.indexOf("voiceLongPressTimerRef.current = window.setTimeout", pressIdx);
+assert.ok(pressIdx > 0 && warmupIdx > pressIdx, "按下后应及早预热语音服务");
+assert.ok(timerIdx > warmupIdx, "预热必须发生在长按门控之前（否则起不到预热作用）");
+assert.match(app, /voiceWarmupAtRef/, "预热需要节流状态，避免每次按下都打请求");
+
+// 松手震动反馈
+assert.match(app, /navigator\.vibrate\?\.\(12\)/, "松手发送要有震动反馈");
+
+// 4 列网格：附件 / 输入 / 语音 / 发送，且语音有明确网格定位
+assert.match(
+  css,
+  /\.main-panel\.view-chat \.composer \{[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 44px 44px;/,
+  "输入框必须为语音按钮扩成 4 列"
+);
+assert.match(
+  css,
+  /\.main-panel\.view-chat \.composer \.chat-voice-button \{[^}]*grid-column:\s*3;/,
+  "语音按钮必须显式放在第 3 列，否则会掉到第二行"
+);
+assert.match(
+  css,
+  /\.main-panel\.view-chat \.composer \.send-button \{[^}]*grid-column:\s*4;/,
+  "加入语音按钮后发送按钮必须挪到第 4 列"
+);
+assert.match(css, /@media \(max-width: 380px\)/, "窄屏要单独收窄语音按钮，保证输入区宽度");
+
+// 样式导入顺序：voice-composer 必须在最后，确保覆盖前面的网格定义
+assert.match(
+  main,
+  /import "\.\/voice-composer\.css";/,
+  "voice-composer.css 必须在 main.jsx 中导入"
+);
+const startupIdx = main.indexOf('import "./startup-recovery.css";');
+const voiceCssIdx = main.indexOf('import "./voice-composer.css";');
+assert.ok(voiceCssIdx > startupIdx, "voice-composer.css 应最后导入以覆盖布局");
+
+console.log("voice-composer: 结构断言通过");

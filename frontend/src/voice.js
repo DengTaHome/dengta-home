@@ -229,9 +229,13 @@ export function buildVoiceTurnFormData({
   }
 
   const formData = new FormDataImpl();
+  // 有些安卓 WebView 录出来的 blob 没有 type；显式补上，
+  // 否则服务端只能收到 application/octet-stream。
   const mimeType = blob.type || "audio/webm";
+  const uploadBlob =
+    blob.type === mimeType ? blob : new Blob([blob], { type: mimeType });
   const fileName = `dengta-voice-${timestamp}.${extensionForMimeType(mimeType)}`;
-  formData.append("file", blob, fileName);
+  formData.append("file", uploadBlob, fileName);
   formData.append("session_id", String(sessionId || ""));
   formData.append("client_time", String(clientTime || ""));
   formData.append("timezone", String(timezone || ""));

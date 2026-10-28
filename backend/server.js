@@ -6111,6 +6111,9 @@ app.post(
             }
 
             const fields = parseVoiceTurnFields(req.body);
+            // 设置读取与「按 session 找到会话」互不依赖，同时发出；
+            // 模型解析仍然先于转写，避免无效模型白耗语音服务额度。
+            const settingsPromise = getSettings(database);
             let conversationId = null;
             if (fields.sessionId) {
                 conversationId = await ensureConversation(
@@ -6119,11 +6122,13 @@ app.post(
                     database
                 );
             }
-
-            const settings = await getSettings(database);
-            const conversation = conversationId
-                ? await loadConversation(conversationId, database)
-                : null;
+            const conversationPromise = conversationId
+                ? loadConversation(conversationId, database)
+                : Promise.resolve(null);
+            const [settings, conversation] = await Promise.all([
+                settingsPromise,
+                conversationPromise
+            ]);
             const effectiveModel = await resolveConversationTurnModel(
                 settings,
                 conversation,
@@ -6344,21 +6349,32 @@ app.post(
                 }
             );
 
-            await touchConversation(conversationId, database);
-            await tryScheduleProactiveMessageEvaluation({
-                database,
-                settings,
-                sourceMessageId: savedAssistantMessage.id
+            // 回复已经落库，下面几件事与这次响应无关：先回包，再在后台完成。
+            // 之前它们被逐个 await，用户要为主动消息评估和记忆压缩多等一轮。
+            void Promise.allSettled([
+                touchConversation(conversationId, database),
+                tryScheduleProactiveMessageEvaluation({
+                    database,
+                    settings,
+                    sourceMessageId: savedAssistantMessage.id
+                }),
+                tryScheduleAutonomousContentEvaluations({
+                    database,
+                    sourceMessageId: savedAssistantMessage.id
+                }),
+                tryCompressMemory(conversationId, settings, database)
+            ]).then((results) => {
+                for (const result of results) {
+                    if (result.status === "rejected") {
+                        console.error(
+                            "语音轮次后台任务失败：",
+                            result.reason?.code ||
+                                result.reason?.message ||
+                                "unknown"
+                        );
+                    }
+                }
             });
-            await tryScheduleAutonomousContentEvaluations({
-                database,
-                sourceMessageId: savedAssistantMessage.id
-            });
-            const memoryCompression = await tryCompressMemory(
-                conversationId,
-                settings,
-                database
-            );
 
             res.json({
                 reply: generated.text,
@@ -6374,7 +6390,8 @@ app.post(
                 response_mode: generated.mode,
                 voice_analysis: voiceAnalysis,
                 prompt_receipt: generated.prompt_receipt || null,
-                memory_compression: memoryCompression,
+                // 记忆压缩已改为后台执行，这里不再阻塞响应。
+                memory_compression: null,
                 companion_status: chatTools.getCompanionStatus()
             });
         } catch (error) {

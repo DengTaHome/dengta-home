@@ -284,6 +284,63 @@ async function main() {
         "DengTa home 后端不得把语音写到磁盘"
     );
 
+    // 软置信度区间：类别可作弱线索，但不能断言
+    const softContext = buildVoiceRuntimeContext(
+        { ...analysis, confidence: 0.55, hint: "语速偏快" },
+        true
+    );
+    assert.match(softContext, /可能是/);
+    assert.match(softContext, /不足以支撑判断/);
+    assert.match(softContext, /疲惫/);
+    assert.doesNotMatch(softContext, /必须忽略其情绪判断/);
+
+    // 中文或同义词归一到固定八类；真正未知的类别仍然拒绝
+    assert.equal(
+        sanitizeHervoiceAnalysis({ ...validPayload, emotion: "开心" }).emotion,
+        "happy"
+    );
+    assert.equal(
+        sanitizeHervoiceAnalysis({ ...validPayload, emotion: "疲惫" }).emotion,
+        "tired"
+    );
+    assert.equal(
+        sanitizeHervoiceAnalysis({ ...validPayload, emotion: "Joyful" }).emotion,
+        "happy"
+    );
+
+    // 音频 MIME 归一：同一段音频即使被标成 octet-stream，也要按扩展名推回真实类型
+    const uploadedTypes = [];
+    await analyzeVoiceWithHervoice({
+        file: {
+            buffer: Buffer.from("voice-bytes"),
+            mimetype: "application/octet-stream",
+            originalname: "dengta-voice-1.webm"
+        },
+        baseUrl: "https://hervoice.example.com",
+        secret: "test-secret",
+        fetchImpl: async (url, init) => {
+            uploadedTypes.push(init.body.get("file").type);
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ ...validPayload })
+            };
+        }
+    });
+    assert.equal(uploadedTypes[0], "audio/webm");
+
+    // 回复落库后的非关键任务不再阻塞响应
+    assert.match(
+        serverSource,
+        /void Promise\.allSettled\(\[\s*touchConversation\(conversationId, database\)/,
+        "语音回复返回前不应等待主动消息评估与记忆压缩"
+    );
+    assert.match(serverSource, /memory_compression: null/);
+
+    // 设置读取与会话加载并行，减少语音链路首段等待（模型解析仍在转写之前）
+    assert.match(serverSource, /const settingsPromise = getSettings\(database\);/);
+    assert.match(serverSource, /const conversationPromise = conversationId/);
+
     console.log("voice turn safety and contract tests passed");
 }
 

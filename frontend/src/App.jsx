@@ -1394,6 +1394,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   const companionReplyTimesRef = useRef([]);
   const isSendingRef = useRef(false);
   const voiceStateRef = useRef(VOICE_STATES.idle);
+  const voiceWarmupAtRef = useRef(0);
   const voicePointerHeldRef = useRef(false);
   const voicePointerIdRef = useRef(null);
   const voiceTapToSendRef = useRef(false);
@@ -3633,6 +3634,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       return;
     }
 
+    // 松手确认：轻微震动，让「已发出」有触感反馈。
+    navigator.vibrate?.(12);
+
     const chunks = voiceChunksRef.current;
     voiceChunksRef.current = [];
     const mimeType = recorder.mimeType || chunks[0]?.type || "audio/webm";
@@ -3681,6 +3685,20 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     voiceLongPressArmedRef.current = false;
     voicePointerHeldRef.current = true;
     voicePointerIdRef.current = event.pointerId;
+
+    // 按下即预热语音理解服务（最多每 30 秒一次）。长按门控加上说话的时间
+    // 足够让休眠的服务醒来，真正上传时不必再等一次冷启动。
+    const warmupNow = Date.now();
+    if (warmupNow - voiceWarmupAtRef.current > 30_000) {
+      voiceWarmupAtRef.current = warmupNow;
+      void apiRequest("/voice/warmup", {
+        method: "POST",
+        timeoutMs: 5_000,
+        retry: false,
+      }).catch(() => {
+        // 预热失败不影响发送；真正的错误由 /voice/turn 上报。
+      });
+    }
 
     try {
       event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -6885,6 +6903,35 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
               >
                 <RainbowAgentMark />
               </button>
+              {voiceServiceAvailable && (
+                <button
+                  className={`chat-voice-button${
+                    voiceState === VOICE_STATES.recording ? " is-recording" : ""
+                  }`}
+                  type="button"
+                  aria-label="长按说话"
+                  aria-pressed={voiceState === VOICE_STATES.recording}
+                  title="长按说话，松开发送"
+                  disabled={
+                    isSending ||
+                    isCompanionResponding ||
+                    [VOICE_STATES.uploading, VOICE_STATES.thinking].includes(voiceState)
+                  }
+                  onPointerDown={beginVoiceCapture}
+                  onPointerUp={endVoiceCapture}
+                  onPointerCancel={endVoiceCapture}
+                  onContextMenu={(event) => event.preventDefault()}
+                >
+                  <span className="chat-voice-icon" aria-hidden="true">
+                    {voiceState === VOICE_STATES.recording ? "●" : "🎙"}
+                  </span>
+                  {voiceState === VOICE_STATES.recording && (
+                    <span className="chat-voice-timer">
+                      {(voiceElapsedMs / 1000).toFixed(1)}s
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 className="send-button"
                 type="button"

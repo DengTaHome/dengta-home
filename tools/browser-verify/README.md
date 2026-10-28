@@ -354,3 +354,15 @@ node tools/browser-verify/run-all.mjs
   按钮是否 ≥44。启动动画 DengTaPrelude（约 3.18s）是刻意开场，脚本会等它退场再判断。
 
 两者都输出 `_audit/browser/*.json` 与截图；有失败时退出码非 0。
+
+## 语音输入链路
+
+`verify-voice-ui.mjs` —— 用假麦克风真实触发录音，验证：
+
+- 按下输入框的麦克风按钮就发出 `/voice/warmup` 预热（新优化的延迟点）
+- 长按进入录音态、按钮显示计时、松手有第二次震动反馈
+- 松手后进入处理流程，最终收敛为回复或可读错误，不会永久卡住
+- 语音入口已从「+」菜单提升到输入框一级（`chat-voice-button`），菜单里的旧入口保留
+
+注意：生产后端的 `/health` 目前报告语音服务未配置，脚本会拦截该响应把
+`hervoice_proxy_configured` 伪装成 true，从而稳定验证前端链路；真实转写仍由单元测试覆盖。

@@ -157,6 +157,13 @@ assert.equal(formData.get("turn_context"), "本轮语音的临时背景");
 assert.equal(formData.get("file").name, "dengta-voice-123.webm");
 assert.equal(formData.get("file").type, "audio/webm");
 
+// 安卓 WebView 可能录出没有 type 的 blob；上传时必须显式补上，否则服务端只收到 octet-stream
+const untypedBlob = new Blob(["voice-bytes"]);
+assert.equal(untypedBlob.type, "");
+const untypedForm = buildVoiceTurnFormData({ blob: untypedBlob, timestamp: 9 });
+assert.equal(untypedForm.get("file").type, "audio/webm");
+assert.equal(untypedForm.get("file").name, "dengta-voice-9.webm");
+
 assert.equal(VOICE_STATES.recording, "recording");
 assert.match(VOICE_STATE_LABELS.recording, /松开发送/);
 assert.match(VOICE_STATE_LABELS.speaking, /播放/);

@@ -169,7 +169,11 @@ let sent = false;
 if (hasComposer) {
     await composer.fill("测试一下流式渲染");
     // 显式点发送按钮：回车在部分布局下会被当成换行
-    const sendButton = page.locator('button[type="submit"], button[aria-label*="发送"]').first();
+    // 用类名定位发送按钮：aria-label 可能被别的按钮包含（例如语音按钮曾含「发送」）
+    let sendButton = page.locator(".send-button").first();
+    if ((await sendButton.count()) === 0) {
+        sendButton = page.locator('button[type="submit"], button[aria-label*="发送"]').first();
+    }
     if (await sendButton.count()) {
         await sendButton.click({ timeout: 8_000 }).catch(() => {});
     } else {

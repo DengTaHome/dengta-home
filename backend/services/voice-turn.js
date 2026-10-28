@@ -26,6 +26,8 @@ const HERVOICE_FEATURE_FIELDS = Object.freeze([
     "tempo_strength"
 ]);
 const LOW_CONFIDENCE_THRESHOLD = 0.45;
+// 低于「确定」但高于「忽略」的软区间：情绪类别可作弱线索，但不能断言。
+const SOFT_CONFIDENCE_THRESHOLD = 0.62;
 const MAX_COMPANION_STATUS_BYTES = 16 * 1024;
 
 function isPlainObject(value) {
@@ -166,6 +168,47 @@ function sanitizeHervoiceAnalysisFallback(value) {
     };
 }
 
+const HERVOICE_EMOTION_ALIASES = Object.freeze({
+    happy: "happy",
+    joy: "happy",
+    joyful: "happy",
+    "开心": "happy",
+    "高兴": "happy",
+    "快乐": "happy",
+    sad: "sad",
+    sadness: "sad",
+    "难过": "sad",
+    "伤心": "sad",
+    angry: "angry",
+    anger: "angry",
+    "生气": "angry",
+    "愤怒": "angry",
+    tired: "tired",
+    fatigue: "tired",
+    fatigued: "tired",
+    "疲惫": "tired",
+    "累": "tired",
+    tender: "tender",
+    tender_affectionate: "tender",
+    affectionate: "tender",
+    loving: "tender",
+    "温柔": "tender",
+    "亲昵": "tender",
+    excited: "excited",
+    excitement: "excited",
+    "兴奋": "excited",
+    anxious: "anxious",
+    anxiety: "anxious",
+    nervous: "anxious",
+    tense: "anxious",
+    "焦虑": "anxious",
+    "紧张": "anxious",
+    neutral: "neutral",
+    calm: "neutral",
+    "中性": "neutral",
+    "平静": "neutral"
+});
+
 function sanitizeHervoiceAnalysis(value) {
     if (!isPlainObject(value)) {
         throw upstreamError("语音分析服务没有返回有效结果。");
@@ -176,7 +219,14 @@ function sanitizeHervoiceAnalysis(value) {
         throw upstreamError("语音分析服务没有识别出可发送的文字。");
     }
 
-    const emotion = String(value.emotion || "").trim().toLowerCase();
+    const rawEmotion = String(value.emotion || "").trim();
+    const emotionKey = rawEmotion.toLowerCase().replace(/[\s-]+/g, "_");
+    // 上游有时会返回中文或同义词；先归一到固定八类，
+    // 真正未知的类别仍然拒绝。
+    const emotion =
+        HERVOICE_EMOTION_ALIASES[emotionKey] ||
+        HERVOICE_EMOTION_ALIASES[rawEmotion.toLowerCase()] ||
+        "";
     if (!HERVOICE_EMOTION_SET.has(emotion)) {
         throw upstreamError("语音分析服务返回了未知的情绪类别。");
     }
@@ -214,10 +264,38 @@ function buildVoiceRuntimeContext(
         "用户的明确文字、自述和纠正始终优先；不要向用户展示声学评分、内部字段或分析过程。"
     ];
 
+    const emotionDescriptions = {
+        happy: "开心",
+        sad: "难过",
+        angry: "生气",
+        tired: "疲惫",
+        tender: "温柔或亲昵",
+        excited: "兴奋",
+        anxious: "焦虑或紧张",
+        neutral: "中性"
+    };
+    const hint = truncateText(analysis.hint, 300);
+
     if (!emotionUnderstandingEnabled) {
         return [
             ...baseRules,
             "用户已关闭语音情绪理解。本轮忽略情绪类别、置信度、说明和声学特征，只回答转写文字。"
+        ].join("\n");
+    }
+
+    if (
+        analysis.confidence >= confidenceThreshold &&
+        analysis.confidence < SOFT_CONFIDENCE_THRESHOLD
+    ) {
+        return [
+            ...baseRules,
+            `本轮语气类别可能是「${emotionDescriptions[analysis.emotion]}」，但置信度只有 ${analysis.confidence.toFixed(
+                2
+            )}，不足以支撑判断，只能当作很弱的线索。`,
+            hint
+                ? `语音服务的低优先级说明：${hint}`
+                : "语音服务没有提供额外说明。",
+            "不要把类别说出来，也不要据此断言用户的感受；只在语气和关注点上自然贴近，文字与线索冲突时以文字为准。"
         ].join("\n");
     }
 
@@ -230,17 +308,6 @@ function buildVoiceRuntimeContext(
         ].join("\n");
     }
 
-    const emotionDescriptions = {
-        happy: "开心",
-        sad: "难过",
-        angry: "生气",
-        tired: "疲惫",
-        tender: "温柔或亲昵",
-        excited: "兴奋",
-        anxious: "焦虑或紧张",
-        neutral: "中性"
-    };
-    const hint = truncateText(analysis.hint, 300);
 
     return [
         ...baseRules,
@@ -364,6 +431,28 @@ function safeUploadFilename(value) {
     return cleaned || "voice.webm";
 }
 
+const AUDIO_MIME_BY_EXTENSION = Object.freeze({
+    ".webm": "audio/webm",
+    ".ogg": "audio/ogg",
+    ".oga": "audio/ogg",
+    ".m4a": "audio/mp4",
+    ".mp4": "audio/mp4",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".aac": "audio/aac",
+    ".amr": "audio/amr",
+    ".3gp": "audio/3gpp"
+});
+
+// 部分安卓 WebView 会把录音标成 application/octet-stream，
+// 转写服务可能直接拒绝。先用扩展名推回真实类型。
+function audioMimeTypeForUpload(file) {
+    const reported = String(file?.mimetype || "").trim().toLowerCase();
+    if (/^(audio|video)\//.test(reported)) return reported;
+    const extension = path.extname(String(file?.originalname || "")).toLowerCase();
+    return AUDIO_MIME_BY_EXTENSION[extension] || "application/octet-stream";
+}
+
 async function analyzeVoiceWithHervoice({
     file,
     baseUrl,
@@ -392,7 +481,7 @@ async function analyzeVoiceWithHervoice({
     formData.append(
         "file",
         new Blob([file.buffer], {
-            type: String(file.mimetype || "application/octet-stream")
+            type: audioMimeTypeForUpload(file)
         }),
         safeUploadFilename(file.originalname)
     );
@@ -498,6 +587,7 @@ module.exports = {
     HERVOICE_MAX_TIMEOUT_MS,
     HERVOICE_FEATURE_FIELDS,
     LOW_CONFIDENCE_THRESHOLD,
+    SOFT_CONFIDENCE_THRESHOLD,
     analyzeVoiceWithHervoice,
     buildVoiceMessageMetadata,
     buildVoiceRuntimeContext,
