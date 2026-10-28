@@ -796,3 +796,19 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - QQ↔DengTa 绑定/自动同步尚未实现，方案见下一轮计划：新增 qq_binding 表（QQ号 ↔ DengTa user/companion）、
   一次性绑定码/QQ 授权入口、首次消息引导、同步偏好勾选（人设/世界书/记忆类别/时间范围）、
   适配器按绑定关系调用 DengTa API 并注入所选记忆。
+
+### QQ / 微信双通道接入实测（2026-10-28）
+- **SnowLuma**：已安装 v2.2.1 到 `D:\GZdeepseek\snowluma\app`（portable win-x64），启动后 WebUI
+  `http://127.0.0.1:5099`；按安装授权接受 EULA，并把初始访问密码改成强密码（仅存
+  `_credentials/snowluma.json`，仓库外）。通过 WebUI 进程注入 QQ.exe（PID 97368），
+  日志确认 `login detected: UIN=2458077782`，OneBot HTTP `127.0.0.1:3000` / WS
+  `127.0.0.1:3001` 已启动；`get_login_info` 返回 `user_id=2458077782, nickname=喜歡.`。
+- **qq-bridge**：在 `_refs/qq/qq-bridge` 写真实 `config.json`（token 不入库），启动后日志：
+  `DSH 已就绪（reserved2）`、`SnowLuma 已连接 ws://127.0.0.1:3001`、机器人昵称、收藏表情 100 个；
+  控制台 3100 已启动；白名单仅 `private:[2458077782]`，其他群/人会 fail-closed 忽略。
+  端到端 QQ 收发还差一个“外部 QQ 账号给 2458077782 发消息”的测试（本机只有一个登录号）。
+- **WeChat iLink**：`wechat-ilink-bridge-hardened` 安装到 `D:\GZdeepseek\wechat-bridge`；扫码登录
+  账号 `36b6e01aa0d2@im.bot`（owner `o9cq...@im.wechat`）；`fetch` 收到主人「你好」
+  （trusted=true），`send` 回复成功，收/发双通已验证。
+- 下一步：微信侧 60s 轮询 + 唤醒自动回复；QQ 侧端到端测试；QQ/微信 ↔ DengTa 绑定与
+  人设/记忆同步（QQ 未绑定用户允许自动创建 DengTa 账号）。
