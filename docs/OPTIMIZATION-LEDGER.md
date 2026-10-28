@@ -282,3 +282,32 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
    两处小修后，全量测试与 19 项真机断言全绿。
 
 教训：**取消/竞态类改动必须让外部裁判评审，且验证必须先做"删掉实现会不会红"的负向检查**。
+---
+
+## 轮次 7（2026-10-28 · 登录页 + 使用界面体验）
+
+### 登录页（网页版与 APK 共用同一 WebView 逻辑）
+审计出并修复：
+- **密码可见切换缺失**：移动端长密码无法肉眼校验 → 新增 PasswordInput（显示/隐藏，44×44，aria-pressed）；
+- **自动填充不可靠**：输入框没有 name → 补 name=email / password / display-name / confirm-password，
+  并补 enterKeyHint=next（移动键盘"下一项"）；
+- **登录/注册切换仅 34px 高** → 44px；
+- **错误提示带技术噪音**：已翻译成中文的错误码不再附加「（错误代码：auth_error）」，
+  未知错误仍保留代码便于排查；
+- **键盘顶起风险**：短视口（≤560px 高）从顶部排布、输入框 scroll-margin 120px；
+- 新增 `tools/browser-verify/verify-login.mjs`：3 视口 + 短屏键盘模拟，检查字段语义、
+  密码切换、切换按钮 44px、触摸目标、错误中文化、忙碌态、无水平溢出；已接入 run-all（10→11 项）。
+
+### 使用界面
+- 本轮回归全部覆盖：布局 6 视口、流式、启动恢复、语音 19 项、健康检查重试；
+- run-all 一次 10/11：`verify-media-e2e` 失败为**环境抖动**（单独复跑全通过，
+  上传/偏好/目录/渲染/清理均 ok），已记入已知误报。
+
+### 验证
+- 前端全量测试 exit 0（含新增 login-ui 结构断言、mobile-layout 样式顺序更新）；
+- verify-login 全绿；run-all 其余 10 项全绿。
+
+### APK 边界（诚实标注）
+本机没有 adb/emulator，**无法真机/模拟器跑 APK**。APK 侧已确认：
+`android:windowSoftInputMode="adjustResize"`、`viewport-fit=cover` + `env(safe-area-inset-top)`
+最小 40px 顶部让位；但 Android 15 强制 edge-to-edge 之后的真实表现仍需在手机上验一次。

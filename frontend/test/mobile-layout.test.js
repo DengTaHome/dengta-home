@@ -122,6 +122,7 @@ assert.deepEqual(
     "interface-polish.css",
     "startup-recovery.css",
     "voice-composer.css",
+    "login-experience.css",
   ],
   "layout tests must use the same stylesheet order as the application entrypoint",
 );
@@ -149,6 +150,7 @@ assert.deepEqual(
     "interface-polish.css",
     "startup-recovery.css",
     "voice-composer.css",
+    "login-experience.css",
   ],
   "the 280px regression must use the complete application stylesheet cascade",
 );

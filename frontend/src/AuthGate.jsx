@@ -61,6 +61,42 @@ function LoadingScreen() {
   );
 }
 
+function PasswordInput({
+  name,
+  value,
+  onChange,
+  autoComplete,
+  minLength,
+  placeholder,
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span className="auth-password-field">
+      <input
+        required
+        type={visible ? "text" : "password"}
+        name={name}
+        minLength={minLength}
+        autoComplete={autoComplete}
+        enterKeyHint="go"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+      />
+      <button
+        type="button"
+        className="auth-password-toggle"
+        aria-label={visible ? "隐藏密码" : "显示密码"}
+        aria-pressed={visible}
+        title={visible ? "隐藏密码" : "显示密码"}
+        onClick={() => setVisible((current) => !current)}
+      >
+        {visible ? "隐藏" : "显示"}
+      </button>
+    </span>
+  );
+}
+
 export function AuthScreen({
   sessionManager,
   initialMessage = "",
@@ -264,6 +300,8 @@ export function AuthScreen({
               <label>
                 <span>怎么称呼你</span>
                 <input
+                  name="display-name"
+                  enterKeyHint="next"
                   type="text"
                   autoComplete="name"
                   maxLength="80"
@@ -278,6 +316,8 @@ export function AuthScreen({
                 <span>邮箱</span>
                 <input
                   required
+                  name="email"
+                  enterKeyHint="next"
                   type="email"
                   inputMode="email"
                   autoCapitalize="none"
@@ -291,14 +331,13 @@ export function AuthScreen({
             {mode !== "forgot" && (
               <label>
                 <span>{mode === "reset" ? "新密码" : "密码"}</span>
-                <input
-                  required
-                  type="password"
-                  minLength={
-                    ["register", "reset"].includes(mode) ? 8 : undefined
-                  }
+                <PasswordInput
+                  name={mode === "login" ? "password" : "new-password"}
                   autoComplete={
                     mode === "login" ? "current-password" : "new-password"
+                  }
+                  minLength={
+                    ["register", "reset"].includes(mode) ? 8 : undefined
                   }
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
@@ -311,11 +350,10 @@ export function AuthScreen({
             {mode === "reset" && (
               <label>
                 <span>再次输入新密码</span>
-                <input
-                  required
-                  type="password"
-                  minLength="8"
+                <PasswordInput
+                  name="confirm-password"
                   autoComplete="new-password"
+                  minLength={8}
                   value={passwordConfirmation}
                   onChange={(event) =>
                     setPasswordConfirmation(event.target.value)

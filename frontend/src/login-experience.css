@@ -1,0 +1,69 @@
+/*
+ * 登录页体验补丁（网页版 + APK WebView 共用）。
+ *
+ * 1. 密码可见切换：移动端长密码肉眼校验成本高，这是最常用的输入辅助。
+ * 2. 键盘安全：短视口 / 键盘顶起时从顶部排布，输入框留出滚动余量。
+ * 3. 44px 触摸目标。
+ */
+.auth-password-field {
+  position: relative;
+  display: block;
+}
+
+.auth-password-field input {
+  width: 100%;
+  padding-right: 86px;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 10px;
+  color: #a35c73;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.auth-password-toggle:focus-visible {
+  outline: 2px solid #a35c73;
+  outline-offset: 2px;
+}
+
+/* 登录/注册切换：原高度 34px，低于 44px 触摸目标 */
+.auth-mode-switch button {
+  min-height: 44px;
+}
+
+/* 键盘弹出时（短视口）从顶部排布，避免表单被居中挤出屏幕 */
+.auth-form input {
+  scroll-margin-bottom: 120px;
+}
+
+@media (max-height: 560px) {
+  .auth-panel {
+    align-content: start;
+    padding-top: max(18px, env(safe-area-inset-top));
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-primary-button,
+  .auth-text-button,
+  .auth-password-toggle {
+    transition: none;
+  }
+}

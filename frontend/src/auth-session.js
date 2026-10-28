@@ -88,6 +88,18 @@ function storeCompanionId(storage, userId, companionId) {
 
 function authFailure(error, fallbackMessage) {
   const code = String(error?.details?.code || error?.code || "auth_error");
+  // 已经翻译成人话的错误码不再把诊断代码贴给用户。
+  const FRIENDLY_AUTH_CODES = new Set([
+    "invalid_credentials",
+    "email_not_confirmed",
+    "user_already_exists",
+    "weak_password",
+    "rate_limited",
+    "network_error",
+    "session_expired",
+    "auth_error"
+  ]);
+
   const messages = {
     invalid_credentials: "邮箱或密码不正确。",
     email_not_confirmed: "邮箱尚未验证。请打开最新的验证邮件；链接失效时可在这里重新发送，不需要重新注册。",
@@ -100,7 +112,9 @@ function authFailure(error, fallbackMessage) {
     validation_failed: "邮箱或密码格式不正确。",
   };
   return new AuthSessionError(
-    `${messages[code] || fallbackMessage || "账号操作失败，请稍后再试。"}（错误代码：${/^[a-z0-9_]{1,80}$/i.test(code) ? code : "auth_error"}）`,
+    FRIENDLY_AUTH_CODES.has(code)
+      ? messages[code] || fallbackMessage || "账号操作失败，请稍后再试。"
+      : `${messages[code] || fallbackMessage || "账号操作失败，请稍后再试。"}（错误代码：${/^[a-z0-9_]{1,80}$/i.test(code) ? code : "auth_error"}）`,
     {
       code,
       status: Number(error?.status || 0),

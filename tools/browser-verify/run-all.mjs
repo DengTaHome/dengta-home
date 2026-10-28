@@ -24,7 +24,9 @@ const CHECKS = [
     { name: "界面稳定性（CLS / 状态栏位移）", script: "verify-stability.mjs", blocking: false },
     { name: "多尺寸安卓适配（360×640 至 800×1280）", script: "verify-layout-matrix.mjs", blocking: true },
     { name: "启动恢复横幅可见性（3 个安卓视口）", script: "verify-startup-recovery.mjs", blocking: true },
-    { name: "语音输入链路（长按 / 预热 / 震动 / 收敛）", script: "verify-voice-ui.mjs", blocking: true },`r`n    { name: "冷启动健康检查重试", script: "verify-health-retry.mjs", blocking: true },
+    { name: "语音输入链路（长按 / 预热 / 震动 / 收敛）", script: "verify-voice-ui.mjs", blocking: true },
+    { name: "冷启动健康检查重试", script: "verify-health-retry.mjs", blocking: true },
+    { name: "登录页体验（3 视口 + 键盘顶起）", script: "verify-login.mjs", blocking: true },
 ];
 
 function sleep(ms) {
