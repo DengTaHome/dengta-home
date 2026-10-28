@@ -111,6 +111,7 @@ import RainbowAgentMark from "./RainbowAgentMark";
 import SettingsFlowField from "./SettingsFlowField";
 import { AuthenticatedImage } from "./PrivateMedia";
 import { usePrivateMediaCatalog } from "./use-private-media-catalog.js";
+import { readChatHistoryCache, writeChatHistoryCache } from "./chat-history-cache.js";
 import {
   privateMediaContentPath,
   selectedPrivateMedia,
@@ -919,8 +920,18 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   const companionScope = String(arguments[0]?.companionScope || "").trim();
   const accountStorageScope = String(accountScope || "").trim();
   const [sessions, setSessions] = useState([]);
-  const [activeSessionId, setActiveSessionId] = useState(null);
-  const [messages, setMessages] = useState([]);
+  // 缓存优先：先用上次保存的会话把界面画出来，网络结果回来后再覆盖。
+  // 实测首屏要 6.5–9.5 秒才等到三波请求走完，这段时间不该是空白。
+  // 只在挂载时读一次；切换账号/伴侣会由上层 key 触发重新挂载。
+  const initialChatCache = visualPreview
+    ? null
+    : readChatHistoryCache({ accountScope: accountStorageScope, companionScope });
+  const [activeSessionId, setActiveSessionId] = useState(() => initialChatCache?.sessionId || null);
+  const [messages, setMessages] = useState(() => (
+    initialChatCache
+      ? hydrateSessionChatHistory(initialChatCache.messages, initialChatCache.sessionId)
+      : []
+  ));
   const [historyLoadState, setHistoryLoadState] = useState(null);
   const [historyRetryRevision, setHistoryRetryRevision] = useState(0);
   const historyLoadPendingRef = useRef(false);
@@ -3863,6 +3874,24 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     }
   }
 
+  // 把成功加载的历史存下来供下次启动秒开。
+  // 位置很关键：必须在历史加载切片结束之后、retrySessionHistory 切片开始之前，
+  // 否则会被切片测试一起重编译，而它引用的 writeChatHistoryCache 不在注入的绑定里。
+  useEffect(() => {
+    if (visualPreview) return undefined;
+    const sessionId = messagesSessionIdRef.current;
+    if (!sessionId || !Array.isArray(messages) || messages.length === 0) return undefined;
+    const timer = window.setTimeout(() => {
+      writeChatHistoryCache({
+        accountScope: accountStorageScope,
+        companionScope,
+        sessionId,
+        messages,
+      });
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [messages, accountStorageScope, companionScope, visualPreview]);
+
   function retrySessionHistory() {
     if (historyLoadPendingRef.current || isSendingRef.current || streamingSessionIdRef.current ||
         historyLoadState?.status !== "error" || historyLoadState.sessionId !== activeSessionIdRef.current) return;
@@ -6580,7 +6609,15 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   ));
 
   function renderChat() {
-    const chatBackgroundAsset = selectedPrivateMedia(
+    // 缓存优先的第三步：加载期间的空白用上次的消息顶上。
+    // 纯展示层，不改动加载 effect（那片区域被切片测试保护着）。
+    // 只要还没拿到真实历史、且手上有缓存，就先顶上。
+    // 不再要求 activeSessionId 相等：启动瞬间它可能还没确定或已被会话列表重置，
+    // 那会让预览在关键时刻消失（实测只能省 1 秒而不是 4 秒）。
+    const cachedPreviewMessages =
+      messages.length > 0 || !initialChatCache ? null : initialChatCache.messages;
+
+  const chatBackgroundAsset = selectedPrivateMedia(
       privateMediaCatalog,
       "chat_background",
     );
@@ -6635,7 +6672,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
           ) : (
               <ChatTranscript
                 textImpactScope={privateMediaScope}
-                messages={messages}
+                messages={messages.length ? messages : (cachedPreviewMessages || [])}
                 preferences={chatSkinPreferences}
                 aiName={effectiveAiName}
                 aiPronoun={companionPronoun(settings)}
