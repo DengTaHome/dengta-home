@@ -1293,3 +1293,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   begin 前先 stopPolling；stale finally 不再清 busy；cancel 清 busy。
 - backend `bf6f1a3` 已部署；frontend `8fa1ab7` 已推送（Vercel 构建中/待确认）。
 - 未闭环：6 视口重跑、CNB/Amap/凭据轮换。
+
+## 轮次 51（2026-10-29 · 锁/QR 改动后全量前端测试再次全绿）
+
+- 最新 `npm test`（frontend，包含 QR 取消/扫描态修复）：**exit 0**，3912 行，**0 failure 标记**。
+- backend `bf6f1a3` 已部署；frontend `8fa1ab7` READY；module coverage 含 keyed-lock/qq upsert 断言。
+- 真机布局：重跑 360x640、360x780 通过；后 4 个视口脚本已改用剩余设备单独跑（需 browser-auth 复制，
+  已修正并重启），结果待收。
+- 未闭环：后 4 视口结果、CNB/Amap/凭据轮换。
