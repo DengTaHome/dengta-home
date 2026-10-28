@@ -1301,3 +1301,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 真机布局：重跑 360x640、360x780 通过；后 4 个视口脚本已改用剩余设备单独跑（需 browser-auth 复制，
   已修正并重启），结果待收。
 - 未闭环：后 4 视口结果、CNB/Amap/凭据轮换。
+
+## 轮次 52（2026-10-29 · 胶囊 active 回归 + QR busy 卡死修复）
+
+- P1：`saveCapsuleStateUnlocked` 仍返回 boolean，`saved?.ok` 永远 undefined → `time_capsule.active` 恒 null；
+  已改为 `{ ok, capsules }`，测试 seed 改成最近 1 秒（避免 24h 过期过滤），qq-bridge 断言 active=1 通过。
+- P1：QR confirmed/risk 分支递增 attempt 后没有清 busy；已同时 `setBusy(false)`，避免在途 begin 被作废后按钮永久禁用。
+- backend module coverage 通过；backend `1d74d59` 已在线；frontend `86637b4` 已推送。
+- 真机剩余视口：393x873 通过；其余 3 个仍在跑。
+- 最新完整 frontend `npm test` 在本轮两处小修前为 exit 0；本轮后 build/lint + qq test 通过。
