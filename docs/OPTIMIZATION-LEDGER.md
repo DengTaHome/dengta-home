@@ -1410,3 +1410,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - `verify-animation-budget` 全部通过：滚动暂停、后台暂停、恢复均正确；聊天页 infinite 动画仅 1 个。
   - `verify-touch-targets` 0 个 <44×44。
 - 前端已 push，Vercel 构建中/待确认。
+
+## 轮次 63（2026-10-29 · 流畅度续 + 语音 P2）
+
+- TTS：`stopVoiceSpeech` 现在 abort 在途 speech fetch/超时控制器，并在新播放前停旧 audio；新增“fetch 期间 stop 不播放”测试。
+- 取消语音上传：`submitVoiceBlob` 记录 submitRun，在每个 preflight await 后检查，取消后不再创建 session/上传；成功分支也检查。
+- 情绪：关闭情绪理解或服务未返回分析时不再挂 `voiceAnalysis`，避免“未确定”伪展示。
+- 流畅度：静态 rainbow mark、移动端关闭 backdrop-filter、隐藏/滚动暂停动画；`verify-animation-budget` 全通过、`verify-local-build` 11/11、touch 0<44。
+- 最新前端提交已 push，Vercel 待确认。

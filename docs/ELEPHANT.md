@@ -85,3 +85,10 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - `RainbowAgentMark` 默认静态首帧，悬停才启动 426KB 动态 WebP；移动端不持续解码。
 - ≤700px 关闭 backdrop-filter 玻璃模糊；隐藏/滚动时通过 data 属性暂停所有装饰动画。
 - 真机：verify-local-build 11/11、verify-animation-budget 全通过、touch targets 0 <44px。
+
+## 流畅度/语音 P2（2026-10-29 轮次 63）
+
+- TTS stop 会 abort 在途 fetch；新播放先停旧 audio；voice.test 增加 fetch 中 stop 断言。
+- 语音 preflight 每个 await 后检查 submitRun，取消不再上传。
+- 情绪关闭/无分析时不挂 voiceAnalysis，避免伪“未确定”。
+- 性能：静态 mark + 移动端 blur off + hidden/scroll pause；浏览器 animation/local-build/touch 均通过。
