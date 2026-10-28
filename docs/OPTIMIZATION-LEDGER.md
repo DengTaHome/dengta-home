@@ -1162,3 +1162,16 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - **P1 旧隧道**：停止本机 `cloudflared --url 18012`、local player/MCP，消除绕过 proxy 的公网裸奔。
 - 验证：backend `npm run test:module-coverage` 119/119；frontend build/lint；VPS music 登录态保留；
   backend revision `36174d5a`；Vercel `c3457d8` READY（`59ee05c` building）。
+
+## 轮次 39（2026-10-29 · P0 回归验证 + X 工具实测 + 旧隧道清理）
+
+- 后端 `36174d5a` 已在线；`npm run test:module-coverage` **119/119**。
+- 前端 `59ee05c9` 已 READY（含 per-user 网易云入口、QR 429 修复、MCP 目录修复）。
+- X MCP：修复 cookie 文件加载（完整 jar）与 wrapper env；supergateway API Key；
+  `tools/list=12`、`get_user_info("jack")` 返回真实资料；重复 auth=none 连接已删除，只留 bearer。
+- 停止旧本机音乐 cloudflared（104476）/player/MCP，公网不再绕过 proxy；VPS 稳定版正常。
+- 部署脚本新增：非 success 结论、feed 无法对比、CNB exit 非 0 都退出 1；CNB 直推检查退出码；proxy URL 日志脱敏。
+- 时间胶囊：新增 `services/time-capsule-state.js`，网页 status 保留 capsule keys，qq-bridge 保存前读最新状态；
+  `test/time-capsule-state.test.js` 3 项通过；已进 backend module coverage。
+- 已知：X `/connections/:id/test` 仍 400（discover/tools/list/tools-call 正常）；全量 frontend test 的
+  design-polish 环境仍会挂起；CNB 写权限/Amap 认证/Muse 分发门槛/凭据轮换未完成。
