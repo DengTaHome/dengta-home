@@ -89,6 +89,9 @@ try {
         await page.addInitScript(([k, v]) => { try { globalThis.localStorage.setItem(k, v); } catch {} }, ["dengta_home_auth_v1", JSON.stringify(session)]);
         await page.goto(`http://127.0.0.1:${pagePort}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
         await page.waitForSelector(".main-panel", { timeout: 180_000 }).catch(() => {});
+        // 等目标元素真的渲染出来再断言：慢后端下不等就会把「还没加载」误判成「设置未生效」。
+        await page.waitForSelector(ASSERT_SELECTOR, { timeout: 120_000 }).catch(() => {});
+        await page.waitForTimeout(3_000);
         const mediaRequests = [];
         page.on("request", (request) => {
             const url = request.url();

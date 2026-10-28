@@ -103,6 +103,10 @@ await page.addInitScript(([k, v]) => { try { globalThis.localStorage.setItem(k, 
 
 await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
 await page.waitForSelector(".main-panel", { timeout: 180_000 }).catch(() => {});
+// 冷页面必须先真的渲染出消息：否则缓存根本没写，
+// 后面的「重复访问」测的是空缓存，会得出 120 秒这种假数字。
+await page.waitForSelector(".message-bubble", { timeout: 150_000 }).catch(() => {});
+await page.waitForTimeout(2_500);
 
 // 从外壳出现开始，每 250ms 采样一次状态胶囊的位置
 const samples = [];
