@@ -43,6 +43,24 @@ try {
         "-F", `file=@${UPLOAD_FILE};type=image/png`, "-F", `purpose=${PURPOSE}`]);
     createdAssetId = uploaded?.asset?.id || null;
     record("上传临时头像", { ok: !!createdAssetId, id: createdAssetId ? createdAssetId.slice(0, 8) : null, error: uploaded?.message });
+    if (!createdAssetId) {
+        mediaE2eFailed = true;
+        record("资产真正落库", { ok: false, reason: "上传失败，无法继续验证头像资产" });
+    } else {
+        const asset = uploaded.asset || {};
+        const assetOk =
+            Number(asset.byte_size || 0) > 0 &&
+            Number(asset.width || 0) > 0 &&
+            /^image\//.test(String(asset.mime_type || ""));
+        record("资产真正落库", {
+            ok: assetOk,
+            id: createdAssetId.slice(0, 8),
+            byteSize: asset.byte_size,
+            width: asset.width,
+            mime: asset.mime_type
+        });
+        if (!assetOk) mediaE2eFailed = true;
+    }
 
     if (createdAssetId) {
         // 2) 设为 user_avatar
@@ -51,14 +69,30 @@ try {
         const setResult = curl(["-X", "PUT", `${BASE}/api/v2/private-media/preferences`,
             "-H", "Content-Type: application/json", "--data-binary", `@${bodyPath}`]);
         record("设为头像偏好", setResult);
+        const preferenceOk =
+            Boolean(setResult?.ok) &&
+            String(setResult?.preference?.asset_id || "") === String(createdAssetId);
+        record("偏好指向新资产", { ok: preferenceOk, preference: setResult?.preference || null });
+        if (!preferenceOk) mediaE2eFailed = true;
 
         // 3) 读回目录
         const catalog = curl([`${BASE}/api/v2/private-media/catalog`]);
         const preferences = catalog.preferences || {};
+        const assetEntry = (catalog.assets || []).find((asset) => String(asset.id) === String(createdAssetId));
+        const catalogOk =
+            Boolean(assetEntry) &&
+            assetEntry.status === "active" &&
+            Number(assetEntry.byte_size || 0) > 0 &&
+            String(preferences.user_avatar || "") === String(createdAssetId);
         record("目录里的偏好", {
             preferences,
-            pointsToNewAsset: JSON.stringify(preferences).includes(createdAssetId)
+            pointsToNewAsset: JSON.stringify(preferences).includes(createdAssetId),
+            assetEntry: assetEntry
+                ? { status: assetEntry.status, byteSize: assetEntry.byte_size, mime: assetEntry.mime_type }
+                : null,
+            ok: catalogOk
         });
+        if (!catalogOk) mediaE2eFailed = true;
 
         // 4) 真浏览器：看聊天头像
         const { chromium } = createRequire(import.meta.url)("D:\\GZdeepseek\\_tools\\pw\\node_modules\\playwright-core");
@@ -100,10 +134,26 @@ async function ensureChatRendered(target) {
     return (await target.locator(".message-bubble").count()) > 0;
 }
 
+async function ensureUserAvatarRendered(target) {
+    // 用户头像只出现在"本人发的消息"上；账号里可能只有助手消息的会话。
+    // 逐个点开会话直到看到 .message-avatar-image，避免把"没有用户消息"误判为产品失败。
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+        const found = (await target.locator(ASSERT_SELECTOR).count()) > 0;
+        if (found) return true;
+        const items = target.locator(".session-select");
+        const total = await items.count();
+        if (!total) return false;
+        await items.nth(Math.min(attempt, total - 1)).evaluate((node) => node.click()).catch(() => {});
+        await target.waitForTimeout(3_000);
+    }
+    return (await target.locator(ASSERT_SELECTOR).count()) > 0;
+}
+
 await page.goto(`http://127.0.0.1:${pagePort}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
         await page.waitForSelector(".main-panel", { timeout: 180_000 }).catch(() => {});
         await page.waitForSelector(".session-select, .message-bubble", { timeout: 150_000 }).catch(() => {});
-        await ensureChatRendered(page);
+        const hasUserAvatar = await ensureUserAvatarRendered(page);
+        const hadAnyMessages = (await page.locator(".message-bubble").count()) > 0;
         // 等目标元素真的渲染出来再断言：慢后端下不等就会把「还没加载」误判成「设置未生效」。
         await page.waitForSelector(ASSERT_SELECTOR, { timeout: 120_000 }).catch(() => {});
         await page.waitForTimeout(3_000);
@@ -149,7 +199,21 @@ await page.goto(`http://127.0.0.1:${pagePort}/`, { waitUntil: "domcontentloaded"
             return nodes.map((el) => ({ tag: el.tagName.toLowerCase(), naturalWidth: el.naturalWidth ?? null, complete: el.complete ?? null })).slice(0, 4);
         }, ASSERT_SELECTOR);
         record("目标元素是否渲染", { selector: ASSERT_SELECTOR, count: rendered.length, rendered });
-        const ok = rendered.length > 0 && (rendered[0].naturalWidth === null || rendered[0].naturalWidth > 0);
+        const firstRendered = rendered[0] || null;
+        const renderedOk = rendered.length > 0 && Boolean(firstRendered) &&
+            (firstRendered.tag === "img"
+                ? Number(firstRendered.naturalWidth || 0) > 0 && firstRendered.complete === true
+                : true);
+        let ok = renderedOk;
+        if (!renderedOk && !hadAnyMessages) {
+            record("头像渲染", {
+                skipped: true,
+                reason: "测试账号没有含用户消息的会话，用户头像无处渲染；资产/偏好已由 API 校验"
+            });
+            ok = true;
+        } else if (!renderedOk) {
+            record("头像渲染", { ok: false, reason: "有消息但用户头像没有渲染成图片" });
+        }
         record(ok ? ">>> 结论：设置已生效" : ">>> 结论：设置未生效", { ok });
         if (!ok) mediaE2eFailed = true;
         await page.screenshot({ path: `${OUT}\\avatar-after-set.png`, timeout: 120_000 });
@@ -170,10 +234,15 @@ await page.goto(`http://127.0.0.1:${pagePort}/`, { waitUntil: "domcontentloaded"
         record("删除临时资产", deleted);
 
         const finalCatalog = curl([`${BASE}/api/v2/private-media/catalog`]);
+        const leftoverAssets = (finalCatalog.assets || []).filter((asset) => asset.status === "active").length;
+        const leftoverPreferences = Object.keys(finalCatalog.preferences || {});
+        const cleanupOk = leftoverAssets === 0 && leftoverPreferences.length === 0;
         record("清理后的目录", {
-            activeAssets: (finalCatalog.assets || []).filter((asset) => asset.status === "active").length,
-            preferences: finalCatalog.preferences || {}
+            activeAssets: leftoverAssets,
+            preferences: finalCatalog.preferences || {},
+            ok: cleanupOk
         });
+        if (!cleanupOk) mediaE2eFailed = true;
     }
 }
 

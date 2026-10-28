@@ -166,6 +166,21 @@ try {
 
 await fs.writeFile(`${OUT}\\touch-targets.json`, JSON.stringify({ ranAt: new Date().toISOString(), surfaces, notes }, null, 2), "utf8");
 
+// 之前的行为：界面没打开、选择器写错（0 个元素）都算"没有小于 44px 的目标"，
+// 于是脚本 0 断言也能退出码 0。这里把"没测到"明确判为失败。
+const problems = [];
+if (!surfaces.main || surfaces.main.total < 5) {
+    problems.push(`主界面可交互元素过少：${surfaces.main?.total ?? 0}（预期 ≥5，可能页面没加载或被遮挡）`);
+}
+for (const name of ["statusPanel", "settings", "music"]) {
+    const surface = surfaces[name];
+    if (!surface) problems.push(`${name} 界面没有测到（入口缺失或点击失败）`);
+    else if (surface.total < 3) problems.push(`${name} 界面只测到 ${surface.total} 个可交互元素（预期 ≥3）`);
+}
+for (const key of ["statusPanel", "settings", "music", "error", "musicError"]) {
+    if (notes[key]) problems.push(`${key}: ${notes[key]}`);
+}
+
 let offenders = 0;
 for (const [name, surface] of Object.entries(surfaces)) {
     offenders += surface.undersized.length;
@@ -176,7 +191,13 @@ for (const [name, surface] of Object.entries(surfaces)) {
     }
 }
 for (const [key, value] of Object.entries(notes)) console.log(`\n[note] ${key}: ${value}`);
+if (problems.length) {
+    console.log("\n没有真正测到的情况（判为失败，避免 0 断言假通过）:");
+    problems.forEach((line) => console.log("  ✗ " + line));
+} else {
+    console.log("\n✓ 所有目标界面都真正测到，且触摸目标检查完成");
+}
 
 await browser.close();
 server.close();
-process.exit(offenders > 0 ? 1 : 0);
+process.exit(offenders > 0 || problems.length > 0 ? 1 : 0);

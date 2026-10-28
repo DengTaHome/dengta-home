@@ -114,6 +114,18 @@ if (await artEntry.count()) {
     surfaces.artStudio = { total: 0, undersized: [], note: "没找到涂鸦入口" };
 }
 
+const problems = [];
+// 接收端本身只有输入码 + 少量按钮，≥3 个即可证明页面真的渲染了；0/1 个说明没加载。
+if (!surfaces.receiver || surfaces.receiver.total < 3) {
+    problems.push(`接收端只测到 ${surfaces.receiver?.total ?? 0} 个可交互元素（预期 ≥3，可能页面没加载）`);
+}
+if (!surfaces.receiver?.heading) {
+    problems.push("接收端没有可读标题（可能渲染失败）");
+}
+if (!surfaces.artStudio || surfaces.artStudio.total < 3) {
+    problems.push(`涂鸦画室只测到 ${surfaces.artStudio?.total ?? 0} 个可交互元素（预期 ≥3）`);
+}
+
 let offenders = 0;
 for (const [name, surface] of Object.entries(surfaces)) {
     offenders += surface.undersized.length;
@@ -123,6 +135,12 @@ for (const [name, surface] of Object.entries(surfaces)) {
         console.log(`  ${String(item.w).padStart(3)}×${String(item.h).padStart(3)}  ${item.tag}.${item.cls}  ${item.kind}  "${item.label}"`);
     }
 }
+if (problems.length) {
+    console.log("\n没有真正测到的情况（判为失败，避免 0 断言假通过）:");
+    problems.forEach((line) => console.log("  ✗ " + line));
+} else {
+    console.log("\n✓ 两个特殊界面都真正测到，且触摸目标检查完成");
+}
 if (consoleErrors.length) {
     console.log("\nconsole 错误:");
     consoleErrors.slice(0, 6).forEach((line) => console.log("  " + line));
@@ -131,4 +149,4 @@ if (consoleErrors.length) {
 await fs.writeFile(`${OUT}\\touch-extra.json`, JSON.stringify({ surfaces, consoleErrors: consoleErrors.slice(0, 10) }, null, 2), "utf8");
 await browser.close();
 server.close();
-process.exit(offenders > 0 ? 1 : 0);
+process.exit(offenders > 0 || problems.length > 0 ? 1 : 0);
