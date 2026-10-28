@@ -1369,3 +1369,14 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 前端审计另有 P2：TTS 在途请求不可取消、取消 preflight 后仍上传、情绪关闭仍显示“未确定”、
   连点更多回复、CSS 字体/动图体积、语音按钮键盘不可达、歌词弹层无 focus trap。
 - 真机布局 6/6；full6 全绿（本轮语音/后端改动后未重跑全量，build/lint/voice test 已过）。
+
+## 轮次 59（2026-10-29 · 语音 P1 + 更多回复去重）
+
+- 语音 P1：getUserMedia 首次授权期间松手仍启动录音；现在 resolve 后检查
+  `voiceShouldAbortAfterPermission`，已松手则 release stream + idle + 提示；requesting 阶段松手作废 capture。
+  新增纯函数测试；lint/build 通过。
+- P2：`openReplyOptions` 在 loading 时直接 return，避免连点重复 POST `/reply-options`。
+- 前端最新提交已 push；Vercel 构建中/待确认。
+- full7 在语音修复前启动，仍在跑；latest change 后 build/lint 通过。
+- 前端审计剩余 P2：TTS 在途取消、取消 preflight 后仍上传、情绪“未确定”伪展示、
+  CSS/字体/动图体积、语音按钮键盘、歌词 focus trap。
