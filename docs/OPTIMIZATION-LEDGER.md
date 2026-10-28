@@ -448,3 +448,41 @@ vm 上下文里没有这个 ref → ReferenceError → 表现为「请求一次�
 - 结构测试 `emotion-consistency.test.js`（含提示条、缓存、请求字段断言）；
   前端全量测试 exit 0；run-all **14/14 全绿**。
 - 修复 run-all 抖动：启动时间线阈值 12s→20s（Render 冷启动波动）。
+---
+
+## 轮次 13（2026-10-28 · Android 工具链本地化 + APK 真机（模拟器）跑通）
+
+用户要求"缺环境就下载到工作区并跑 APK"。已完成：
+
+### 工具链（全部在 D:\GZdeepseek\_tools，不入 git）
+- JDK 21（已有）；Android SDK（已有 adb/platform-36/build-tools-36/cmdline-tools）；
+- **emulator 37.2.12** 用 `sdkmanager` 安装（注意：**不要走代理**，dl.google.com 直连 9.8MB/s，
+  代理仅 0.49MB/s）；system-image `android-36;google_apis;x86_64` 直连下载 36 秒（1.8GB，
+  SHA1 校验）后手动解压（zip 内层 x86_64 需拍平，无需 package.xml）；
+- AVD `dengta` 手工创建（1080×2400、API36、x86_64）；
+- **AEHD 2.2 驱动**：非管理员装不了（pnputil Access denied），由用户在 UAC 弹窗确认后
+  安装成功，`sc query aehd` = RUNNING，无需重启；`emulator -accel-check` 报告可用。
+
+### APK
+- `npx cap sync android`（把最新 dist 同步进 assets/public）+ `gradlew :app:assembleDebug`；
+- 产物 `D:\GZdeepseek\apk-build\DengTa-2.10.74-debug-bb283f6.apk`（38.7MB）；
+- 静态校验：package `home.dengta.app`、versionCode 122、minSdk 31、targetSdk 36、
+  debug 签名有效、APK 内 index chunk 与最新 dist 一致；
+- 运行验证：Android 16 (API36) 1080×2400 模拟器，登录页与已登录主界面均正常，
+  持续 60s+ 无崩溃。截图 `docs/screenshots/apk/`（login/main）+ `_audit/apk/`（过程）；
+- 登录态注入：原生端存 Capacitor Preferences（非 localStorage），通过 WebView DevTools
+  CDP 调 `Capacitor.Plugins.Preferences.set` 注入 token 后重启生效；
+  **注入用的凭据/token 文件已全部删除**。
+
+### 可复用脚本（已入 git）
+`tools/android/{build-apk,start-emulator,install-apk,screenshot}.ps1` + README（含全部坑）。
+
+### 关键坑
+- `-gpu swiftshader_indirect` 下 qemu 在 App 启动后 ~30–40s 崩溃（Windows 事件
+  0xc0000005），必须用 **`-gpu angle_indirect`**；
+- 截屏必须 `adb shell screencap` + `adb pull`，PowerShell 重定向会写坏 PNG；
+- ARM64 镜像在 x86 主机被 emulator 直接拒绝，软件 TCG 也不被支持（已实测）。
+
+### 待办
+- pgvector：Kiwi×MMTR 融合需要 PostgreSQL vector 扩展；工作区有 PG16.4 但缺扩展，
+  下一轮下载/构建 Windows 版。
