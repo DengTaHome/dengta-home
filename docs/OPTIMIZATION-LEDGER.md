@@ -858,3 +858,21 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 ### 已知风险（必须让用户知情）
 - SnowLuma 注入的是用户主 QQ 号，属于第三方注入，主号有封禁风险；建议换专用小号做机器人。
 - 微信建议固定家庭宽带出口、weixin.qq.com 直连、不频繁重扫码、`.wxb` 只留本机。
+
+## 轮次 23（2026-10-28 · 通道人设覆盖上线 + 勾选真实跑通）
+
+- 生产后端新增 `channel_persona` 覆盖：`services/chat-request.js` 解析（≤60000 字），
+  `server.js` 在 `executeChatTurnOnce` 拿到 settings 后仅对本回合替换
+  prompt_mode/unified_system_prompt，清空 legacy 字段，不写回 settings；
+  `routes/v2/qq-bridge.js /chat` 透传。提交 `c101b48`，Render 部署 live。
+- 生产验证：`channel_persona="只回复四个字：人设覆盖成功"` → 回复精确为「人设覆盖成功」，
+  证明覆盖生效；网页端不传该字段，行为不变；qq-bridge/chat-contract/attachments 测试全绿。
+- 新增 `tools/wechat-dengta-bridge/make-selection.mjs`：把统一人设按空行拆 **41 个小节**，
+  关键词分类 `normal 24 / nsfw 16 / style 1`；NSFW 小节默认关闭；生成 19 条记忆均默认关闭。
+- `auto-reply.mjs` 每次回复前读取 `wechat-auto-reply-state/selection.json`，只把
+  `enabled:true` 的小节/风格/记忆拼成 `channel_persona`；无 selection 文件时保持原生人设。
+- mock 验证：临时 selection 只含「只回复四个字：勾选生效」，mock send 实际文本为
+  「勾选生效」，说明选择→后端覆盖→微信发送全链路真实生效。
+- 限速/孤儿锁/SESSION_EXPIRED 防封号逻辑仍生效；真实微信回环待主人发消息。
+- 仍未完成：Supabase 068 迁移执行、DengTa 前端勾选 UI（前端仓库 404）、
+  QQ 多用户绑定/自动建号、媒体收发管线、独立 QQ 小号迁移。

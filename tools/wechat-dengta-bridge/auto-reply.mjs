@@ -26,6 +26,7 @@ const MIN_USER_GAP_MS = 15000;
 const MAX_REPLY_CHARS = 900;
 
 fs.mkdirSync(STATE_DIR, { recursive: true });
+const selectionPath = process.env.WECHAT_SELECTION_FILE || path.join(STATE_DIR, "selection.json");
 const processedPath = path.join(STATE_DIR, "processed.json");
 const conversationsPath = path.join(STATE_DIR, "conversations.json");
 const ratePath = path.join(STATE_DIR, "rate.json");
@@ -89,6 +90,30 @@ function rememberProcessed(id) {
     processed.add(String(id));
     while (processed.size > MAX_PROCESSED) processed.delete(processed.values().next().value);
     saveJson(processedPath, [...processed]);
+}
+
+function composeChannelPersona() {
+    // 用户在 DengTa 侧勾选的人设小节/记忆（或本机 selection.json）才进入本回合。
+    // 没有 selection 文件时返回空串，保持原生完整人设，避免意外降级。
+    let selection = null;
+    try { selection = JSON.parse(fs.readFileSync(selectionPath, "utf8")); } catch { return ""; }
+    const sections = (selection.sections || []).filter((section) => section.enabled && section.content);
+    const memories = (selection.memories || []).filter((memory) => memory.enabled && memory.summary);
+    const style = selection.style_enabled ? String(selection.style_text || "").trim() : "";
+    if (!sections.length && !memories.length && !style) return "";
+    const name = String(selection.ai_name || "你").slice(0, 40);
+    const parts = [
+        `你正在以「${name}」的身份和主人聊天。以下内容是主人在 DengTa 通道同步设置里勾选的人设与记忆，必须严格遵循；未列出的人设、经历和记忆一律不得使用、猜测或补全。`
+    ];
+    for (const section of sections) {
+        parts.push(`\n## ${String(section.title || "人设小节").slice(0, 60)}（${section.category || "normal"}）\n${section.content}`);
+    }
+    if (style) parts.push(`\n## 说话风格\n${style}`);
+    if (memories.length) {
+        parts.push("\n## 可用记忆");
+        for (const memory of memories) parts.push(`- ${String(memory.summary).slice(0, 500)}`);
+    }
+    return parts.join("\n").slice(0, 60000);
 }
 
 function acquireLock() {
@@ -195,6 +220,8 @@ async function chatWithDengTa(text, conversationId) {
         client_message_id: crypto.randomUUID(),
     };
     if (conversationId) body.conversation_id = conversationId;
+    const channelPersona = composeChannelPersona();
+    if (channelPersona) body.channel_persona = channelPersona;
     const response = await fetch(`${cfg.backendBaseUrl}/api/v2/qq-bridge/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-dengta-qq-token": cfg.token },
