@@ -876,3 +876,7 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 限速/孤儿锁/SESSION_EXPIRED 防封号逻辑仍生效；真实微信回环待主人发消息。
 - 仍未完成：Supabase 068 迁移执行、DengTa 前端勾选 UI（前端仓库 404）、
   QQ 多用户绑定/自动建号、媒体收发管线、独立 QQ 小号迁移。
+
+- 新增 `tools/wechat-dengta-bridge/select-ui.mjs`：本机 `http://127.0.0.1:3111` 勾选界面
+  （41 小节、19 条记忆、风格文本），保存到 selection.json；curl GET / 与 /api/selection、
+  POST /save 往返均 200/ok。DengTa 正式前端 UI 仍受仓库权限阻塞，这是临时可用界面。

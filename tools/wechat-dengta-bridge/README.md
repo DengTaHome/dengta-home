@@ -28,6 +28,15 @@ $node = 'D:\GZdeepseek\_tools\node\node.exe'
 手动编辑 `selection.json` 的 `enabled` 字段即可选择；每次聊天都会重新读取。
 发送时作为 `channel_persona` 传给后端，只覆盖本回合，不写回 DengTa 网页端设置。
 
+## 临时勾选界面（本机）
+
+```powershell
+& $node tools\wechat-dengta-bridge\select-ui.mjs
+```
+
+打开 http://127.0.0.1:3111 ，勾选人设小节/记忆/风格后点「保存勾选」；
+保存到同一份 selection.json，下一轮微信回复立即生效。仅监听 127.0.0.1，不对外暴露。
+
 ## 行为
 
 - 每 60s 执行一次 `wxb fetch --maxAttempts 2`，只处理 `trusted` 消息；
