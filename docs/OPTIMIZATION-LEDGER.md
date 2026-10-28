@@ -1105,3 +1105,27 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - X：已从 Edge 提取 `auth_token`/`ct0`；twikit 2.3.3 报 `Couldn't get KEY_BYTE indices`
   （X 前端变更/风控），MCP 还未接通，需换实现或升级。
 - 高德：开放平台登录成功但账号未完成开发者认证，控制台要求个人/企业认证后才能建 Key。
+
+## 轮次 36（2026-10-29 · Goldfish 复核修复 + 每用户网易云「一起听」接入）
+
+- 外部 Goldfish 复核发现 P0/P1；已修：
+  - `nov1-deploy.ps1`：代理对象取 `.http` 并补 scheme；curl 检查 exit/HTTP 状态；
+    dispatch 后按 `created_at + path + branch` 找新 run；feed 必须 `versionCode` 增长；加 `-DryRun`
+    并实际 dry-run 通过（proxy/http 200、7 个 workflow、feed 301）。
+  - 时间胶囊：读失败不再用 `{status:{}}` 覆盖 runtime status；load 失败跳过 save；
+    capsule 拼在 userTurnContext 前防止被 3900 截断；任务名上限 40→80 并清残余 marker；
+    新增 3 个纯函数测试，qq-bridge 2/2 + time-capsule 3/3 通过。
+  - 音乐反代：日志脱敏 query token；`/health` 真实探测 9090/18012；启动 fail-closed
+    要求三枚 token；entrypoint 监督子进程，任一死亡容器退出重启；VPS 已重建验证。
+  - repo-watch：错误行带 URL、错误 repo 保留上次 state、curl fallback 检查 HTTP 状态、
+    CNB 空 sha 报错；重跑 17 项 0 错误、0 `undefined` 链接。
+  - MCP 目录：后端步骤去掉重复编号、网易工具名改为实际 12 个；前端 transport 兼容
+    `dengta_transport/upstream_transport`、补 `song_*` 风险标签和写工具 click-only。
+  - `DengTaDeployNov1`/`DengTaRepoWatch` 关闭电池限制、启用 StartWhenAvailable/WakeToRun。
+  - 音乐 README 更正为 CC BY-NC-SA 4.0；muse“可独立分发”结论撤回；navi 接口清单补全。
+- **每用户网易云「一起听」**：发现 `NeteaseQrLogin.jsx` 早已写好但从未挂载；已接进
+  `MusicSettings` 的「一起听歌 → 网易云账号 · 扫码登录」，用户各自扫码、各自后端
+  cookie 存储（live `/api/v2/music/providers/netease/qr/begin` 201）。前端 build/lint 通过，
+  Vercel production READY（`7054753` + 后续测试修复）。
+- 部署：backend `5298d6b` Render 已生效（health revision 5298d6b8）；frontend Vercel
+  `7054753`/`bf6909a` READY；VPS music 容器健康且登录态保留。

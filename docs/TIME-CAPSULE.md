@@ -56,3 +56,11 @@
 1. 把同一服务抽成 `services/time-capsules.js`，在 `executeChatTurnOnce` 里对网页端注入/清理（需要考虑流式输出）。
 2. QQ 侧：要么把 qq-bridge 的 DengTa 模式切到 `/qq-bridge/chat`，要么在 DSH preset 里加同样的时间上下文（不推荐改上游）。
 3. 增加 `[[提醒:...]]` 的显式取消/覆盖语义与多任务 UI。
+
+## 健壮性（2026-10-29 Goldfish 复核后）
+
+- 标记任务名上限从 40 调整为 **80** 字；超过 80 的残余 `[[进行中:...]]` 也会被清理，不会泄漏给用户。
+- `loadCapsuleState` 读失败时返回 `ok:false`，本轮**跳过保存**，不覆盖
+  `companion_runtime_states.status` 的其他键（content.js 共用该 status）。
+- 时间胶囊上下文放在 `userTurnContext` 之前，避免长上下文把时钟/任务截断。
+- 测试：`test/time-capsule.test.js` 3 项 + `test/qq-bridge.test.js` 2 项通过。

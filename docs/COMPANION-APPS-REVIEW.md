@@ -8,7 +8,7 @@
 
 | 项目 | 类型 | 能否构建 | 能否给所有用户直接用 | 主要阻塞 |
 |---|---|---|---|---|
-| muse-toy-broadcaster | Android BLE 广播器 | ✅ 已构建/签名 APK | ⚠️ 可独立分发，但需成人场景合规与年龄门槛 | 上游仓库缺 `res/`，已本地补齐；BLE 广播无设备反馈 |
+| muse-toy-broadcaster | Android BLE 广播器 | ✅ 已构建/签名 APK（私有备份） | ❌ 还不能公开分发 | 上游缺 res；本地模式只发 stop，布局无强度/模式；缺年龄门槛/隐私政策/更新源 |
 | navi-shell | Android 高德导航 App | ✅ 已构建 debug APK | ❌ 目前不能 | 缺高德 Amap Key；缺 `/access` `/asr` `/proxy_chat` `/tts` 后端 |
 
 ## 一、MuSe Toy Broadcaster
@@ -49,7 +49,7 @@
 - 远程 SSE 地址和 Token 为空时完全本地广播，不上传数据。
 
 ### 给所有用户的可行路径
-1. **独立 APK 分发**（最现实）：需要年龄门槛/成人内容提示、隐私政策、稳定签名证书、后续更新源。
+1. **独立 APK 分发**（目前不成立）：本地模式只发 stop 载荷，布局没有强度/模式控制；必须先补控制面、年龄门槛/成人内容提示、隐私政策、稳定签名证书、后续更新源，才能公开分发。私有 `companion-muse-v1.0` release 仅是备份，不是公开发布。
 2. **并入 DengTa Android**：把 `BleBroadcaster/Payload/CommandMapper` 做成 Capacitor 插件；DengTa 已有前台服务、通知和权限体系，但需新增 BLE 权限与独立开关。
 3. **远程控制**：DengTa 后端加一个受鉴权的 SSE 通道 + 控制 UI，App 侧只做 BLE；注意端到端鉴权、限速、审计、可紧急停止。
 4. 无论哪种，先做「紧急停止」和「断开即停止」的硬件/软件兜底。
@@ -76,7 +76,7 @@
 
 ### 为什么现在不能给所有用户用
 1. **高德 Key 绑定「包名 + 签名 SHA1」**：没有你申请的 Key，地图空白、定位停在「正在定位…」；空 Key 的 APK 只能作为编译验证包。
-2. **后端接口不匹配**：App 调 `/access`、`/asr`、`/proxy_chat`、`/tts`、`/api/navi/*`；DengTa 生产后端没有这些路由。
+2. **后端接口不匹配**：App 调 `/access`、`/asr`、`/proxy_chat`、`/tts`、`/api/navi/*`，还调 `/get_history_api` 与 `/get_chat_api/`（NaviApi.kt）；DengTa 生产后端没有这些路由。
 3. **签名一致性**：高德 Key 必须与最终发布证书 SHA1 匹配；换签名必须重新申请 Key。
 4. **隐私合规重**：后台定位、麦克风、轨迹、录音上传都需要明确授权、隐私政策和最小化存储。
 

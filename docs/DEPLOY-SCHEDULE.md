@@ -15,7 +15,7 @@
 - 时间：**2026-11-01 08:10（Asia/Shanghai）**
 - 动作：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/deploy/nov1-deploy.ps1`
 - 查看：`schtasks /Query /TN DengTaDeployNov1 /FO LIST`
-- 仅当前用户登录时运行（Interactive only）；要求机器在 11 月 1 日 08:10 开机/解锁。
+- 已设置 `StartWhenAvailable=true`、`WakeToRun=true`、`DisallowStartIfOnBatteries=false`、`StopIfGoingOnBatteries=false`；错过 08:10 后会在可用时补跑。仍建议 11 月 1 日保持开机/登录。
 
 ### 2. DSH 会话提醒
 - 标题：`执行 DengTa 发版与 CNB 同步`

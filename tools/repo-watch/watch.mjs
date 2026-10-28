@@ -46,12 +46,18 @@ async function fetchJson(url) {
     } catch (error) {
         // Fall back to curl when Node cannot reach GitHub directly (common on CN networks).
         try {
-            const args = ["-sS", "--max-time", "25", ...proxyArgs(), "-H", `Accept: application/vnd.github+json`, "-H", "User-Agent: dengta-repo-watch"];
+            const args = ["-sS", "--max-time", "25", ...proxyArgs(), "-H", `Accept: application/vnd.github+json`, "-H", "User-Agent: dengta-repo-watch", "-w", "\n__HTTP_STATUS__%{http_code}"];
             if (TOKEN) args.push("-H", `Authorization: Bearer ${TOKEN}`);
             args.push(url);
             const stdout = execFileSync("curl", args, { encoding: "utf8", windowsHide: true });
-            if (!stdout.trim()) return { status: 204, payload: null };
-            return { status: 200, payload: JSON.parse(stdout) };
+            const marker = "__HTTP_STATUS__";
+            const markerIndex = stdout.lastIndexOf(marker);
+            if (markerIndex < 0) throw new Error("curl response missing HTTP status");
+            const status = Number(stdout.slice(markerIndex + marker.length).trim());
+            const body = stdout.slice(0, markerIndex).trim();
+            if (status === 404) return { status: 404, payload: null };
+            if (status < 200 || status >= 300) throw new Error(`HTTP ${status}`);
+            return { status, payload: body ? JSON.parse(body) : null };
         } catch {
             throw error;
         }
@@ -82,14 +88,20 @@ for (const repo of config.repos) {
     let release;
     try {
         info = (await fetchJson(`https://api.github.com/repos/${repo}`)).payload;
-        if (!info) { errors += 1; rows.push({ repo, error: "not-found" }); continue; }
+        if (!info) {
+            errors += 1;
+            if (previous.repos?.[repo]) next.repos[repo] = previous.repos[repo];
+            rows.push({ repo, error: "not-found", url: `https://github.com/${repo}` });
+            continue;
+        }
         const commitResult = await fetchJson(`https://api.github.com/repos/${repo}/commits?per_page=1`);
         commit = Array.isArray(commitResult.payload) ? commitResult.payload[0] : null;
         const releaseResult = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`);
         release = releaseResult.payload;
     } catch (error) {
         errors += 1;
-        rows.push({ repo, error: String(error.message || error) });
+        if (previous.repos?.[repo]) next.repos[repo] = previous.repos[repo];
+        rows.push({ repo, error: String(error.message || error), url: `https://github.com/${repo}` });
         continue;
     }
     const record = {
@@ -123,6 +135,7 @@ for (const repo of (config.cnbRepos || [])) {
         if (proxy) args.unshift("-c", `http.proxy=${proxy}`, "-c", `https.proxy=${proxy}`);
         const output = execFileSync(gitBin, args, { encoding: "utf8", windowsHide: true, timeout: 30000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
         const sha = String(output).trim().split(/\s+/)[0] || "";
+        if (!sha) throw new Error("ls-remote returned no frontend-main commit");
         const record = {
             full_name: repo,
             host: "cnb.cool",
