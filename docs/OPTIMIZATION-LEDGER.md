@@ -1187,3 +1187,16 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 已知：X `/connections/:id/test` 400（原始 MCP initialize/notifications/tools-list 手工复现均 200）；全量 frontend test
   design-polish 环境挂起；CNB 写权限/Amap 认证/Muse 分发门槛/凭据轮换未完成。
 - 本轮已启动新的 Goldfish 只读复核（P0 修复/X/部署脚本）。
+
+## 轮次 41（2026-10-29 · Muse 本地控制 + X 工具实测 + P0 回归）
+
+- Muse 1.1：补 SeekBar 强度/模式（0–9）+ 发送按钮 + `ToyService.ACTION_MODE`；`versionCode=2/versionName=1.1`；
+  签名 v2/v3，私有 release `companion-muse-v1.1`，资产 `DengTa-MuseToy-1.1.apk`（660,919 B）。
+  仍不宜公开分发（缺年龄门槛/隐私政策/更新源）。
+- X MCP：wrapper 显式 cookie 文件 + proxy/UA + ondemand URL；stateless supergateway + API key；
+  `tools/list=12`、`get_user_info("jack")` 真实返回；旧 auth=none 连接删除，仅 bearer。
+- P0：NetEase import shadow/rows 修复、capsule 双向保留；后端 `test:module-coverage` 119/119；
+  frontend `59ee05c9` READY，lint 0 error/build 通过。
+- 旧本机 18012 quick tunnel 已停止；VPS music 登录态保留。
+- 未完成：X `/test` 400（原始 initialize/notifications/list 手工复现 200）、全量 frontend test design-polish
+  环境挂起、CNB 写权限/Amap 认证/凭据轮换。

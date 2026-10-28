@@ -8,7 +8,7 @@
 
 | 项目 | 类型 | 能否构建 | 能否给所有用户直接用 | 主要阻塞 |
 |---|---|---|---|---|
-| muse-toy-broadcaster | Android BLE 广播器 | ✅ 已构建/签名 APK（私有备份） | ❌ 还不能公开分发 | 上游缺 res；本地模式只发 stop，布局无强度/模式；缺年龄门槛/隐私政策/更新源 |
+| muse-toy-broadcaster | Android BLE 广播器 | ✅ 已构建/签名 APK v1.1（私有备份） | ⚠️ 仍不宜公开分发 | 已补本地强度/模式控制；仍缺年龄门槛/隐私政策/更新源 |
 | navi-shell | Android 高德导航 App | ✅ 已构建 debug APK | ❌ 目前不能 | 缺高德 Amap Key；缺 `/access` `/asr` `/proxy_chat` `/tts` 后端 |
 
 ## 一、MuSe Toy Broadcaster
@@ -49,7 +49,7 @@
 - 远程 SSE 地址和 Token 为空时完全本地广播，不上传数据。
 
 ### 给所有用户的可行路径
-1. **独立 APK 分发**（目前不成立）：本地模式只发 stop 载荷，布局没有强度/模式控制；必须先补控制面、年龄门槛/成人内容提示、隐私政策、稳定签名证书、后续更新源，才能公开分发。私有 `companion-muse-v1.0` release 仅是备份，不是公开发布。
+1. **独立 APK 分发**（目前仍不宜公开）：v1.1 已补本地 SeekBar 强度/模式与发送按钮（`ACTION_MODE`），但仍缺年龄门槛/成人内容提示、隐私政策、稳定更新源；私有 `companion-muse-v1.1` release 仅备份，不是公开发布。
 2. **并入 DengTa Android**：把 `BleBroadcaster/Payload/CommandMapper` 做成 Capacitor 插件；DengTa 已有前台服务、通知和权限体系，但需新增 BLE 权限与独立开关。
 3. **远程控制**：DengTa 后端加一个受鉴权的 SSE 通道 + 控制 UI，App 侧只做 BLE；注意端到端鉴权、限速、审计、可紧急停止。
 4. 无论哪种，先做「紧急停止」和「断开即停止」的硬件/软件兜底。
