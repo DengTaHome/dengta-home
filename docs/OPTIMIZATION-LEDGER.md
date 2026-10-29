@@ -1480,3 +1480,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - full9 唯一失败（mobile-layout stylesheet order）已修；music-import-flow 的 Vite teardown 停滞已修。
 - 本轮累计：语音键盘可达、低内存设备跳过 7.4MB 字体、performance-guards、触屏动图限制、≤820 blur 关闭、TTS/preflight 取消、歌词 focus trap。
 - backend d0fafa7；frontend 2a30695 READY。
+
+## 轮次 71（2026-10-29 · full10 + 401 日志写放大）
+
+- full10 完整跑完（3821 行），0 failure 标记；唯一 Vite 测试端口警告不影响断言。
+- full9 唯一失败（mobile-layout stylesheet order）已修；music-import-flow 的 Vite teardown 停滞已修，全量不再挂住。
+- 后端：未认证 401/403 不再写 chat_error_logs，避免匿名探测放大 DB 写入；module coverage 通过。
+- 前端：语音键盘可达、低内存设备跳过 7.4MB 字体、performance-guards；真机 local-build 11/11、animation 全通过、touch 0<44。
+- backend 最新提交待 Render 部署；frontend 2a30695 READY。

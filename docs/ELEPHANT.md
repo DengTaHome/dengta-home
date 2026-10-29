@@ -136,3 +136,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - full10 3821 行、0 failure 标记（一个 Vite 测试端口警告）。
 - full9 失败已修；music-import teardown 停滞已修。
 - backend d0fafa7、frontend 2a30695 READY。
+
+## 轮次 71（2026-10-29）
+
+- full10 3821 行 0 failure；full9 唯一样式顺序失败已修；teardown 停滞已修。
+- 401/403 不再写 chat_error_logs；前端 keyboard/lowdata/perf guards/浏览器验证保持通过。
