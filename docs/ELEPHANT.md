@@ -246,3 +246,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## full17（2026-10-29 轮次 91）
 
 - full17 exit0 3944 行 0 fail；17 视口真实就绪 0 问题。
+
+## 真实 transcript / 18 视口（2026-10-29 轮次 92）
+
+- 矩阵切有消息会话，msgCount>0；18/18 0 问题，ready 19.3–20.9s。
+- 915 横屏走移动断点；恢复态 composer 273–380/390；引用 chip 伪元素命中区全局化。
