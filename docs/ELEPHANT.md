@@ -273,3 +273,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 后端全量（2026-10-29 轮次 97）
 
 - backend npm test exit0 1107 行 0 fail；render.yaml=false 配置测试通过。
+
+## 断点一致（2026-10-29 轮次 98）
+
+- 500→560 CSS 断点与 JS 一致；19/19 稳定，新增 900×540；旧 source 快照加警告。

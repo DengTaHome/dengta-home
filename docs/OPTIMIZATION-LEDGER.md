@@ -1674,3 +1674,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - `render.yaml` 保持 BACKGROUND_JOBS_ENABLED=false（外部触发器契约），测试 1/1。
 - 线上 health background_jobs_enabled=true 漂移仍列为手动对齐项，不自动改 IaC。
 - 前端 full20：0 failure 标记；Vercel c2c9a1b READY。
+
+## 轮次 98（2026-10-29 · 断点一致/19 视口稳定）
+
+- CSS 移动断点高度 500→560，与 JS 胶囊断点完全一致：`(max-width:820px), (max-height:560px) and (max-width:960px)`。
+- 新增 900×540 横屏边界；19 视口真实消息 + 胶囊点击：**19/19、0 问题**，ready 19.6–21.4s。
+- 44px 判定对 `::after` 有效区取 43.5 容差，消除 915 临界抖动。
+- `dengta-home/frontend/src` 旧快照加 README 警告：生产只以 `_refs/frontend-gh` 为准，不从旧副本 rebuild。
+- 后端全量 exit0 1107 行；前端 full20 0 failure；Vercel 待新提交部署。
