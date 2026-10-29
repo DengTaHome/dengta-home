@@ -216,3 +216,9 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - 构建成功 302/2.13.44，但本机 debug cert 0d63… ≠ 渠道 38a03…；Actions 额度失败、无 adb 设备。候选不发布。
 - 需原稳定 keystore 或 Actions 恢复；新增 visual-loop 冻结行为测试。
+
+## 启动健康并行（2026-10-29 轮次 86）
+
+- /health 622ms 与 bootstrap 并行；首条消息 5.5s（前 7.6s）。
+- full14 全绿；full15 跑 App.jsx/visual-loop 最新改动。
+- APK 2.13.44 构建成功但签名/额度/无设备三重阻塞，候选不发布。

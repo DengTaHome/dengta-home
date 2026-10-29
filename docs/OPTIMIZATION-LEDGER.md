@@ -1583,3 +1583,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 阻塞：本机 debug 证书 0d634aaf… ≠ 已安装渠道 38a03ab…；无稳定 keystore；Actions workflow dispatch 4s 失败（额度/计费）；adb 无设备。
 - 候选 `DengTa-2.13.44-302.apk` 仅全新安装/模拟器，不可发布升级。
 - 新增 visual-loop 行为测试（reduced motion 只画一帧、无 timer；hidden 不排帧；dispose 停止）。
+
+## 轮次 86（2026-10-29 · 启动健康探针并行）
+
+- 修复首屏：`/health` 从 bootstrap 完成后才发（4254ms）改为与 bootstrap 并行（622ms）。
+- `verify-startup-timeline` 重测：全部通过，首条消息 **5.5s**（前 7.6s），app chunk 207ms，bootstrap 3.2s。
+- 同步更新过时断言：App chunk 不再依赖已移除的 prefetch mark。
+- 新增 visual-loop 冻结行为测试并纳入 design-polish 套件；full14 全绿，full15 跑最新改动。
+- APK：2.13.44 候选构建成功但签名证书不匹配渠道、Actions dispatch 启动即失败（无 job/log）、adb 无设备；候选不发布，详见 docs/ANDROID-APK-2.13.44-BLOCKER.md。
