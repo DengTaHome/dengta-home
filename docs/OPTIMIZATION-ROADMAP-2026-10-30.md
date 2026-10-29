@@ -826,3 +826,24 @@
 - 结论：R26 P1 lease 生命周期闭环（finally fail + settled + failed/expired resume），无新增 P0/P1；建议 150
   先 await fail 并做 504→立即重试真实/集成验证，再处理成功 completed_at、claim fail-open 监控、TTL/FE 对齐与
   route E2E；Goldfish-R27 复核中。
+
+## 36. 轮次 150 await-fail 真实验收复核（2026-10-30 07:02–07:15）
+
+- 基线：backend HEAD/生产 **ba73e97**（06:59:19，`/health` 核对一致）；`round150-backend.log` **0 fail**
+  （06:57:11–06:58:59；server.js mtime 06:57:08 < 运行开始；commit 晚于日志结束 20s 但内容一致）；
+  定向 voice-turn **1/1**。frontend 仍 **1a1760c**（test-only，生产入口 index-C4-5uC8g）。
+  dengta-home HEAD **2419e9b**；backup bundle `dengta-home-full-20261030.bundle` 27,415,547B（07:02:37）。
+- 已验证：①catch（server.js:7100-7115）在 `next(error)` 前 `await voiceGenerationLeaseStore.fail(...)`，
+  成功置 `voiceLeaseSettled=true`，失败 log 后继续；finally（7116-7129）保留 `void fail` 兜底；
+  ②tenant fail RPC 仍只匹配本请求 lease id（no-op 安全）；③真实验收（lead，外部）：客户端 25s 断开
+  （curl exit28）→ catch await fail；2s 后同 CID 立即重试 **200**（19.9s，user=4814/assistant=4815，
+  无 409 RECOVERING）；session DELETE 204；token/音频临时清理——与代码路径一致，验证 await-fail 真实生效。
+- 仍存 P2/P3：①成功 lease 无 commit/completed_at（state 留 in_progress，replay 可兜但状态/监控不干净）；
+  ②claim fail-open（RPC 异常降级放行，跨实例故障期可双 generation）；③TTL 200s>FE180（超时后立即重试
+  可能先 recovery）；④模型未取消/save 窄窗口：断线后旧 generation 未取消，本次 19.9s 重试可能与旧 provider
+  调用重叠 → tool 副作用重复窗口；⑤route/真实失败自动化 E2E 缺失（await-fail 只有外部手测；frontend
+  快照/倒计时无运行时测试）；⑥await fail 增加错误路径 DB 延迟（无显式 timeout），finally 兜底可能双重 fail
+  （幂等安全，P3）；⑦claim-false/23505/recovery 早返回 no-op fail RPC（P3）；⑧日志早于 commit 20s（流程项）；
+  ⑨dengta-home watcher 状态文件 M（P3 确认提交/忽略）。
+- 结论：await-fail 竞态真实关闭（真实 2s 重试 200 证据），无新增 P0/P1；建议 151 处理成功 completed_at、
+  claim fail-open 监控、TTL/FE 对齐、模型取消/save 窄窗与 route E2E；Goldfish-R27 复核中。

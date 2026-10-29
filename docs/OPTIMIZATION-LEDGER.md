@@ -2128,3 +2128,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 
 - 客户端 25s 断开（curl exit 28）→ 服务端 catch await fail；2s 后同 CID 重试 **HTTP 200**（19.9s，user=4814/assistant=4815），未出现 409 RECOVERING。
 - 测试 session DELETE 204；token/音频临时文件清理。证明 await fail 后租约可立即 reclaim。
+
+
+## 轮次 151（2026-10-30 · TTL 对齐 FE 180s）
+
+- voice DB lease 与 orphan 恢复窗口从 200s 对齐到 **175s**（> deadline max 170s，< FE 180s）；render env `VOICE_ORPHAN_RESUME_MS=175000` 已更新。
+- helper/route 默认、clamp min 175s、测试期望同步；`canResume` 仍优先 lease/failed 状态。
+- backend round151-backend.log 0 fail；生产 backend 112134b（/health 已核对），frontend index-C4-5uC8g。
+- 剩余：成功 lease 无 commit/completed_at、claim fail-open、模型取消/save 窄窗、route E2E。
