@@ -2144,3 +2144,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 成功路径 `voiceLeaseSettled=true`，finally 不再 fail；失败/超时仍 await fail。
 - backend round152-backend.log 0 fail；生产 backend 88ad4d1（/health 已核对），frontend index-C4-5uC8g。
 - 剩余：claim fail-open、模型取消/save 窄窗、route/真实失败自动化 E2E、成功 commit 的真实 DB 状态复测。
+
+
+## 轮次 153（2026-10-30 · 成功 commit DB 直读验收）
+
+- 真实 fresh voice 200（user=4821/assistant=4822，11.7s）；Supabase 用户 token+anon RLS 直读该 user 行：`state=completed`、`lease_id=null`、`lease_expires_at=null`、`completed_at` 已写、`is_voice=true`。
+- 测试 session DELETE 204；token/音频/响应临时文件清理。
+- 生产 backend 88ad4d1；成功 lease commit P2 关闭；剩余 claim fail-open、模型取消/save 窄窗、route E2E、TTL/FE 已对齐 175<180。
