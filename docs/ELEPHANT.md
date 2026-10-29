@@ -277,3 +277,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 断点一致（2026-10-29 轮次 98）
 
 - 500→560 CSS 断点与 JS 一致；19/19 稳定，新增 900×540；旧 source 快照加警告。
+
+## full21（2026-10-29 轮次 99）
+
+- full21 exit0 3945 行 0 fail；19 视口真实消息 0 问题。

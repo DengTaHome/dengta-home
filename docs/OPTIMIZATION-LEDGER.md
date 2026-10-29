@@ -1682,3 +1682,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 44px 判定对 `::after` 有效区取 43.5 容差，消除 915 临界抖动。
 - `dengta-home/frontend/src` 旧快照加 README 警告：生产只以 `_refs/frontend-gh` 为准，不从旧副本 rebuild。
 - 后端全量 exit0 1107 行；前端 full20 0 failure；Vercel 待新提交部署。
+
+## 轮次 99（2026-10-29 · full21 全绿）
+
+- full21 完整 `npm test`（19 视口断点对齐后）：**exit 0**，3945 行，0 failure。
+- 19/19 真实消息视口 0 问题；键盘三场景、915/900 胶囊通过；后端全量 exit0。
+- Vercel `52482be` READY；APK 候选 SHA-256 `7547fef6…`，签名阻塞未发布。
