@@ -1955,3 +1955,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - render.yaml 补 `VOICE_ORPHAN_RESUME_MS=200000`；`CLIENT_MESSAGE_NOT_VOICE` 纳入 voiceLifecycleCode，409 响应带 code。
 - 生产 backend 87c735d（/health 已核对）；测试 round132-backend-final.log 0 fail、voice-turn pass。
 - Goldfish-R11：P0=0、当前 P1=0；剩余 P2：无 generation lease（并发重复模型/tool）、前端每次语音新 UUID、model/tool 未取消、assistant save 无 abort 检查、23505 依赖 details、测试无行为断言、guard 日志仍 request_failed。
+
+
+## 轮次 133（2026-10-30 · 单进程语音串行）
+
+- 语音路由新增 `activeVoiceTurns`/`voiceTurnClaimed`：同一 client_message_id 在处理中时直接 409 `VOICE_TURN_IN_PROGRESS`；finally 清理；不误伤 replay/orphan/fresh 路径。
+- 限制：仅单 Render 实例内生效，跨实例仍无 DB lease；前端每次新 UUID 仍使 orphan resume 不可达。
+- 测试：backend round133-backend.log 0 fail、voice-turn pass。
+- 生产 backend 6a658d9（/health 已核对），frontend 4debff4。

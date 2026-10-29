@@ -395,3 +395,24 @@
 - 遗留：stored analysis 缺字段默认 neutral/0（P3 伪分析）、恢复仍强制 multipart 文件、prefix 不受 deadline。
 - 建议 133：先补 per-client-id lease/queue（从根上消除重复 generation）与 FE UUID 复用+重试时序；
   再补 render.yaml env 与行为测试；Goldfish-R11 复核中。
+
+## 18. 轮次 133 same-client guard 复核（2026-10-30 03:05–03:18）
+
+- 基线：backend **6a658d9**（03:03:57 提交，生产 `/health` revision 已核对一致；含 87c735d：
+  render.yaml 补 `VOICE_ORPHAN_RESUME_MS=200000`、`CLIENT_MESSAGE_NOT_VOICE` 加入 voiceLifecycleCode
+  ——上轮两处 P2 关闭）；frontend 4debff4 未改。
+- 测试：`round133-backend.log` **0 fail**（03:03:35 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终内容）；定向 voice-turn **1/1**。⚠ 新 guard 仅源码正则断言，无并发/清理行为测试。
+- 已验证：`activeVoiceTurns` Map 在 file+parse 后、replay/orphan 预检前 claim；同 normalized id 在途
+  （<200s）→ 原始 409 `{code:"VOICE_TURN_IN_PROGRESS"}`（code 直接响应体，不经错误映射过滤）；
+  get→set 无 await（单线程原子）→ 单进程内 fresh/orphan 重复请求被串行化；`finally` 在所有 claim
+  后路径清理，guard 自身 409 在 claim 前返回；与 orphan TTL 判定互不替代。
+- 结论：**P0=0、P1=0（单实例前提）**。
+- 剩余 P2：①仅单进程（`activeVoiceTurns` 模块级 Map），跨实例/滚动部署无 DB lease → 仍可能双 generation
+  （assistant conflict 可 replay 但模型/tool 双跑）；②guard TTL 硬编码 200s，未与 deadline/env 联动
+  （prefix 卡 >200s 可重复 claim）；③key 未加租户作用域（同 UUID 跨账号可互相 409，碰撞概率≈0）；
+  ④FE 重试仍新 UUID，且 TTL 200s > FE 180s → 180–200s 即时重试仍 409；⑤模型未取消/tool 副作用；
+  ⑥save 窄窗口无 abort 再检查；⑦guard 无并发/清理行为测试。
+- 遗留 P3：stored analysis 缺字段默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline。
+- 建议 134：优先决定“单实例+部署窗口文档化”还是补 DB lease；同时做 guard key${userId}:${clientId}、
+  TTL 与 deadline 联动、FE UUID/退避时序；Goldfish-R12 复核中。
