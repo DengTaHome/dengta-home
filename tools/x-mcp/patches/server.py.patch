@@ -1,6 +1,6 @@
 --- a/server.py
 +++ b/server.py
-@@ -3,10 +3,10 @@
+@@ -3,10 +3,22 @@
  import json
  from pathlib import Path
  from typing import Optional
@@ -10,10 +10,22 @@
  
 -mcp = MCPServer("twitter-twikit")
 +mcp = FastMCP("twitter-twikit")
++
++import functools
++
++
++def _write_tool(fn):
++    """Reject mutation tools unless the operator explicitly opts in."""
++    @functools.wraps(fn)
++    async def wrapped(*args, **kwargs):
++        if os.environ.get("X_MCP_READ_ONLY", "1") != "0":
++            return "Error: X MCP is read-only; set X_MCP_READ_ONLY=0 to enable writes."
++        return await fn(*args, **kwargs)
++    return wrapped
  
  
  def _resolve_cookies() -> dict[str, str]:
-@@ -17,6 +17,15 @@
+@@ -17,6 +29,15 @@
      2. Path specified in TWITTER_COOKIES_PATH environment variable
      3. Default local file: ./cookies.json
      """
@@ -29,7 +41,7 @@
      env_auth = os.environ.get("TWITTER_AUTH_TOKEN", "").strip()
      env_ct0 = os.environ.get("TWITTER_CT0", "").strip()
      if env_auth and env_ct0:
-@@ -41,7 +50,7 @@
+@@ -41,7 +62,7 @@
                      auth_token = data.get("auth_token", "")
                      ct0 = data.get("ct0", "")
                      if auth_token and ct0:
@@ -38,7 +50,7 @@
                  
                  # Support list format exported by browser extensions (e.g. EditThisCookie)
                  if isinstance(data, list):
-@@ -68,7 +77,9 @@
+@@ -68,12 +89,15 @@
              "as environment variables, or create a 'cookies.json' file with {\"auth_token\": \"...\", \"ct0\": \"...\"}."
          )
      
@@ -49,3 +61,49 @@
      client.set_cookies(cookies)
      return client
  
+ 
+ @mcp.tool()
++@_write_tool
+ async def post_tweet(text: str) -> str:
+     """Post a new tweet to X (Twitter).
+     
+@@ -98,6 +122,7 @@
+ 
+ 
+ @mcp.tool()
++@_write_tool
+ async def reply_tweet(tweet_id: str, text: str) -> str:
+     """Reply to an existing tweet or comment on X (Twitter).
+     
+@@ -414,6 +439,7 @@
+ 
+ 
+ @mcp.tool()
++@_write_tool
+ async def send_direct_message(username: str, text: str, reply_to_message_id: Optional[str] = None) -> str:
+     """Send or reply to a direct message (DM) on X (Twitter).
+     
+@@ -453,6 +479,7 @@
+ 
+ 
+ @mcp.tool()
++@_write_tool
+ async def favorite_tweet(tweet_id: str) -> str:
+     """Like / favorite a tweet by its ID.
+     
+@@ -471,6 +498,7 @@
+ 
+ 
+ @mcp.tool()
++@_write_tool
+ async def retweet(tweet_id: str) -> str:
+     """Retweet / repost a tweet by its ID.
+     
+@@ -489,6 +517,7 @@
+ 
+ 
+ @mcp.tool()
++@_write_tool
+ async def delete_tweet(tweet_id: str) -> str:
+     """Delete a tweet posted by yourself by its ID.
+     

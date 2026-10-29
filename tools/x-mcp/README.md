@@ -87,3 +87,7 @@ python D:\GZdeepseek\dengta-home\tools\x-mcp\smoke-test.py
 - X 前端更新后必须重新抓 ondemand URL；
 - 单账号单点，不是多用户隔离；服务端 tools/list 会返回全部 12 个工具，DengTa 侧只把只读工具设为 auto，写工具默认 disabled（需要在连接 tool_policies 里显式开启）。
 - 不要把 cookie/API key 提交到任何仓库。
+
+## 写工具默认关闭
+
+server.py 默认 X_MCP_READ_ONLY=1：	ools/list 仍列出 12 个工具，但 post_tweet/eply_tweet/send_direct_message/avorite_tweet/etweet/delete_tweet 调用会直接返回只读错误。需要写操作时必须显式 X_MCP_READ_ONLY=0，并配合人工确认/审计。
