@@ -1786,3 +1786,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 
 - 布局矩阵 19 视口 0 问题；前端全量 0 failure/3829 行；Vercel 41042b3 READY。
 - 生产页面确认 `.mobile-command-dock` 可见；最终 APK 已签名，待手机重连安装。
+
+
+## 轮次 114（2026-10-29 · 设置页补回记忆/档案/摘要）
+
+- 后端确认 19 条记忆与 companion-profile v1 线索存在，非数据丢失。
+- 设置 → 个性化与记忆顶部加入「记忆、性格与对话摘要」；复用 CompanionProfile + LocalMemorySummaries；稳定记忆计数不再为 0。
+- 档案为空时展示最近聊天提取线索。
+- 390×844 真实账号验证 summary/profile/memoryItems=19，无 pageerror。
+- 记录 docs/MEMORY-PROFILE-SETTINGS-2026-10-29.md。

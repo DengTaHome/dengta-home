@@ -341,3 +341,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 浮块收尾（2026-10-29 轮次 113）
 
 - 19 视口 0 问题、全量 0 fail、41042b3 READY；APK 820967fc 待手机重连安装。
+
+
+## 设置页记忆/档案（2026-10-29 轮次 114）
+
+- 设置 persona 顶部加入 CompanionProfile + LocalMemorySummaries；19 条摘要可见；档案线索可见。
