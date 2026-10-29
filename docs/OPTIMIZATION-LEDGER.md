@@ -1857,3 +1857,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 找到旧版海岸静帧 coast-day/twilight/night；新增 LegacyCoastBackdrop 与经典背景 5 选项。
 - 设置·外观与聊天可切换；命令面板可快捷切换；按账号持久化；默认仍为实时天空。
 - Vercel b8dc35a；APK 2.13.45(303) acc8768c 已装手机；390/844 场景验证通过。
+
+
+## 轮次 124（2026-10-29 · Redmi K30 布局与更新链路）
+
+- 定位 Redmi K30 桌面式布局：部分 MIUI WebView 报 980px 布局视口，max-width:820 不命中。
+- 新增物理屏幕手机会员检测 + force-mobile.css：强制单列、抽屉、44px 关闭/菜单、scrim；980 布局视口模拟验证通过。
+- 修复更新链路：android.json/download.json 从 301/2.13.43 更新到 305/2.13.47；APK 发布到官网 downloads。
+- 音乐工作室独立栏目 + 旧版动态天空一并进入 2.13.47。
+- 注意：2.13.43 历史 APK 使用旧 debug 证书，跨该版本更新需卸载重装一次；2.13.44 起可覆盖。
