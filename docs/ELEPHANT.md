@@ -242,3 +242,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - 上轮 16/16 是 loading 壳假绿；已改验证器为真实消息/会话就绪 + 必需元素断言。
 - 17 视口真实 0 问题，ready 6.2–7.5s；短横屏保留状态胶囊，面板可打开。
+
+## full17（2026-10-29 轮次 91）
+
+- full17 exit0 3944 行 0 fail；17 视口真实就绪 0 问题。

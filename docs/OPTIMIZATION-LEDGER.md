@@ -1622,3 +1622,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 短横屏不再隐藏整个 presence stack：压缩到 76px、隐藏 ribbon/ambient，保留状态胶囊；320/390/横屏点击胶囊 `.status-panel.is-open=true`。
 - 真实就绪重跑：**17/17 0 布局问题**，ready 6.2–7.5s；设置/音乐/抽屉 0 问题。
 - full16 exit0 3944 行 0 fail（CSS 前）；最新 CSS 定向 11/11。
+
+## 轮次 91（2026-10-29 · full17 全绿）
+
+- full17 完整 `npm test`（最新手机适配 CSS）：**exit 0**，3944 行，0 failure 标记。
+- 真实 17 视口矩阵：17/17 0 布局问题，ready 6.2–7.5s；短横屏状态胶囊可达。
+- full10→full17 连续全绿（含本轮测试假绿纠正）。
