@@ -2114,3 +2114,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 真实生产验收（be2709a）：fresh zh-webm `/voice/turn` HTTP 200，user=4812/assistant=4813，71.8s；测试 session DELETE 204；此前 fresh 200、同 CID replay 200、504→409 RECOVERING(127s) 证据保留。
 - backend round149-backend.log 0 fail；生产 backend be2709a（/health 已核对），frontend index-C4-5uC8g。
 - 剩余：成功 lease 无 commit/completed_at、claim fail-open、TTL200>FE180、模型取消/save 窄窗、route E2E。
+
+
+## 轮次 150（2026-10-30 · await lease fail / 真实成功回归）
+
+- route catch 在 `next(error)` 前 `await voiceGenerationLeaseStore.fail`，避免 504/断线响应先于 lease 失败提交；失败后 `voiceLeaseSettled=true`，finally 不再重复。
+- 真实生产回归（be2709a）：fresh zh-webm `/voice/turn` HTTP 200，user=4812/assistant=4813，71.8s；测试 session DELETE 204；临时 token/env/音频已清理。
+- backend round150-backend.log 0 fail；生产 backend ba73e97（/health 已核对），frontend index-C4-5uC8g。
+- 剩余：成功 lease 无 commit/completed_at、claim fail-open、TTL200>FE180、模型取消/save窄窗、route/真实 504 自动化 E2E。

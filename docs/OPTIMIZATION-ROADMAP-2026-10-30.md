@@ -798,3 +798,31 @@
 - 结论：**轮次147 P0 正式关闭**（修复部署 5930c02 + 真实 fresh/replay/恢复验收证据；Elephant 独立核对
   代码/revision/log/单测/产物）；建议 149 处理 lease 生命周期/fail-open 监控、TTL/FE 对齐、route 自动化 E2E
   与仓库密钥卫生；Goldfish-R26 复核中。
+
+## 35. 轮次 149 voice lease 生命周期复核（2026-10-30 06:55–07:10）
+
+- 基线：backend HEAD/生产 **be2709a**（06:50:05，`/health` 已核对一致）；`round149-backend.log` **0 fail**
+  （06:47:57–06:49:45；server/voice-turn/test mtime 06:47:53 < 运行开始；commit 晚于日志结束 20s 但内容一致）；
+  定向 voice-turn **1/1**。frontend 仍 **1a1760c**（test-only，生产入口 C4-5uC8g/App-qQW56gOk）；backend
+  工作区 clean，轮次148 的 untracked harness/secret env 已清理。
+- 真实验收（lead，外部）：fresh zh-webm **200**，user=4812/assistant=4813，**71.8s**，session DELETE 204；
+  此前 fresh 200 / 同 CID replay 200 / 504→409 RECOVERING 127s 证据保留。
+- 已验证：①`clientMessageIdForLease/voiceLeaseId/voiceOwnership/voiceLeaseSettled` 提升到 try 外；
+  `voiceLeaseSettled=true` 在 assistant save 成功（7033）及 assistant-save 冲突 replay（7022）后设置；
+  ②finally（7102-7115）`if (voiceLeaseId && !voiceLeaseSettled)` → `void store.fail(...)`；
+  tenant fail RPC（012:591-624）仅更新 `state=in_progress AND lease_id=本请求 id` → 置 failed/清 lease，
+  lease id 不匹配 no-op（claim-false/23505/recovery 早返回不会误伤他人 lease）；
+  ③canResumeVoiceOrphan：state=failed→true、completed→false、lease_expires_at 已过→true，否则 created_at
+  阈值；测试覆盖 failed/未过期/已过期三态 → 504 失败后 claim 允许 failed/expired（生命周期闭环）；
+  ④真实 fresh 200 与代码 fresh 路径一致。
+- 仍存 P2/P3：①**finally fail 是 fire-and-forget**：504/断线响应可能先于 fail RPC 提交到客户端 → “立即
+  重试”仍可能短暂 409 recovery，直到 fail 提交；lead 本轮真实验收是 fresh 200，“504 后立即 claim”尚未在
+  be2709a 后复测 → 建议 await fail 后再响应/补真实 504→立即重试 E2E；②成功 lease 无 commit/completed_at
+  （state 留 in_progress，replay 可兜住但状态卫生/监控缺口）；③fail+模型未取消交互：断线/504 立即置 failed，
+  重试可马上 claim，而第一次 provider/tool 可能仍在跑 → 重复工具副作用窗口；④claim fail-open（RPC 异常
+  降级放行，跨实例可双 generation）；⑤TTL 200s>FE180；⑥模型取消/save 窄窗口、route/真实失败语音自动化
+  E2E 缺失（测试仍 helper+源码断言；frontend 快照/倒计时无运行时测试）；⑦claim-false/23505/recovery 早返回
+  会发一次 no-op fail RPC（P3）；⑧日志早于 commit 20s（流程项）。
+- 结论：R26 P1 lease 生命周期闭环（finally fail + settled + failed/expired resume），无新增 P0/P1；建议 150
+  先 await fail 并做 504→立即重试真实/集成验证，再处理成功 completed_at、claim fail-open 监控、TTL/FE 对齐与
+  route E2E；Goldfish-R27 复核中。
