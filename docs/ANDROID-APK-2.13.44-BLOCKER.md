@@ -4,7 +4,7 @@
 - Web build 通过；`npx cap sync android` 完成。
 - 本地构建 `assembleRelease` 成功：
   - `DengTa-2.13.44-302.apk`（34.63MB，versionCode 302）
-  - SHA-256 `a2c8deb92a7342b1a2ac1638dc226ea2031aa425e93cfe944bed7367871881d0`
+  - SHA-256 `86a5ee3e4cfdcb415819def98fb95947aaad809c86a52382327a57bdf3a1d9b9`
   - 内置 `assets/public/index.html` 已含手机 system 字体启动脚本，无字体 preload。
 - 本地 APK 签名有效（v2），证书 SHA-256：
   `0d634aaf6eb10dd4c9042883ddb00fa7c32e01eb6387e1a7238bf96d08a1e0f5`
