@@ -1981,3 +1981,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 行为测试覆盖 token 所有权/过期 reclaim/旧 release 失败；backend round135-backend.log 0 fail、voice-turn pass。
 - 生产 backend 3743dd5（/health 已核对），frontend 4debff4。
 - 剩余：跨实例无 DB lease、FE 每次新 UUID、模型/tool 未取消、server wiring mutation 弱。
+
+
+## 轮次 136（2026-10-30 · guard Retry-After/强制 token）
+
+- `createVoiceTurnGuard.release` 要求 token；新增 remainingMs；409 Retry-After 按剩余 TTL 计算并暴露 Access-Control-Expose-Headers。
+- TTL 测试改用 fake clock 的秒级窗口；覆盖 token 缺失不删除、旧 token 不删新 claim、remainingMs 到期。
+- backend round136-backend.log 0 fail、voice-turn pass；生产 backend ce596b8（/health 已核对），frontend 4debff4。
+- 剩余：跨实例 DB lease、FE 每次新 UUID、模型/tool 未取消、server wiring mutation 弱。

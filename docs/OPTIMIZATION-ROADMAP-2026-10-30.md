@@ -436,3 +436,25 @@
 - 遗留 P3：stored analysis 缺字段默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline。
 - 建议 135：先补 release token + TTL/prefix 配比（小改动，消除 guard 自身竞态），再决定单实例文档化
   vs DB lease；FE UUID 复用与超时/退避一起做；Goldfish-R13 复核中。
+
+## 20. 轮次 135 guard ownership token 复核（2026-10-30 03:29–03:40）
+
+- 基线：backend **3743dd5**（03:28:07 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round135-backend.log` **0 fail**（03:27:45 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终内容）；定向 voice-turn **1/1**（fake token+clock：claim/重复/过期 reclaim/旧 token release
+  不删新 claim/新 token release/其它 key/size）。
+- 已验证：①`claim` 返回 token（默认 randomUUID，可注入），失败/空 key 返回 `""`；
+  `release(key, token)` 校验 token，旧 handler 的 finally 不会删除过期后重 claim 的新条目（单测断言）；
+  ②server `voiceTurnClaimed={key,token}`，finally `release(key,token)`，失败 claim 不 release；
+  ③TTL 提升为 `deadlineMs+60_000`（默认 200s、上限 230s）；④409 带 `Retry-After:5` +
+  `code:"VOICE_TURN_IN_PROGRESS"`（raw body）；⑤租户 key 不变。
+- 结论：token 竞态已修；**P0=0、P1=0（单实例）**。
+- 仍存：①跨实例无 DB lease（滚动部署/多实例仍可双 generation，assistant replay 但模型/tool 双跑）；
+  ②FE 重试仍新 UUID + TTL 200>FE 180；③模型未取消/tool 副作用；④save 窄窗口；
+  ⑤TTL=deadline+60 仍可能被 prefix 长尾超过（旧 release 不会误删但老/新 generation 可并存）；
+  ⑥release 的 token 可选（不传会删任意 claim，server 传了，但 API 应强制）；
+  ⑦Retry-After 硬编码 5s 未按剩余 TTL；⑧claim-before-replay 瞬时 409；⑨route 级集成测试仍缺
+  （guard 单测已真覆盖 ownership）。
+- 遗留 P3：stored analysis 缺字段默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline。
+- 建议 136：release token 必填 + Retry-After 用剩余 TTL（小改）；然后决定单实例文档化 vs DB lease；
+  FE UUID/超时退避与模型取消并行推进；Goldfish-R14 复核中。
