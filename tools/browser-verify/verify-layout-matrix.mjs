@@ -163,6 +163,15 @@ for (const device of DEVICES) {
         };
         const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
         if (docWidth > vw + 1) issues.push({ kind: "horizontal-overflow", detail: `scrollWidth=${docWidth} > ${vw}` });
+        const command = document.querySelector(".mobile-command-trigger");
+        const capsule = document.querySelector(".sun-glass-liquid-capsule-toggle");
+        if (command && capsule) {
+            const a = command.getBoundingClientRect();
+            const b = capsule.getBoundingClientRect();
+            const ox = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+            const oy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+            if (ox > 1 && oy > 1) issues.push({ kind: "command-capsule-overlap", detail: `${Math.round(ox)}x${Math.round(oy)}` });
+        }
         const msgCount = document.querySelectorAll(".message-bubble").length;
         const sessionCount = document.querySelectorAll(".session-select, .session-list, .session-item").length;
         if (msgCount === 0 && sessionCount === 0) issues.push({ kind: "missing-content", detail: "no message/session content" });
