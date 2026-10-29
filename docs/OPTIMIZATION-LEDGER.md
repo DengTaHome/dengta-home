@@ -1749,3 +1749,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 恢复：去掉手机全局降级；仅 `saveData` 时 fallback，保留 reduced-motion。
 - 验证：390 状态面板 `.status-flow-field--ready`，拖动后出现绿/蓝流体；320/360/844/915 正常。
 - 记录：docs/STATUS-FLOW-2026-10-29.md。
+
+## 轮次 109（2026-10-29 · 新签名 APK）
+
+- 旧 keystore（38a03ab2…）确认丢失；按用户确认生成新发布 keystore，构建全新安装 APK。
+- 产物：DengTa-2.13.44-302-fresh-install-newkey.apk，36,510,356B，SHA-256 ff9d1a5c…，新证书 ab4c7a2f…，apksigner v3 通过。
+- 限制：只能全新安装，旧版需卸载；不上传现有更新 feed。
+- 记录 docs/ANDROID-APK-NEW-KEY-2026-10-29.md。

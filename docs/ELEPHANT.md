@@ -317,3 +317,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 光子流动恢复（2026-10-29 轮次 108）
 
 - 移除 ≤820px 手机 fallback；仅 saveData/reduced-motion fallback；390 拖动验证流体。
+
+## 新签名 APK（2026-10-29 轮次 109）
+
+- 新 keystore（ab4c7a2f…）构建 fresh-install APK；不能覆盖旧版/更新 feed，详见 docs。

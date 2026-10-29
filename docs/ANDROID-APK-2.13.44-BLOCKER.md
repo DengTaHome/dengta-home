@@ -30,3 +30,9 @@
 - 提供稳定 debug keystore（或 `ANDROID_STABLE_DEBUG_KEYSTORE_BASE64_V2` 对应的 base64），本地用 Gradle 304 再签名；
 - GitHub Actions 额度恢复后，重跑 `Publish Android APK` workflow；
 - 手机开启无线调试/连 USB，并提供安装授权（仍需签名兼容）。
+
+## 2026-10-29 追加：新签名可行
+
+- 旧 keystore 未找回；按用户确认生成新 keystore。
+- 全新安装 APK：docs/ANDROID-APK-NEW-KEY-2026-10-29.md，证书 b4c7a2f…。
+- 旧版不能覆盖升级；不要上传到现有更新 feed。
