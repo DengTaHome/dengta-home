@@ -162,3 +162,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - DB health timeout 会 abort 底层查询；voice body abort 测试。
 - 401/403 仅匿名跳过日志；full11 运行中，full10 最近完整 0 failure。
+
+## 轮次 76（2026-10-29）
+
+- 手机首次访问默认系统字体，避免 7.4MB 品牌字体下载；桌面仍 standard。
+- typography/performance 9 项通过；DB health abort；full11 运行中。

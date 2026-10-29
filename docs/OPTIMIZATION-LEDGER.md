@@ -1518,3 +1518,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - frontend voice.test：新增 response.blob() 阶段 AbortError → speech_cancelled 的行为测试。
 - 401/403 日志已只对匿名请求跳过（已登录真实 403 保留 error_log_id）。
 - full11 全量已启动，仍在跑；full10 仍为最近完整 0 failure。
+
+## 轮次 76（2026-10-29 · 手机默认系统字体）
+
+- `dengta-theme.js` 新增 `defaultThemePreferences(environment)`：首次访问且视口 ≤820px 时默认 `fontMode=system`，桌面仍用品牌字体。
+- 手机首屏不再下载/解码 7.4MB `DengTaSans-cjk-v2.woff2`；用户仍可在 ThemeStudio 手动切回 DengTa 标准。
+- 新增 typography 测试：phone→system、desktop→standard；typography + performance-guards 9 项通过。
+- backend DB health 超时已 abort 底层查询；voice body abort 测试已加。
+- full11 仍在跑；full10 最近完整 0 failure。
