@@ -2184,3 +2184,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 验证 HerVoice 情感不可用时文字降级链路真实生效；测试 session DELETE 204，token/音频清理。
 - 生产 backend bd7747e，frontend index-DNV0ffbc；backend round156 0 fail。
 - 剩余：低置信文字误判、fail-open 告警、模型取消/save 后副作用、route E2E、App chunk。
+
+
+## 轮次 158（2026-10-30 · 否定情绪过滤 / 降级告警）
+
+- 文字情绪推断忽略被否定的关键词：`我不累`、`今天不太开心` → null；`还是有点累` → tired；保留高置信/非 neutral 不覆盖。
+- lease 降级计数增加阈值告警：达到 5 及每 10 次 console.warn；`/health voice_lease_degraded` 仍可读。
+- backend round158-backend.log 0 fail；生产 backend 7340f5b（/health 已核对）；frontend index-DNV0ffbc。
+- 剩余：否定句/反讽覆盖有限、claim fail-open 仍放行、模型取消/save 后副作用、route E2E、App chunk。
