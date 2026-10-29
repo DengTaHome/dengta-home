@@ -1502,3 +1502,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - frontend `d11729f`：低功耗设备冻结 Celestial Canvas/视频；RainbowAgentMark 读取 App reduced-motion === "true"。
 - full10 全量 3821 行 0 failure；full9 唯一失败/teardown 停滞均已修。
 - 已启动 Goldfish 只读复核（低功耗/401/teardown）。
+
+## 轮次 74（2026-10-29 · Goldfish 复核闭环）
+
+- 401/403 免写日志范围修正：仅 `!req.scope` 的匿名 401/403 跳过；已登录真实 403 仍保留 error_log_id。
+- 低功耗背景补充回归断言：CelestialBackdrop 必须含 deviceMemory/saveData 与 `reduceMotion: reduceMotion || lowPower` 调用。
+- 修正 `app-motion-preference` 的 false-positive 正则，改为验证 lowPower 调用参数。
+- 测试：app-motion-preference + performance-guards **32/32**；backend module coverage 通过。
+- full10 仍是 3821 行 0 failure，但其时间早于 d11729f；本轮改动后以定向测试 + build 为准。
+- backend latest 待 Render 部署；frontend latest 待 Vercel。

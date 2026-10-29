@@ -151,3 +151,9 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - backend a783535 在线（401/403 不写日志）；frontend d11729f（低功耗冻结背景）。
 - full10 3821 行 0 failure；Goldfish 复核启动。
+
+## 轮次 74（2026-10-29）
+
+- 401/403 匿名才免写日志；登录 403 保留 error_log_id。
+- performance guards 覆盖 lowPower；app-motion false positive 修正；32/32 通过。
+- full10 早于 d11729f，最新以定向测试为准。
