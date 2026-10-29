@@ -2105,3 +2105,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 
 - 真实生产 fresh voice HTTP 200，同 client_message_id 重放 200 相同 user/assistant id，504 后重试 409 VOICE_TURN_RECOVERING retry_after_seconds=127，测试 session DELETE 204。
 - 为避免凭证落盘：已删除临时 `_audit-local-server.js`、Render env dump、登录 token/auth 响应、测试音频与会话临时文件；backend worktree clean。`_audit/voice-final-*.json` 仅保留无凭证的响应证据。
+
+
+## 轮次 149（2026-10-30 · lease 生命周期与真实成功验收）
+
+- 未完成 lease 在 route finally 调 `fail`（成功路径置 `voiceLeaseSettled`）；`canResumeVoiceOrphan` 识别 state=failed 与 lease 过期，504 后重试可立即 claim，不再固定锁 127s。
+- 成功 assistant 保存后 lease 仍无 commit（P2 卫生项），但失败/超时状态已释放。
+- 真实生产验收（be2709a）：fresh zh-webm `/voice/turn` HTTP 200，user=4812/assistant=4813，71.8s；测试 session DELETE 204；此前 fresh 200、同 CID replay 200、504→409 RECOVERING(127s) 证据保留。
+- backend round149-backend.log 0 fail；生产 backend be2709a（/health 已核对），frontend index-C4-5uC8g。
+- 剩余：成功 lease 无 commit/completed_at、claim fail-open、TTL200>FE180、模型取消/save 窄窗、route E2E。

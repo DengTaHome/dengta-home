@@ -773,3 +773,28 @@
   f936448 未新增测试，现有 recovery 计数=3 断言对条件变化不敏感，仍建议补 mock lease store 行为测试。
 - 结论：**147 P0=1 已修复并部署（f936448），待真实 fresh 语音 200 验收**；补 claim 回归测试与
   mtime/commit 日志对照；Goldfish-R25 复核中。
+
+## 34. 轮次 148 P0 真实验收 + lease/路由修复复核（2026-10-30 06:36–06:55）✅ P0 关闭
+
+- 基线：backend HEAD/生产 **5930c02**（06:32:47，`/health` 已核对一致）；`round148-backend.log` **0 fail**
+  （06:30:38–06:32:29，server/voice-turn mtime 06:30:14、test 06:30:35 < 运行开始；commit 晚于日志结束 18s
+  但内容一致）；定向 voice-turn **1/1**。frontend 仍 **1a1760c**（test-only；生产入口 index-C4-5uC8g）。
+- P0 真实验收（lead 提供，外部证据；Elephant 未复跑真实音频）：①真实 fresh 语音 HTTP **200**，user/assistant/
+  reply 正常、emotion=neutral；②同 client_message_id replay **200**，user/assistant id 相同（4810/4811），无重复；
+  ③504 provider_timeout 后立即重试 **409 VOICE_TURN_RECOVERING，retry_after_seconds=127**，与 lease 剩余
+  TTL 一致（200s lease − ~73s），验证恢复倒计时；④测试 session DELETE 204、音频/凭据未入库；⑤commits
+  3415a5a/f936448/6c70a8a/c1531c0/5930c02 + round148 0 fail + claim 行为测试。
+- 本轮新增产品修复复核：①**6c70a8a** multer `fields 9→20 / parts 21 / fieldSize 128KB`——frontend formdata
+  实际 file+10 fields（voice.js:254-278），旧限制 9 会让真实 fresh 语音 `LIMIT_FIELD_COUNT`，是真阻塞修复；
+  ②**c1531c0** 把 `let voiceTurnClaimed` 移到 route try 之前——原先在 try 内声明、finally 引用会 ReferenceError，
+  是真回归修复；③**5930c02** 抽 `claimVoiceGenerationLease`：fresh 不调用 store、resume 才 claim，行为测试
+  fresh `calls.length=0`/resume 参数断言 → **P1-1 claim 决策缺口关闭**（仍非 route 集成，P3）。
+- 仍存 P2/P3：①lease 成功/失败无 commit/fail/renew（state 留 in_progress；deadline≤170<lease200 故 renew 非硬需求）；
+  ②claim fail-open（RPC 异常降级放行，跨实例故障期可双 generation）；③created_at/max clamp 边角；
+  ④TTL 200s>FE 180s（超时后立即重试先拿 recovery ~20s）；⑤frontend 快照/倒计时仍仅源码测试；
+  ⑥模型取消/save 窄窗口、route/真实失败语音自动化 E2E 缺失；⑦仓库/密钥卫生：backend 未跟踪
+  `_audit-local-server.js` + `D:/GZdeepseek/_audit/render-env.json`（2,487B 含真实 env/凭证）勿提交、建议轮换；
+  ⑧multer 限制硬编码；⑨round148 日志早于 commit 18s（流程项）。
+- 结论：**轮次147 P0 正式关闭**（修复部署 5930c02 + 真实 fresh/replay/恢复验收证据；Elephant 独立核对
+  代码/revision/log/单测/产物）；建议 149 处理 lease 生命周期/fail-open 监控、TTL/FE 对齐、route 自动化 E2E
+  与仓库密钥卫生；Goldfish-R26 复核中。
