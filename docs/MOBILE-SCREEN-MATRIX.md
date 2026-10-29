@@ -122,3 +122,10 @@ node tools\browser-verify\verify-layout-matrix.mjs
 - 抽屉阴影从 60px 缩小到 18px，降低重绘
 
 验证：surface 审计在 320/360/390/844/915 打开抽屉+设置页后，无 `mobile-backdrop`、0 布局问题；截图见 `_audit/browser-surfaces/`。
+
+## 侧边栏/设置可读性（2026-10-29）
+
+- 手机去 blur 后，用户反馈侧边栏太透明、设置页背景穿透。
+- 修复：手机/coarse 下 sidebar 用不透明 `--theme-card-rgb`，brand 标题改 `--theme-ink`、副标题 `--theme-muted`；设置 sheet/scroll/page 用不透明 `--theme-background`；settings 卡片/文件夹实色。
+- 侧边栏新增「下载 Android App」入口，设置页新增「下载安卓安装包」；安装按钮恢复内联 guidance 反馈（原先 notice 被设置层遮住，看起来没反应）。
+- 验证：320/360/390/844/915 截图侧边栏、设置页均无透明/布局问题。
