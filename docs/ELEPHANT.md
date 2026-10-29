@@ -264,3 +264,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - 键盘态 390/320/844 横屏 composer/textarea 全在可视区；固定 composer 仅键盘态。
 - Vercel c2c9a1b READY；full20 运行中。
+
+## 后端配置纠正（2026-10-29 轮次 96）
+
+- render.yaml=false 是外部触发器契约；上轮改 true 导致测试失败，已恢复 false。
+- 线上 health=true 漂移待 Render 手动对齐；生产配置测试 1/1 通过。

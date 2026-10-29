@@ -10,7 +10,7 @@
 | # | 仓库 | 类型/用途 | 本地路径 | HEAD / 版本 | 许可 | DengTa 关系 | 结论 |
 |---|---|---|---|---|---|---|---|
 | 1 | DengTaHome/dengta-home | 公开自托管镜像 | `dengta-home` | 旧镜像 | ISC | 发布/文档镜像 | 落后线上；下载链接已修；tag 仍异常 |
-| 2 | DengTaHome/dengta-home-backend | 生产后端 | `_refs/backend-prod` | f96b0b5 / 0.29.76 | ISC（无 LICENSE 文件） | 线上后端 | 与 /health 一致；render.yaml 已对齐；health DB 盲区待处理 |
+| 2 | DengTaHome/dengta-home-backend | 生产后端 | `_refs/backend-prod` | f96b0b5 / 0.29.76 | ISC（无 LICENSE 文件） | 线上后端 | 与 /health 一致；render.yaml=false 为外部触发器契约；线上 env=true 漂移待手动对齐；health DB 盲区待处理 |
 | 3 | DengTaHome/dengta-home-frontend | 生产前端 | `_refs/frontend-gh` | 58ae256 / 2.13.43 | 无 LICENSE | Vercel/Capacitor | 已清理调试截图；CSP 手同步 |
 | 4 | DengTaHome/dengta-music-mcp | 网易云 Docker 宿主 | `_refs/music-stable` | 4fde883 | CC BY-NC-SA 4.0（非 MIT） | 线上音乐 MCP | 安全加固已部署；public /health 200 |
 | 5 | （旧副本）frontend-prod | 前端克隆 | 已删除 | 损坏 | — | 无 | 零提交/中断克隆，已删除 |
@@ -45,7 +45,7 @@
 
 ### DengTaHome/dengta-home-backend
 - P1：`/health` 的 `database:"not_checked"`，Render 用 `/health` 做探针；真正的 `/health/database` 存在但不在探针。**未改探针**（避免 DB 短暂故障导致反复重启），保留独立 15 分钟监控。
-- P1：`render.yaml` `BACKGROUND_JOBS_ENABLED=false` 与线上 true 漂移。**已修**为 true。
+- P1：`render.yaml` `BACKGROUND_JOBS_ENABLED=false` 与线上 true 漂移。**未自动改**：测试/外部触发契约要求 false，先恢复 false；线上 env 需在 Render 手动对齐，避免双重本地循环。
 - P2：`coverage/*` 入库。**已修**：`git rm --cached` + `.gitignore`。
 - P2：无 LICENSE 文件、Dockerfile 与 Node engines 不一致。未改；私有仓库非公开分发。
 
@@ -95,7 +95,7 @@
 1. 删除 `_refs/frontend-prod` 与 `_refs/artifacts`（约 460MB 无效数据）。
 2. 修复公开镜像 README + Android feed 到真实 latest release，并 push。
 3. music-stable：fail-closed token、gateway 必填、常量时间比较、no-store、body 上限、日志/entrypoint 加固 + 3 个安全测试；已 push，待部署。
-4. backend：`render.yaml` 后台任务对齐 true；`coverage/*` 停止跟踪；已 push。
+4. backend：`coverage/*` 停止跟踪；`render.yaml` 保持 false（外部触发器契约），线上 env=true 漂移待手动处理。
 5. frontend：移除根目录调试截图/XML 的 git 跟踪；新增 inline 字体行为测试；已 push。
 6. 补 Vael-KY cookie 方案 attribution；已 push 公开镜像。
 7. 本清单 + 四个 Goldfish 审计报告记录在 Elephant 账本。
@@ -105,7 +105,7 @@
 - x-twikit-mcp：**本机 worktree** 新增 `_write_tool` 闸门，默认 `X_MCP_READ_ONLY=1`；`post_tweet/reply_tweet/send_direct_message/favorite_tweet/retweet/delete_tweet` 会直接返回只读错误；本地已用 MCP client 验证 tools=12、写工具被拒。补丁保存在 `tools/x-mcp/patches/server.py.patch`；**上游仓库未合并/未 push**。
 - GZdeepseek 本地 X 隧道已用只读 wrapper 重启；DengTa 只读工具仍可用。
 - frontend：新增 inline 字体行为测试（真实执行启动脚本，覆盖 mobile/desktop/stored/无 matchMedia）。
-- backend：`render.yaml` 后台任务开关与线上对齐；`coverage/*` 停止跟踪。
+- backend：`render.yaml` 保持 false；线上 `BACKGROUND_JOBS_ENABLED=true` 漂移需在 Render 手动对齐；`coverage/*` 停止跟踪。
 - 公开镜像：README/feed 指向 `v2.13.43`；Vael attribution 已加。
 - music-stable：安全加固已 push **并已在 VPS 重建/重启**；public `/health` 200、无 token `/mcp` 401、`.netease_cred` 保留。
 

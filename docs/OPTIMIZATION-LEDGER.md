@@ -1660,3 +1660,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 修复：仅在键盘态+短横屏隐藏 presence stack，composer 固定到可视视口底部；正常 568×320 横屏不受影响。
 - JS 状态胶囊断点同步 960 复合条件；915 胶囊可打开 status-panel。
 - Vercel c2c9a1b READY；full19 exit0 3829 行 0 fail；full20 跑最新键盘 CSS。
+
+## 轮次 96（2026-10-29 · 后端全量测试纠正）
+
+- 后端全量测试首轮失败：`production-auth-config.test.js` 断言 `BACKGROUND_JOBS_ENABLED=false`；说明该 false 是外部 GitHub Actions 触发器契约，上轮把它改成 true 是错误。
+- 已恢复 `render.yaml` false；线上 `/health` 仍 `background_jobs_enabled=true` 的漂移保留为手动对齐项，避免把 IaC 改成双重本地循环。
+- `production-auth-config.test.js` 重跑 1/1 通过；后端全量重跑中。
+- 已修正 inventory/ledger 中“已对齐 true”的过度承诺。
