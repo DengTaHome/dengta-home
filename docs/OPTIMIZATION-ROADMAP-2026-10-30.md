@@ -211,3 +211,46 @@
   3) 视觉/焦点类修复无 `npm test` 自动化用例、24+14 孤儿测试未接线。
 - 125 轮结论：P0=0、P1=0、P2=3，生产与备份基线已锁定；下一轮按原计划从语音流式化 R2、R3 全页面、
   R4 CSS 预算、R5 后端 CI/readiness 继续。
+
+## 9. 轮次 126 语音链路复核（2026-10-30 01:15–01:45）
+
+- 改动（**未提交、未部署**）：backend `/voice/turn` 加 `client_message_id` 幂等（重放已有 assistant /
+  无 assistant 409）、HERVOICE 上限 30s→90s 对齐 render env、HerVoice caller AbortSignal/断线取消、
+  模型校验先于转写、保存后 context/listening/MCP/贴纸/特殊日期/xinchao 并行、assistant 写
+  `reply_to_client_message_id`；前端每次语音生成 UUID `client_message_id`；voice-turn 测试补 parser/
+  timeout/abort/route contract。生产仍为上一构建（frontend `index-B0qk7gbP`、backend `cf02b7f`）。
+- 测试：backend 全量 `round126-backend.log` **0 fail**（01:17:34 完成）；定向 voice-turn 1/1、
+  chat-idempotency 1/1、module-coverage 126/126；frontend `voice.test.js` 通过；
+  frontend 全量 `round126-frontend.log` **0 fail**（01:23:03 完成）。两全量均跑在未提交工作树上。
+- 浏览器（生产旧构建，只读 + 非 GET 拦截）：启动空闲 12s `writes=[]`；一级语音按钮 44×44 / enabled /
+  aria 正确；短按只触发 `POST /voice/warmup`（伪 200）；长按触发 `getUserMedia`（mock 拒绝）并显示
+  权限提示；全程 0 次 `/voice/turn`、0 真实音频、0 写库；29 条历史消息。
+- **P1-1 前后端超时不一致**：后端 HerVoice 单项上限 90s + 生成/保存，前端 XHR 总超时硬顶 75s
+  （`voice.js:6/305-308`，测试仍断言 ≤75s）→ 慢转写时前端先超时、后端可能已保存；重试用新 UUID →
+  重复 user+assistant/重复计费。建议前端 120–150s 或后端收紧 ≤50s 或 transcript-first 流式。
+- P2：①并发同 client id 无 unique-conflict 捕获（chat 路径有，voice 无）→ 可能 500 + 浪费模型调用；
+  ②取消只覆盖 HerVoice（generateReply 无 signal，断线后仍生成并落库）；③幂等实际收益有限（每次提交
+  新 UUID，人工重试不复用；孤儿 user 消息会永久 409，无租约/TTL）；④route contract 测试是源码正则，
+  缺 DB-mock 行为测试；前端新字段无断言。
+- 建议 round 127：先修 P1-1（超时常量一致性 + 测试）→ P2-1 并发 catch-and-replay → 语音 transcript-first
+  流式（R2 原计划）；随后 R3 全页面 980、R4 CSS 预算、R5 后端 CI/readiness。孤儿测试接线可随时插入。
+
+## 10. 轮次 126 P1 修复复核（2026-10-30 01:26–01:40）
+
+- 基线：frontend **c226868**、backend **4dc24f0**（均 01:26:09 提交且**已部署**：生产入口
+  `index-C4FrfWn0.js`（App chunk 含 `client_message_id`/`12e4`/`randomUUID`/`reply_to_client_message_id`）、
+  生产 backend revision=`4dc24f0`）。
+- 修复验证：①超时 `VOICE_TURN_TIMEOUT_MS=120_000`（测试断言 ≤120k），相对 HerVoice 90s 上限留约
+  30s 生成余量；②user 消息 save 增加 23505 catch：查 winner→conversation 断言→查 assistant→
+  replay（deduplicated）或 409，不再 500；catch 位于生成之前 → **loser 不会重复模型生成**，但 loser
+  仍重复一次 HerVoice 转写（残余成本）；③生产 e2e（假麦克风 + `/voice/turn` 本地伪造）：启动空闲
+  `writes=[]`，长按后请求 multipart 含合法 UUIDv4 `client_message_id` + file，未触达真实后端/DB。
+- 证据更正：lead 引用的 `round126-frontend.log` 结束于 01:23:03，早于最终文件修改（01:23:37）与
+  commit（01:26:09），**不覆盖最终提交**；Elephant 已对 c226868 重跑 `npm test`：**exit 0、0 fail**
+  （01:35:20 完成）。backend `round126-backend-final2.log` 0 fail 有效（源文件 mtime 早于运行开始）。
+- 剩余 P2：①23505 catch 无 DB-mock 行为测试；②loser 重复 HerVoice 成本（可先预留 client id）；
+  ③user 已存/assistant 缺失时同 UUID 永久 409（无 TTL）；④人工重试不复用 UUID（超时后重复风险仍在，
+  但 120s 已降低触发面）；⑤取消仍只覆盖 HerVoice（generateReply 无 signal）；⑥超时断言 ≤120k 过宽
+  （不防被改小到低于 90s）；⑦前端 UUID/字段无单测（已用生产 e2e 补证）。
+- 结论：126 P0=0、P1=0；建议 127 先补 23505 行为测试/预留 id，再进入语音 transcript-first 流式，
+  随后 R3/R4/R5。

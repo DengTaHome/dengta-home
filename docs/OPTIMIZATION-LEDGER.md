@@ -1876,3 +1876,14 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 适配/无障碍：Redmi 抽屉关闭 inert+aria-hidden，打开聚焦关闭钮、main inert、Tab trap、Esc；844×390 横屏正文 200px、带 recovery 可内部滚动；第一级 44×44 语音按钮；OS reduce 根属性与彩虹动画；命令坞 320 遮挡；音乐工作室 44px 按钮/加载反馈。
 - 生产：frontend bafa9e2 → 3b653f0，backend cf02b7f；入口 index-DtgCwAtE.js（bafa）与最新 3b653f0 部署；备份 bundle 26.0MB / HEAD f401786，web-dist 为生产抓取，releases 加 2.13.47。
 - 剩余：语音流式/幂等/并行化（R2）、CSS 首屏拆分（R4）、后端 CI/readiness（R5）、多行横屏 composer 已加内部滚动但真机仍待验、iframe 401 跨域无法识别。
+
+
+## 轮次 126（2026-10-30 · 语音链路 R2 第一段）
+
+- `/voice/turn` 幂等：client_message_id（UUID）→ user/assistant 重放，unique 23505 → catch→replay/409，loser 不重复模型/落库；assistant 写 reply_to_client_message_id。
+- 超时：HerVoice 上限 30s→90s 对齐 render env；前端语音 XHR 75s→120s，避免前端先超时；前端测试断言 ≤120s。
+- 取消：HerVoice 支持 caller AbortSignal / res close，客户端断开→499，已转写不再白耗；模型阶段仍无 signal（P2）。
+- 并行：保存后 context/listening/MCP/贴纸/特殊日期/xinchao Promise.all；worldBook/chatTools 依赖后置。
+- 测试：backend round126-backend-final2.log 0 fail；frontend c226868 全量 0 fail（Elephant 01:35 重跑）；定向 voice-turn/chat-idempotency 2/2。
+- 生产：frontend c226868（入口 index-C4FrfWn0.js），backend 4dc24f0。
+- 剩余 P2：loser 重复 HerVoice、孤儿 user 同 UUID 永久 409、人工重试不复用 UUID、generateReply 无 cancel、23505 无 DB-mock 行为测试。
