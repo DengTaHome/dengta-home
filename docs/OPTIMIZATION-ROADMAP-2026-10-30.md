@@ -254,3 +254,28 @@
   （不防被改小到低于 90s）；⑦前端 UUID/字段无单测（已用生产 e2e 补证）。
 - 结论：126 P0=0、P1=0；建议 127 先补 23505 行为测试/预留 id，再进入语音 transcript-first 流式，
   随后 R3/R4/R5。
+
+## 11. 轮次 126 超时预算复核（Goldfish-R4 P1 后，2026-10-30 01:38–01:52）
+
+- 基线：frontend **008da05**、backend **8903116**（01:45:31 提交/push，**均已部署**：生产入口
+  `index-DZW8phdA.js`、语音 chunk `inner-monologue-sync-CEq-pjKc.js` 含 `15e4`；
+  backend `/health` revision=`8903116`）。
+- 测试：frontend `round126-frontend-final2.log` **0 fail**（01:45:06 完成）、backend
+  `round126-backend-final3.log` **0 fail**（01:40:01 完成），两者均严格覆盖最终提交（mtime/commit 已核对）；
+  定向 voice-turn+chat-idempotency 2/2、frontend voice.test pass。
+- 本次修复：HerVoice 上限 90→60s（代码+render.yaml 60000）、voice route 对 `generateReply` 的
+  `request_timeout_ms` clamp ≤60s、前端 120→150s（测试 ≤150k）。
+- **预算判定（150 > 60+60+冷启动余量？）**：仅在“单轮生成+暖启动+无记忆压缩”的常见路径成立
+  （典型 40–90s，余量充足）；**结构性最坏路径仍不成立**：
+  ①tool loop 每轮 60s、默认 3 轮（retryable 6 / takeout 4）→ 生成最坏 180–360s
+  （`ai-service.js:1537-1541/2223/2246/2365`，单次 requestJson 硬顶 300s `:1647-1650`）；
+  ②记忆压缩在响应前 await 且用未 clamp 的原始 settings（`server.js:6852-6856`），触发时再加一次
+  provider 调用；③冷启动（历史 ~24s）+上传+DB 未计入 30s 余量。
+  → 前端 150s 仍可能先超时、服务端继续生成落库（voice route 无总 deadline，abort 仅 HerVoice 前后）；
+  建议 route 总 deadline(~140s)+生成/保存前 abort 检查+signal 下传，或压缩移出响应路径，或 transcript-first。
+- 其余 P2：HerVoice 60s 提高慢转写 504 概率（观察 p95）；取消仅 HerVoice；409 无 TTL；并发残差；
+  测试只有常量断言、无总 deadline/tool-round/clamp/并发行为测试。
+- 部署注意：`render.yaml` 60000 不等于 Render 运行时 env 生效（需控制台确认，/health 不暴露）；
+  生产 App chunk 里的 `12e4` 是其他模块常量，语音 chunk 以 `15e4` 为准。
+- 建议 127：先做 route 总 deadline/abort 收口（唯一剩余结构性 P1 类），再 transcript-first 流式；
+  随后 R3 全页面 980、R4 CSS 预算、R5 后端 CI/readiness。
