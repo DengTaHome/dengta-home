@@ -416,3 +416,23 @@
 - 遗留 P3：stored analysis 缺字段默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline。
 - 建议 134：优先决定“单实例+部署窗口文档化”还是补 DB lease；同时做 guard key${userId}:${clientId}、
   TTL 与 deadline 联动、FE UUID/退避时序；Goldfish-R12 复核中。
+
+## 19. 轮次 134 guard 抽取与租户作用域复核（2026-10-30 03:18–03:30）
+
+- 基线：backend **3012f33**（03:16:33 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round134-backend.log` **0 fail**（03:16:12 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终内容）；定向 voice-turn **1/1**；本轮 guard 单测已真实落地（注入时钟的 claim/重复 claim/
+  expiry/release/其它 key/size，且 `test:voice-turn` 在 npm test 链中，非孤儿）。
+- 已验证：`createVoiceTurnGuard({now})` 抽取完成（Map + claim/release/has/size）；server key 改为
+  `${userId}:${companionId}:${clientMessageId}`（上轮 P2-3 关闭）；claim TTL = `deadlineMs+30_000`
+  （deadline clamp 30–170s → TTL 60–200s，上轮 P2-2 基本关闭）；`activeVoiceTurns` 已完全移除；
+  claim 仍在 replay/orphan 预检前，失败不设置 claimed、成功 finally release，语义与上轮一致。
+- 仍存 P2/P3：①跨实例无 DB lease（单实例有效；滚动部署/多实例仍可双 generation，assistant 冲突可 replay
+  但模型/tool 双跑）；②release 无 token：若 handler 超过 TTL（prefix 卡 >30s）且同 key 被重新 claim，
+  旧 finally 会删新 claim → 可再进第三个请求，建议 claim 返回 token+release 校验；③TTL=deadline+30s
+  未覆盖 prefix 长尾，建议 max(deadline+60s, prefix p99 余量)；④FE 重试仍新 UUID + TTL 200>FE 180；
+  ⑤模型未取消/tool 副作用；⑥save 窄窗口；⑦claim-before-replay 瞬时 409；⑧route 级并发/租户隔离测试
+  仍缺（helper 单测已补）。
+- 遗留 P3：stored analysis 缺字段默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline。
+- 建议 135：先补 release token + TTL/prefix 配比（小改动，消除 guard 自身竞态），再决定单实例文档化
+  vs DB lease；FE UUID 复用与超时/退避一起做；Goldfish-R13 复核中。

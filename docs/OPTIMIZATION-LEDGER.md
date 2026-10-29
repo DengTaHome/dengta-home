@@ -1972,3 +1972,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 测试：backend round134-backend.log 0 fail、voice-turn pass。
 - 生产 backend 3012f33（/health 已核对），frontend 4debff4。
 - 剩余：跨实例仍无 DB lease、前端每次新 UUID、模型/tool 未取消、save 窄窗口。
+
+
+## 轮次 135（2026-10-30 · guard ownership token）
+
+- `createVoiceTurnGuard.claim` 返回唯一 token；`release(key, token)` 校验所有权，旧 handler 的 finally 不会删除新 claim。
+- server `voiceTurnClaimed={key,token}`；TTL=deadline+60s；409 增加 Retry-After:5。
+- 行为测试覆盖 token 所有权/过期 reclaim/旧 release 失败；backend round135-backend.log 0 fail、voice-turn pass。
+- 生产 backend 3743dd5（/health 已核对），frontend 4debff4。
+- 剩余：跨实例无 DB lease、FE 每次新 UUID、模型/tool 未取消、server wiring mutation 弱。
