@@ -156,7 +156,8 @@ const scrollerInfo = await page.evaluate(() => {
   };
   const target = walkUp(document.querySelector(".message-list")) || walkUp(document.body) || document.scrollingElement;
   const before = target ? target.scrollTop : 0;
-  if (target) target.scrollTop = before + 240;
+  const delta = before > 240 ? -240 : 240;
+  if (target) target.scrollTop = Math.max(0, before + delta);
   return {
     tag: target ? target.tagName : null,
     className: target ? String(target.className || "").slice(0, 60) : "",
@@ -166,10 +167,11 @@ const scrollerInfo = await page.evaluate(() => {
 });
 await page.waitForTimeout(120);
 let duringScroll = await probeState();
+let syntheticScroll = false;
 if (!duringScroll.scrolling) {
-  // 这个测试会话消息很少，聊天容器没有真实溢出，无法产生真实滚动。
-  // 这里用冒泡的 scroll 事件验证「监听 → data 属性 → CSS 暂停」这条链路；
-  // 真实滚动手感与掉帧留给真机（账本已记录该限制）。
+  // The fixture session may be too short to scroll. Mark this run as synthetic
+  // rather than silently counting it as a real-device scroll pass.
+  syntheticScroll = true;
   await page.evaluate(() => {
     const content = document.querySelector(".message-list-content");
     content?.dispatchEvent(new Event("scroll", { bubbles: true }));
@@ -177,7 +179,7 @@ if (!duringScroll.scrolling) {
   await page.waitForTimeout(80);
   duringScroll = await probeState();
 }
-record("滚动期间设置 data-dengta-scrolling", duringScroll.scrolling === "1", { duringScroll, scrollerInfo });
+record("滚动期间设置 data-dengta-scrolling", duringScroll.scrolling === "1", { duringScroll, scrollerInfo, synthetic: syntheticScroll });
 record("滚动期间常驻动画暂停", duringScroll.playState === "paused", duringScroll);
 await page.evaluate(() => document.querySelector("#__scroll-spacer")?.remove());
 await page.waitForTimeout(220);
@@ -199,42 +201,8 @@ await page.evaluate(() => {
 const visibleState = await probeState();
 record("回到前台动画恢复", visibleState.hidden === "" && visibleState.playState === "running", visibleState);
 
-// --- 3) 录音倒计时（剩余秒数递减） ---
-const mic = page.locator(".voice-hold-button, .chat-voice-button:not(.chat-voice-cancel)").first();
-const micPresent = (await mic.count()) > 0;
-if (!micPresent) {
-  record("录音倒计时（当前会话无语音按钮，跳过）", true, { skipped: true });
-} else {
-  await mic.waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
-  const box = await mic.boundingBox();
-  const x = box ? box.x + box.width / 2 : 320;
-  const y = box ? box.y + box.height / 2 : 800;
-  await mic.dispatchEvent("pointerdown", { pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, buttons: 1, clientX: x, clientY: y });
-  await page.waitForTimeout(1_700);
-  const readTimer = () =>
-    page.evaluate(() => {
-      const node = document.querySelector(".chat-voice-timer");
-      return node
-        ? { text: (node.textContent || "").trim(), ending: node.className.includes("is-ending") }
-        : null;
-    });
-  const firstTick = await readTimer();
-  await page.waitForTimeout(1_300);
-  const secondTick = await readTimer();
-  await mic.dispatchEvent("pointerup", { pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, buttons: 0, clientX: x, clientY: y });
-  
-  const numberIn = (tick) => Number(String(tick?.text || "").replace(/[^\d]/g, ""));
-  const first = numberIn(firstTick);
-  const second = numberIn(secondTick);
-  record("录音显示剩余秒数（倒计时）",
-    Boolean(firstTick) && /^\d+s$/.test(firstTick.text) && first >= 50 && first <= 60,
-    firstTick);
-  record("倒计时随时间递减",
-    Boolean(secondTick) && second < first && second >= 0,
-    { firstTick, secondTick });
-  record("倒计时未到 10 秒不进入警示态", Boolean(firstTick) && firstTick.ending === false, firstTick);
-  
-}
+// Voice countdown is covered by the dedicated voice UI check. Do not fake-pass
+// it here when the composer exposes no voice button.
 await fs.writeFile(`${OUT}/animation-budget.json`, JSON.stringify({ ranAt: new Date().toISOString(), infiniteCount, checks, failures }, null, 2), "utf8");
 console.log(failures.length ? `\n✗ ${failures.length} 项不通过` : "\n✓ 全部通过");
 await browser.close();

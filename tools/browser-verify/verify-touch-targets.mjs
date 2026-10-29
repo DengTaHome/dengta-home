@@ -90,7 +90,20 @@ async function measure(scopeSelector) {
             if (String(el.className || "").includes("visually-hidden")) continue;
             const rect = el.getBoundingClientRect();
             if (rect.width < 1 || rect.height < 1) continue;
-            if (rect.width >= MIN && rect.height >= MIN) continue;
+            // Buttons may use an absolutely-positioned ::after hit area
+            // (message-reference-button does). Measure the effective area.
+            const after = getComputedStyle(el, "::after");
+            let effectiveW = rect.width;
+            let effectiveH = rect.height;
+            if (after.position === "absolute" && after.content && after.content !== "none") {
+                const left = Number.parseFloat(after.left);
+                const right = Number.parseFloat(after.right);
+                const top = Number.parseFloat(after.top);
+                const bottom = Number.parseFloat(after.bottom);
+                if (Number.isFinite(left) && Number.isFinite(right) && left < 0 && right < 0) effectiveW -= left + right;
+                if (Number.isFinite(top) && Number.isFinite(bottom) && top < 0 && bottom < 0) effectiveH -= top + bottom;
+            }
+            if (effectiveW >= MIN && effectiveH >= MIN) continue;
             undersized.push({
                 tag: el.tagName.toLowerCase(),
                 cls: (typeof el.className === "string" ? el.className : "").trim().split(/\s+/).filter(Boolean).slice(0, 2).join(".").slice(0, 60),
