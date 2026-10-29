@@ -670,3 +670,26 @@
   claim-before-replay；⑧门禁仅 App.jsx；App chunk 663kB（P3 性能）。
 - 结论：143 倒计时/防抖/清理落地，无新增 P0/P1；建议 144 先补 sessionId 快照 + App 运行时失败语音测试
   （覆盖倒计时/禁用/竞态），再推进 orphan TTL 与跨实例 lease；Goldfish-R21 复核中。
+
+## 30. 轮次 144 orphan recovery 剩余窗口 / lint 复核（2026-10-30 05:23–05:36）
+
+- 基线：backend **35903b2**（05:21:59 提交，生产 `/health` revision 已核对一致；round144-backend.log
+  **0 fail**，mtime/运行窗口覆盖 commit；定向 voice-turn **1/1**）。frontend **b535029**（05:19:50，
+  仅 test/voice.test.js 删未用 import；生产入口 `index-WVYeb3iR.js` → `App-6XMI7ngo.js` 599,144B）。
+- 已验证：①fresh orphan 未到 TTL 时改为 `voiceTurnRecoveryResponse(voiceOrphanRemainingMs(...))` 直接
+  409：动态 `Retry-After`、body `code:"VOICE_TURN_RECOVERING"` + `retry_after_seconds`（不再 throw generic
+  chatGenerationInProgressError）；②remaining = max(0, max(180k,resumeAfterMs) - age)，header/body 一致，
+  `created_at` 非法→0（recovery 1s 边角）；③行为测试覆盖 remaining 100000/0 与 recovery status/code/
+  body/header；④前端 voice.js 保留 retryAfterSeconds + App 倒计时，fresh orphan 从“固定 5s 循环”变为
+  “剩余 TTL 倒计时”再 resume（源码级联动）；⑤frontend `npm run lint` exit 0、**0 error / 11 warning**
+  （既有 react-hooks/exhaustive-deps）；b535029 仅测试文件变更，产品源码不变；定向 voice.test 通过；
+  ⑥生产 App：倒计时/重试文案在、三长标识符 0/0/0、client_message_id=2；backend 35903b2。
+- 仍存 P2/P3：①泛 409 body 不一致——server.js:6716（并发 user 插入 23505 catch）仍走错误中间件：
+  仅 `Retry-After:5` header、无 body retry_after_seconds（code CHAT_GENERATION_IN_PROGRESS 可出），建议统一
+  recovery/Retry-After helper；②跨实例无 DB lease；③模型未取消/tool 副作用；④save 窄窗口；⑤TTL/prefix
+  长尾；⑥claim-before-replay 瞬时 409；⑦frontend retry attempt 仍缺 sessionId/turnContext/voiceModel
+  （切换会话后同 UUID 重试 409/错位）；⑧fresh-orphan 路由响应与前端倒计时仍无集成/浏览器测试（本轮仅
+  helper 行为测试 + 源码断言）；⑨invalid created_at→recovery 1s、DB/服务器时钟偏差影响剩余秒（边角）；
+  ⑩门禁仅 App.jsx（`eslint src` 已零存量可放宽）；App chunk 663kB（P3）。
+- 结论：R21 P1 修复真实落地（响应级动态剩余 TTL + 前端倒计时联动），无新增 P0/P1；建议 145 统一泛 409
+  body/recovery helper + fresh-orphan 集成测试 + frontend sessionId 快照；Goldfish-R22 复核中。

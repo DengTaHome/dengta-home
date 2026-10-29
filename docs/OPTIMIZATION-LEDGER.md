@@ -2067,3 +2067,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - frontend b535029 移除 unused import，全量 `npm run lint` 0 error（11 warning）；生产入口 index-WVYeb3iR.js。
 - 生产 backend 35903b2（/health 已核对）。
 - 剩余：客户端倒计时可达约60s；generic 409 body 字段仍不全；跨实例 lease、模型未取消、save 窄窗口。
+
+
+## 轮次 145（2026-10-30 · 冲突恢复窗口 + retry session）
+
+- 用户插入 23505 并发冲突且无 assistant 时，不再 generic 5s 409，改返 `VOICE_TURN_RECOVERING` + 剩余 TTL；抽 voiceOrphanResumeWindowMs，统一初始/冲突两处窗口。
+- invalid created_at 不再 1s 循环，返回完整 TTL。
+- 前端 retry attempt 保存 sessionId，重试固定原会话，避免切换会话后同 UUID 错位。
+- backend round145-backend.log 0 fail；frontend round145-frontend.log 0 fail；lint/build/CSP 通过；生产 backend e1c0049，frontend index-Bc8L96MZ.js → App-KbtoU_Ze.js（倒计时/重试文案/三长标识符 0）。
+- 剩余：跨实例 lease、模型/tool 取消、save 窄窗口、TTL/prefix、route 级集成/浏览器失败语音测试。
