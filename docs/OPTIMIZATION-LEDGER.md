@@ -1989,3 +1989,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - TTL 测试改用 fake clock 的秒级窗口；覆盖 token 缺失不删除、旧 token 不删新 claim、remainingMs 到期。
 - backend round136-backend.log 0 fail、voice-turn pass；生产 backend ce596b8（/health 已核对），frontend 4debff4。
 - 剩余：跨实例 DB lease、FE 每次新 UUID、模型/tool 未取消、server wiring mutation 弱。
+
+
+## 轮次 137（2026-10-30 · wiring/CORS 行为）
+
+- in-progress 409 响应抽成 `voiceTurnInProgressResponse`：动态 Retry-After、body `retry_after_seconds`、`Access-Control-Expose-Headers`；行为测试覆盖剩余 TTL 递减。
+- server 用 helper；全局 CORS exposedHeaders 加 Retry-After；通用 voice 409 兜底补 Retry-After。
+- backend round137-backend.log 0 fail、voice-turn pass；生产 backend f6cab4e（/health 已核对），frontend 4debff4。
+- 剩余：跨实例 DB lease、FE 新 UUID、模型/tool 未取消、mutation/route 集成仍有限。

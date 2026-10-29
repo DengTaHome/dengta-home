@@ -458,3 +458,25 @@
 - 遗留 P3：stored analysis 缺字段默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline。
 - 建议 136：release token 必填 + Retry-After 用剩余 TTL（小改）；然后决定单实例文档化 vs DB lease；
   FE UUID/超时退避与模型取消并行推进；Goldfish-R14 复核中。
+
+## 21. 轮次 136 guard token 必填 / Retry-After 复核（2026-10-30 03:41–03:52）
+
+- 基线：backend **ce596b8**（03:40:11 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round136-backend.log` **0 fail**（03:39:48 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终内容）；定向 voice-turn **1/1**（fake clock：claim/重复/remaining=1000/无 token release=false
+  且 claim 保留/过期 remaining=0/reclaim token-2/旧 token=false/新 token=true/其它 key/size）。
+- 已验证：①`release(key, token)` token 必填，缺失或不匹配返回 false 且不删除（旧 finally 不会误删新 claim）；
+  server finally 始终传 `{key,token}`；②`remainingMs(key)` 暴露，claim 失败时
+  `Retry-After = max(1, ceil(remaining/1000))`（不再硬编码 5）并设 `Access-Control-Expose-Headers:
+  Retry-After`（跨源可读）；③claim 存 `expiresAt`，判定 `now() < expiresAt`，过期可重 claim；
+  ④测试覆盖 token 必填/剩余 TTL/旧 token；⑤生产 revision=ce596b8。
+- 结论：token/Retry-After 两项收口；**P0=0、P1=0（单实例）**。
+- 仍存 P2：①跨实例无 DB lease（滚动部署/多实例双 generation，assistant replay 但模型/tool 双跑）；
+  ②FE 重试仍新 UUID + TTL 200>FE 180；③模型未取消/tool 副作用；④save 窄窗口；
+  ⑤server wiring 仍仅源码正则，无集成/mutation 测试（删/改 finally 传 token 或 409 Retry-After 可能仍绿）。
+- 仍存 P3：TTL=deadline+60 仍可能被 prefix 长尾超过（旧 release 安全但老/新 generation 可并存）；
+  Expose-Headers 为 409 专属覆盖（建议加进全局 exposedHeaders）；`at` 字段已无用；claim 内 now() 调两次；
+  claim-before-replay 瞬时 409；前端未消费 code/Retry-After。
+- 遗留 P3：stored analysis 默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline。
+- 建议 137：server wiring 抽可单测函数/route 集成测试（含 mutation 检查）；决定单实例文档化 vs DB lease；
+  FE UUID/退避与模型取消并行；Goldfish-R15 复核中。
