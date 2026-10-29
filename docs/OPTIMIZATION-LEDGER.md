@@ -1887,3 +1887,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 测试：backend round126-backend-final2.log 0 fail；frontend c226868 全量 0 fail（Elephant 01:35 重跑）；定向 voice-turn/chat-idempotency 2/2。
 - 生产：frontend c226868（入口 index-C4FrfWn0.js），backend 4dc24f0。
 - 剩余 P2：loser 重复 HerVoice、孤儿 user 同 UUID 永久 409、人工重试不复用 UUID、generateReply 无 cancel、23505 无 DB-mock 行为测试。
+
+
+### 轮次 126 收尾（Goldfish-R4 P1 闭环）
+- HERVOICE 上限 60s，Render env/render.yaml 同步 60000；语音轮 `request_timeout_ms` clamp ≤60s；前端 XHR 150s（60 转写 + 60 生成 + 余量）。
+- 测试：backend round126-backend-final3.log 0 fail；frontend round126-frontend-final2.log 0 fail。
+- 生产：frontend 008da05（入口线上抓取）、backend 8903116；启动空闲写请求 0。
+- Goldfish-R4 P1 超时不一致已按 150 > 60+60 处理；Goldfish-R5 复核中。
