@@ -259,3 +259,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 915 胶囊（2026-10-29 轮次 94）
 
 - JS 断点同步 960 复合条件；915 胶囊可打开 status-panel；矩阵新增点击回归。
+
+## 键盘适配（2026-10-29 轮次 95）
+
+- 键盘态 390/320/844 横屏 composer/textarea 全在可视区；固定 composer 仅键盘态。
+- Vercel c2c9a1b READY；full20 运行中。

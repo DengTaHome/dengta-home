@@ -1650,3 +1650,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 修复 `CompanionStatus.jsx`：JS 断点改为与 CSS 一致的复合条件 `(max-width:820px), (orientation:landscape) and (max-height:560px) and (max-width:960px)`。
 - 矩阵新增短横屏胶囊回归：点击后强断言 `.status-panel.is-open=true`；568/844/896/915 全部通过。
 - 18/18 视口真实消息 0 问题，ready 19.3–23.3s。
+
+## 轮次 95（2026-10-29 · 软键盘/横屏键盘适配）
+
+- 模拟 Android 键盘缩小可视视口并设置 `data-keyboard-open=true`：
+  - 390×844→400：composer bottom 390，textarea 382
+  - 320×568→300：composer 290，textarea 282
+  - 844×390→230：composer 220，textarea 165
+- 修复：仅在键盘态+短横屏隐藏 presence stack，composer 固定到可视视口底部；正常 568×320 横屏不受影响。
+- JS 状态胶囊断点同步 960 复合条件；915 胶囊可打开 status-panel。
+- Vercel c2c9a1b READY；full19 exit0 3829 行 0 fail；full20 跑最新键盘 CSS。
