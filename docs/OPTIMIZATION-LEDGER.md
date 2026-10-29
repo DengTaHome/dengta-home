@@ -2076,3 +2076,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 前端 retry attempt 保存 sessionId，重试固定原会话，避免切换会话后同 UUID 错位。
 - backend round145-backend.log 0 fail；frontend round145-frontend.log 0 fail；lint/build/CSP 通过；生产 backend e1c0049，frontend index-Bc8L96MZ.js → App-KbtoU_Ze.js（倒计时/重试文案/三长标识符 0）。
 - 剩余：跨实例 lease、模型/tool 取消、save 窄窗口、TTL/prefix、route 级集成/浏览器失败语音测试。
+
+
+## 轮次 146（2026-10-30 · 门禁放宽 / recovery 断言）
+
+- frontend 21382e0：build gate 从 `eslint src/App.jsx` 放宽到 `eslint src --quiet`（当前全量 0 error），build/CSP 通过。
+- backend db6ed2f：补 recovery call-site 精确断言（voiceTurnRecoveryResponse(voiceOrphanRemainingMs(...))、res.set(recovery.headers)、voiceOrphanResumeWindowMs），voice-turn pass。
+- 剩余：跨实例 lease、模型/tool 取消、assistant save 窄窗口、route/浏览器失败语音集成测试、retry 的 turnContext/voiceModel 快照、TTL/prefix。

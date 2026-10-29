@@ -693,3 +693,27 @@
   ⑩门禁仅 App.jsx（`eslint src` 已零存量可放宽）；App chunk 663kB（P3）。
 - 结论：R21 P1 修复真实落地（响应级动态剩余 TTL + 前端倒计时联动），无新增 P0/P1；建议 145 统一泛 409
   body/recovery helper + fresh-orphan 集成测试 + frontend sessionId 快照；Goldfish-R22 复核中。
+
+## 31. 轮次 145 23505 恢复 / session pin 复核（2026-10-30 05:44–06:00）
+
+- 基线：backend **e1c0049**（05:39:28 提交，生产 `/health` revision 已核对一致；round145-backend.log
+  **0 fail**，mtime/运行窗口覆盖 commit；定向 voice-turn **1/1**）。frontend **3ab7a45**（05:39:29；
+  round145-frontend.log **0 fail**；lint 0 error/11 warning；build+verify:csp 通过；生产入口
+  `index-Bc8L96MZ.js → App-KbtoU_Ze.js` 599,237B）。
+- 已验证：①23505 user insert 冲突且无 assistant 时不再 generic 409，改为
+  `voiceTurnRecoveryResponse(voiceOrphanRemainingMs(previousUser, voiceOrphanResumeWindowMs(env)))` 直接 409：
+  动态 Retry-After + body `retry_after_seconds` + `VOICE_TURN_RECOVERING`（有 previousUser 时）；仅
+  “冲突后查不到 previousUser”的极窄副本延迟路径仍 generic；②抽 `voiceOrphanResumeWindowMs`
+  （clamp 180k–600k、默认 200k，fresh-orphan 与 23505 共用）并加行为测试（bad/150000/900000）；
+  ③`voiceOrphanRemainingMs` invalid created_at 返回完整 TTL（不再 1s 高频循环，corrupted 行会长时间
+  recovery，边角取舍）；④frontend `sessionId = options.sessionId || current`，
+  发送前写入 `lastVoiceAttemptRef.sessionId`，retry 传 `sessionId: attempt.sessionId` → 重试固定原会话
+  （143 遗留 sessionId 项关闭）；测试加源码断言；⑤backend/frontend 全量 0 fail、lint/build/CSP 与生产
+  bundle markers/字面量 0 均独立复核。
+- 仍存 P2/P3：①跨实例无 DB lease；②模型未取消/tool 副作用；③assistant save 窄窗口；④TTL/prefix 长尾；
+  ⑤claim-before-replay 瞬时 409；⑥**route 级集成测试仍缺**（fresh-orphan/23505 recovery 无真实 HTTP/
+  fake req-res；前端倒计时无运行时测试）；⑦retry 只 pin sessionId，turnContext/voiceModel 未快照；
+  ⑧残留 generic 409 body（previousUser 查不到）、invalid created_at 长恢复、时钟偏差影响剩余秒；
+  ⑨门禁仅 App.jsx；App chunk ~663kB（P3）。
+- 结论：145 P0=0、P1=0（23505 R21 race 与 session pin 收口）；建议 146 先补 route/前端运行时集成测试，
+  再推进跨实例 lease / 模型取消 / save 窄窗口；Goldfish-R23 复核中。
