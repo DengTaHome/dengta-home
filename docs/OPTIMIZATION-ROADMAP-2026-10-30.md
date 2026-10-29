@@ -279,3 +279,21 @@
   生产 App chunk 里的 `12e4` 是其他模块常量，语音 chunk 以 `15e4` 为准。
 - 建议 127：先做 route 总 deadline/abort 收口（唯一剩余结构性 P1 类），再 transcript-first 流式；
   随后 R3 全页面 980、R4 CSS 预算、R5 后端 CI/readiness。
+
+## 12. 轮次 127 语音响应后置复核（2026-10-30 02:00–02:12）
+
+- 基线：backend **40ea725**（01:58:28 提交，**生产 `/health` revision=40ea725 已上线**）；
+  frontend 008da05 未改。backend 仅 `server.js` + `test/voice-turn.test.js`。
+- 测试：`round127-backend.log` **0 fail**（01:58:06 完成；server/test mtime 早于运行开始、commit 晚于运行结束
+  → 严格覆盖最终提交）；定向 voice-turn **1/1** pass。
+- 已验证：`res.json`（server.js:6842，`memory_compression:null`）先发；四个后置任务
+  `void touchConversation / tryScheduleProactiveMessageEvaluation / tryScheduleAutonomousContentEvaluations /
+  tryCompressMemory` 全部带 `.catch` 在响应后执行；压缩改用 effectiveSettings（60s clamp）；
+  前端不消费 `memory_compression`；`memoryCompressionLocks` 防与下一轮双跑；生产 revision 对得上。
+- P1 预算变化：压缩/触达/主动评估移出关键路径 → 典型响应省 0.5–2s，触发压缩的轮次最多省 ~60s
+  （“压缩拉长语音响应”已关闭）；**结构性 P1 仍在**：生成超时仍是每次 provider 调用 ≤60s，
+  tool loop 默认 3 轮（retryable 6 / takeout 4）→ 最坏生成 180–360s，150s 客户端仍可能先超时。
+  建议 128 首项：route 总 deadline(~140s)+生成/保存前 abort 检查+generateReply signal，或 transcript-first。
+- 新增 P2/P3：后置任务 touch/proactive/autonomous 失败被静默吞（建议补日志/后台 job 化，避免主动消息
+  调度丢失）；进程重启窗口后置任务可能丢；测试仍仅源码正则断言（无行为/异常/顺序测试）。
+- 结论：127 P0=0；P1 结构性问题收窄但未清零（生成总量无上限）；其余为 P2/P3。

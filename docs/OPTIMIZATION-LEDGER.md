@@ -1894,3 +1894,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 测试：backend round126-backend-final3.log 0 fail；frontend round126-frontend-final2.log 0 fail。
 - 生产：frontend 008da05（入口线上抓取）、backend 8903116；启动空闲写请求 0。
 - Goldfish-R4 P1 超时不一致已按 150 > 60+60 处理；Goldfish-R5 复核中。
+
+
+## 轮次 127（2026-10-30 · 语音响应路径）
+
+- 语音轮响应前不再 await 记忆压缩/触达会话/主动评估；四项改为 res.json 后 `void … .catch`，`memory_compression:null`；压缩使用 effectiveSettings（60s clamp）。
+- 关键路径节省典型 0.5–2s，触发压缩时最多约 60s；异常均有 catch，无 unhandledRejection。
+- 测试：backend round127-backend.log 0 fail；定向 voice-turn 1/1。
+- 生产 backend 40ea725（revision 已核对），frontend 008da05。
+- 结构性 P1 仍在：生成超时为单次 provider 调用 60s，工具多轮最坏 180–360s；下一轮 route 总 deadline/signal 或 transcript-first。
