@@ -186,3 +186,28 @@
 - 生产验证结论：本轮 7 项修复在生产构建上 6.5/7 通过（reduce 根属性部分通过），P0=0。
 - 下一步（round 126 起）：先补 reduce 根属性 + 视觉/焦点自动化测试 → 回到语音流式化 R2、R3 全页面、
   R4 CSS 预算、R5 后端 CI/readiness；孤儿测试接线零风险可随时插入。
+
+## 8. 轮次 125 最终事实 / 收尾（2026-10-30 01:15）
+
+- 基线：frontend **9e15621**（origin/main 同步；生产入口 `index-B0qk7gbP.js`）；backend **cf02b7f**
+  （生产 revision 已上线）；生产 feed 同源、APK HEAD 200（36,536,695B）。
+- Goldfish-R3 独立复核：**P0=0、P1=0、P2=2**；OS reduce 下根 attr `data-dengta-reduced-motion="true"`、
+  9s 彩虹 `animationName=none/0s`；Redmi 抽屉打开焦点/关闭按钮、main inert、Esc 关闭通过；
+  1280 coarse 侧栏不 inert；同源 APK HEAD 200。
+- 随后 P2 修复（frontend 3b653f0 + 9e15621）：
+  ①844×390 + recovery 多行 composer：`max-height:148px` + `overflow-y:auto` 内部滚动；
+    生产实测未滚动时 voice/reply bottom=406（部分出视口），滚动 16px 后 bottom=390 且 hit=true，
+    `.composer-wrap` bottom=390；
+  ②短横屏隐藏 `.mobile-command-dock`（display:none）避免遮挡 send；
+  ③reduce 根属性 OR OS 偏好（bafa9e2），生产实测 attr="true"。
+- 测试：frontend 全量 `round125-full-green5.log` **0 fail**；backend 全量 `round125-backend-green4.log` **0 fail**。
+- 备份：`dengta-home` HEAD **ce54993**；`backup\dengta-home-full-20261030.bundle` 27.33MB；
+  `web-dist` 复核 200 文件/31.09MB（lead 报 197/31.07MB，计数时点差异）；releases 新增 2.13.47
+  （`-305-feed.apk` 36,536,695B / `-305-release.apk` 36,540,791B）；`backup\README.md` 01:09 刷新。
+- 剩余 P2（最终、不阻塞）：
+  1) 多行 composer 按钮滚动前部分不可见，需内部滚动 16px 才 fully visible（可滚动命中，建议下轮折叠
+     recovery 横幅/单行工具条彻底消除）；
+  2) 音乐工作室 iframe HTTP 401 仍触发 onLoad → overlay 提前消失（已知限制）；
+  3) 视觉/焦点类修复无 `npm test` 自动化用例、24+14 孤儿测试未接线。
+- 125 轮结论：P0=0、P1=0、P2=3，生产与备份基线已锁定；下一轮按原计划从语音流式化 R2、R3 全页面、
+  R4 CSS 预算、R5 后端 CI/readiness 继续。
