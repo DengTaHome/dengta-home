@@ -2200,3 +2200,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 单测新增 `积累一些经验`/`累计三次` → null；backend round159-backend.log 0 fail。
 - 生产 backend ee7f5f7（/health 已核对）；frontend index-DNV0ffbc。
 - 剩余：否定/反讽覆盖有限；claim fail-open、模型取消/save 后副作用、route E2E、首屏。
+
+
+## 轮次 160（2026-10-30 · 首屏性能实测）
+
+- Edge headless 移动视口 390/360 实测生产首屏：TTFB 1158/1148ms，LCP 2332/2376ms，DOMContentLoaded 2096/2150ms，传输 304KB，CLS 0。
+- 慢资源集中在 react-core 874ms、supabase-auth 725–978ms、CSS 678–880ms；App 动态包 ~663KB 在登录后加载，不在首屏路径。
+- 未发现需要紧急优化的首屏回退；脚本 `_tools/pw/perf-current.mjs`，记录 `_audit/PERF-2026-10-30.md`。
+- 剩余：登录后 App chunk 可继续拆分；touch 深层面板；claim fail-open、模型取消、route E2E。
