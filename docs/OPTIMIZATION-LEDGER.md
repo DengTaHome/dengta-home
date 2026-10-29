@@ -2192,3 +2192,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - lease 降级计数增加阈值告警：达到 5 及每 10 次 console.warn；`/health voice_lease_degraded` 仍可读。
 - backend round158-backend.log 0 fail；生产 backend 7340f5b（/health 已核对）；frontend index-DNV0ffbc。
 - 剩余：否定句/反讽覆盖有限、claim fail-open 仍放行、模型取消/save 后副作用、route E2E、App chunk。
+
+
+## 轮次 159（2026-10-30 · 情绪复合词过滤）
+
+- 文字情绪推断排除非情绪复合词：积累/累计/累积 中的“累”不再误判 tired；保留“还是有点累” tired。
+- 单测新增 `积累一些经验`/`累计三次` → null；backend round159-backend.log 0 fail。
+- 生产 backend ee7f5f7（/health 已核对）；frontend index-DNV0ffbc。
+- 剩余：否定/反讽覆盖有限；claim fail-open、模型取消/save 后副作用、route E2E、首屏。
