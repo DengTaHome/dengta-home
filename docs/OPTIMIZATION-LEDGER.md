@@ -1772,3 +1772,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 手机 curl 同源 auth health=200，解决 `*.supabase.co` TLS reset 导致登录失败。
 - 新 APK（同源 URL + 新签名）安装 vivo V2454A 成功，启动正常。
 - 记录 docs/SAME-ORIGIN-AUTH-2026-10-29.md。
+
+
+## 轮次 112（2026-10-29 · 可拖动命令浮块）
+
+- 原固定小方块改为可拖动浮块；四边自动收起，点击展开/打开命令面板；位置持久化。
+- 命令面板改底部 sheet（手机/横屏），去掉 backdrop-filter，加 grabber/柔光/图标。
+- 新验证脚本 3 视口（390/320/844）全 PASS；command-palette 测试 1/1。
+- 记录 docs/COMMAND-DOCK-2026-10-29.md。

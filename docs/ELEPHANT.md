@@ -331,3 +331,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 同源登录代理（2026-10-29 轮次 111）
 
 - /supabase rewrite + VITE_SUPABASE_URL 同源；手机 auth health 200；新 APK 已装。
+
+
+## 可拖动命令浮块（2026-10-29 轮次 112）
+
+- 四边吸附收起/点击展开；位置持久化；面板底部 sheet 去 blur；3 视口 PASS。
