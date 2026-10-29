@@ -293,3 +293,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 抽屉/设置闪烁（2026-10-29 轮次 102）
 
 - 手机去掉 sidebar/settings 多层 backdrop-filter、scrim 动画，抽屉仅 transform；0 布局/无 heavy backdrop。
+
+## 侧边栏透明度/下载入口（2026-10-29 轮次 103）
+
+- 手机 sidebar/settings 改不透明主题色，brand 对比修复；新增下载入口；安装 guidance 可见。

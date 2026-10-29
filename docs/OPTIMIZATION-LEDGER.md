@@ -1706,3 +1706,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 用户反馈侧边栏弹出闪屏/动画杂、设置页显示异常。
 - 修复：手机上 `.sidebar`、footer、account slot、`.settings-sheet`/header/scroll、settings cards/folders 全部去掉 backdrop-filter；抽屉只保留 transform + will-change；scrim 去 dim-in；阴影缩小。
 - 验证：320/360/390/844/915 打开抽屉/设置页无 mobile-backdrop、0 布局问题。
+
+## 轮次 103（2026-10-29 · 侧边栏/设置透明度与下载入口）
+
+- 手机侧边栏改不透明主题卡片色，brand 标题/副标题修正对比；设置页 sheet/scroll/page 改不透明主题背景，卡片/文件夹实色。
+- 侧边栏增加「下载 Android App」，设置页增加「下载安卓安装包」；安装按钮恢复可见的 guidance 反馈（原先 notice 被设置层遮住，看起来没反应）。
+- 320/360/390/844/915 截图与审计通过。
