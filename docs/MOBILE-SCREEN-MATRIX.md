@@ -60,7 +60,8 @@ node tools\browser-verify\verify-layout-matrix.mjs
 
 ## 复现口径
 
-- 18 个视口在**同一个构建**上连续跑完；每档 `msgCount > 0`，截图是真实聊天而不是加载壳。\n- 短横屏（568/844/896/915）每档点击胶囊后 `.status-panel.is-open=true`。
+- 18 个视口在**同一个构建**上连续跑完；每档 `msgCount > 0`，截图是真实聊天而不是加载壳。
+- 短横屏（568/844/896/915）每档点击胶囊后 `.status-panel.is-open=true`。
 - 每个视口必须出现真实消息（不是只看到会话列表）；没有消息/白屏/启动失败会抛错退出 1。
 - 恢复态（`.connection-recovery` 存在）：短横屏 composer 273–380 / 390，presence 隐藏，底栏不被裁；恢复后胶囊重新出现。
 
