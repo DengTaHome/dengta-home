@@ -648,3 +648,25 @@
   TTL/prefix、claim-before-replay；⑥build 警告 App chunk 662.97kB/gzip216.52（P3 性能）。
 - 结论：142 门禁有效、P0 防回归到位；建议 143 放宽到 src 全量 + 文档化 npm build + App 运行时测试/
   retryAfterSeconds 倒计时；Goldfish-R20 复核中。
+
+## 29. 轮次 143 语音重试倒计时 / 防抖复核（2026-10-30 05:06–05:20）
+
+- 基线：frontend **a3be080**（04:58:44 提交，App.jsx/test +42/-5）；backend 未变 7d16b05（/health 一致）；
+  `round143-frontend.log` **0 fail**（05:05:37 完成，mtime/运行窗口覆盖 commit；.err 仅 deprecation 警告）。
+- 已验证：①`voiceRetryWaitSeconds`/`voiceRetryInFlight` 新 state；useEffect 每 1s 递减 max(0) +
+  cleanup clearTimeout，wait=0 不建 timer；②失败读 `error.retryAfterSeconds` → `max(0, floor(...))`
+  设置等待；③按钮 `disabled={inFlight || wait>0}`，wait>0 文案“X 秒后可重试”，否则“重试这条语音”；
+  ④`retryVoiceTurn` 有 `!attempt || inFlight || wait>0` 守卫，try/finally 清 in-flight；⑤cancel/begin
+  录音清 ref/available/wait，成功路径额外清 in-flight；⑥eslint gate exit 0 + 全量 build exit 0
+  （verify:csp ok）；⑦生产 `index-BZhw5hVc.js → App-DQmsj-ir.js`（599,144B）：“秒后可重试”=1、
+  “重试这条语音”=1、三长标识符 0/0/0、client_message_id=2；CSS 44px 规则仍在。
+- 仍存 P2/P3：①retry attempt 缺 sessionId/turnContext/voiceModel（切换会话后同 UUID 重试会 409/错位），
+  建议快照进 attempt 并在会话变更时禁用；②无真实失败语音 e2e/运行时行为测试（本轮仍只有源码断言），
+  建议 jsdom/react-test-renderer 或 Playwright 拦截 409 验证倒计时/禁用/清理；③orphan TTL200>FE180：
+  超时失败无 retryAfter → 按钮立即恢复，服务端 generic 409（5s 倒计时）可能反复到 TTL，建议提示/更长退避；
+  ④in-flight 锁是 state 非 ref，建议 ref 兜底；⑤窄竞态：retry 在途时开始新录音，旧成功回调在 cancelled
+  检查前清 lastVoiceAttemptRef，可能清掉新录音 retry 元数据（建议提前 run 比较/attempt 带 runId）；
+  ⑥a11y：倒计时文本变化无 aria-live；⑦跨实例 lease、模型未取消、save 窄窗口、TTL/prefix、
+  claim-before-replay；⑧门禁仅 App.jsx；App chunk 663kB（P3 性能）。
+- 结论：143 倒计时/防抖/清理落地，无新增 P0/P1；建议 144 先补 sessionId 快照 + App 运行时失败语音测试
+  （覆盖倒计时/禁用/竞态），再推进 orphan TTL 与跨实例 lease；Goldfish-R21 复核中。

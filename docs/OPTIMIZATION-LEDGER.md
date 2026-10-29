@@ -2058,3 +2058,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 测试补 wait/in-flight/文案/retryAfterSeconds 源码断言；frontend 全量 round143-frontend.log 0 fail；lint/build/CSP 通过。
 - 生产入口 index-BZhw5hVc.js → App-DQmsj-ir.js，App 含“秒后可重试”、三个长标识符 0。
 - 剩余：retry attempt 未绑 sessionId、无真实失败语音 e2e、orphan TTL200>FE180、跨实例 lease、模型未取消。
+
+
+## 轮次 144（2026-10-30 · orphan 恢复倒计时）
+
+- fresh orphan（user 已落库、assistant 未完成、未到 VOICE_ORPHAN_RESUME_MS）不再返 generic 5s 409，改返 `VOICE_TURN_RECOVERING` + 剩余 TTL 的 Retry-After/body retry_after_seconds。
+- 新增 voiceOrphanRemainingMs / voiceTurnRecoveryResponse 行为测试；backend round144-backend.log 0 fail。
+- frontend b535029 移除 unused import，全量 `npm run lint` 0 error（11 warning）；生产入口 index-WVYeb3iR.js。
+- 生产 backend 35903b2（/health 已核对）。
+- 剩余：客户端倒计时可达约60s；generic 409 body 字段仍不全；跨实例 lease、模型未取消、save 窄窗口。
