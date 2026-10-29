@@ -1963,3 +1963,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 限制：仅单 Render 实例内生效，跨实例仍无 DB lease；前端每次新 UUID 仍使 orphan resume 不可达。
 - 测试：backend round133-backend.log 0 fail、voice-turn pass。
 - 生产 backend 6a658d9（/health 已核对），frontend 4debff4。
+
+
+## 轮次 134（2026-10-30 · guard 作用域/行为测试）
+
+- voice guard 抽成 `createVoiceTurnGuard`，支持 claim/release/expiry；server key 改为 `userId:companionId:clientMessageId`，TTL 绑定 deadlineMs+30s。
+- 行为测试覆盖同 key 拒绝、过期、release、独立 key；不再是纯源码 token。
+- 测试：backend round134-backend.log 0 fail、voice-turn pass。
+- 生产 backend 3012f33（/health 已核对），frontend 4debff4。
+- 剩余：跨实例仍无 DB lease、前端每次新 UUID、模型/tool 未取消、save 窄窗口。
