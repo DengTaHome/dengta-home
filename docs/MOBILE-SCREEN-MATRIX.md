@@ -83,3 +83,15 @@ node tools\browser-verify\verify-layout-matrix.mjs
 - 横屏抽屉：修复 `session-heading button` 新建对话 29×29→44×44
 
 验证脚本 `_audit/verify-surfaces.mjs`（本地临时审计；截图在 `_audit/browser-surfaces/`）。
+
+## 软键盘弹起
+
+模拟 Android 软键盘缩小可视视口，并设置真实 App 的 `data-keyboard-open=true`：
+
+| 初始视口 | 键盘后高度 | composer bottom | textarea bottom | 结果 |
+|---|---:|---:|---:|---|
+| 390×844 | 400 | 390 | 382 | 通过 |
+| 320×568 | 300 | 290 | 282 | 通过 |
+| 844×390 横屏 | 230 | 220 | 165 | 通过 |
+
+修复：仅在 `:root[data-keyboard-open="true"]` 且短横屏时隐藏 presence stack，并将 composer 固定到可视视口底部；键盘关闭后恢复。568×320 正常横屏不再被键盘规则影响。
