@@ -1850,3 +1850,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 前端全量 0 failure/3834 行；后端 0 failure；Vercel 72cdb13 READY。
 - APK 78d325ae 已安装 vivo V2454A；微信/QQ 绑定+DB scope e2e 通过；命令面板对比度/最近布局修复。
 - 剩余：外部完整一起听页、X 上游 404、QQ 桥自动绑定。
+
+
+## 轮次 123（2026-10-29 · 旧版背景切换）
+
+- 找到旧版海岸静帧 coast-day/twilight/night；新增 LegacyCoastBackdrop 与经典背景 5 选项。
+- 设置·外观与聊天可切换；命令面板可快捷切换；按账号持久化；默认仍为实时天空。
+- Vercel b8dc35a；APK 2.13.45(303) acc8768c 已装手机；390/844 场景验证通过。
