@@ -1466,3 +1466,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 单文件实测 exit 0；已 push。
 - 同时累计本轮：语音按钮键盘可达；saveData/低内存设备跳过 7.4MB 字体；performance-guards 3 项。
 - full9 全量已重新启动，等待结果。
+
+## 轮次 69（2026-10-29 · full9 唯一失败修复）
+
+- full9 完整跑完：唯一失败是 `mobile-layout` 的 stylesheet order 断言仍期待 `index.css` 后直接 `cozy-theme.css`，而入口已插入 `refusal-banner.css`。
+- 已更新两处期望顺序；`mobile-layout` 单测通过。
+- 之前 `music-import-flow` 的 Vite teardown 停滞已修；full9 能完整结束即为证明。
+- 已启动 full10 复跑。

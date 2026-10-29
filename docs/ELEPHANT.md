@@ -125,3 +125,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - full8 卡在 music-import-flow 的 vite.close()；已加 2s race + process.exit(exitCode) 兜底。
 - 单文件通过；full9 全量重跑。
+
+## full9 唯一失败修复（2026-10-29 轮次 69）
+
+- full9 只在 mobile-layout 的 stylesheet order 失败（缺 refusal-banner.css）；已修并单测通过。
+- full10 复跑中；music-import-flow teardown 停滞已修。
