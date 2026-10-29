@@ -1930,3 +1930,28 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 测试：backend round129-backend-final2.log 0 fail、voice-turn pass；frontend 4debff4 全量 0 fail。
 - 生产 backend cd618cd（/health 已核对），frontend 4debff4（入口 index-BezGkGb9.js）。
 - P0/P1=0；剩余 P2：orphan/lease、模型/tool 未取消、save 窄窗口、prefix 无 deadline、clamp/code 缺行为测试、前端未消费 code。
+
+
+## 轮次 131（2026-10-30 · 语音 orphan 恢复）
+
+- 同 client_message_id 的 stale user（created_at > VOICE_ORPHAN_RESUME_MS，默认160s/clamp 60–300s）不再永久 409：复用原 content 与 stored voice_analysis，跳过 HerVoice 与 user 重插，直接生成并写 assistant reply key；conversationId 复用原会话。
+- fresh orphan 仍 409，避免与进行中的请求并发；helper 三态测试。
+- 测试：backend round131-backend.log 0 fail、voice-turn pass。
+- 生产 backend 66ea928（/health 已核对）。
+- 剩余：stale 并发仍无 lease、前端人工重试仍生成新 UUID（恢复仅同 UUID 客户端可用）、stored analysis 可能缺字段、源码断言弱。
+
+
+## 轮次 132（2026-10-30 · orphan hardening）
+
+- orphan TTL clamp 180–600s、默认200s（> deadline 170s），避免原请求仍在生成时恢复；render.yaml 记录 VOICE_ORPHAN_RESUME_MS=200000。
+- 同 client_message_id 的非语音消息返回 409 CLIENT_MESSAGE_NOT_VOICE，不再按语音恢复。
+- assistant save 23505 catch → 查 assistant → voiceReplayPayload，不再 500/重复生成。
+- 测试：backend round132-backend.log 0 fail、voice-turn pass。
+- 生产 backend fcdc13f（/health 已核对），frontend 4debff4。
+- 剩余：并发无 lease、前端重试不复用 UUID、模型/tool 未取消、assistant save 窄窗口。
+
+
+### 轮次 132 收尾（87c735d）
+- render.yaml 补 `VOICE_ORPHAN_RESUME_MS=200000`；`CLIENT_MESSAGE_NOT_VOICE` 纳入 voiceLifecycleCode，409 响应带 code。
+- 生产 backend 87c735d（/health 已核对）；测试 round132-backend-final.log 0 fail、voice-turn pass。
+- Goldfish-R11：P0=0、当前 P1=0；剩余 P2：无 generation lease（并发重复模型/tool）、前端每次语音新 UUID、model/tool 未取消、assistant save 无 abort 检查、23505 依赖 details、测试无行为断言、guard 日志仍 request_failed。

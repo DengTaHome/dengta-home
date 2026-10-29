@@ -358,3 +358,40 @@
   可做差异化提示/UUID 复用）；XHR 计时含上传/冷启动，env=170 时仅 ~10s 余量（默认 140 时 ~40s，P3 观察）。
 - 结论：130 P0=0、P1=0（clamp/code 收口）；建议 131 优先 orphan/lease + signal 下传，再 transcript-first；
   Goldfish-R9 复核进行中。
+
+## 16. 轮次 131 orphan resume 复核（2026-10-30 02:45–03:00）
+
+- 基线：backend **66ea928**（02:43:58 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round131-backend.log` **0 fail**（02:43:34 完成；server/voice-turn/test mtime 早于运行开始、
+  commit 晚于运行结束 → 覆盖最终提交）；定向 voice-turn 复跑 **1/1**。
+- 已验证：同 client_message_id 的 stale user（默认 ≥160s，env `VOICE_ORPHAN_RESUME_MS` clamp 60–300s；
+  fresh 仍 409）可恢复：复用 conversation_id、原 content 与 stored voice_analysis，**跳过 HerVoice 与
+  user 插入**，assistant 仍写 reply_to_client_message_id（后续同 UUID 走 replay）；`created_at` 非法 → 409。
+- 新发现 P2：①TTL 默认 160s 与 deadline clamp 上限 170s/env 下限 60s 可能重叠 → 双 generation，
+  assistant unique 冲突时 saveMessage **无 try/catch**（server.js:6876-6894）→ 500；建议 TTL 与 deadline
+  联动 + 23505 catch→replay；②并发无 clientMessageQueue/lease；③无 `is_voice` 守卫（chat 也共用
+  client_message_id 列）；④恢复仍强制 multipart 文件（音频未用，浪费上行）；⑤`VOICE_ORPHAN_RESUME_MS`
+  未写进 render.yaml（生产默认 160s，/health 不可核验）；⑥前端人工重试仍新 UUID，恢复逻辑吃不到；
+  ⑦测试仅 helper 单测+源码正则，无路由行为/并发测试。
+- 遗留 P2：assistant save 窄窗口、模型/tool 未取消、prefix 不受 deadline。
+- 建议 132：先做 assistant 23505 catch→replay + TTL/deadline 联动 + `is_voice` 守卫（小改动、风险低），
+  再考虑前端保留 UUID/blob；Goldfish-R10 复核中。
+
+## 17. 轮次 132 orphan 硬化复核（2026-10-30 02:52–03:05）
+
+- 基线：backend **fcdc13f**（02:50:23 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round132-backend.log` **0 fail**（02:50:01 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终提交）；定向 voice-turn 复跑 **1/1**。⚠ 本 commit **无测试文件改动**，新逻辑无断言（绿≠覆盖）。
+- 已验证：①TTL clamp 180–600s 默认 200s（<180 被抬到 180），helper 同步；直接调用验证 200s→true、
+  170s→false，默认 200s > deadline 170s → 生成中恢复窗口关闭；②`is_voice` 守卫对非语音同 UUID
+  返回 409 CLIENT_MESSAGE_NOT_VOICE（buildVoiceMessageMetadata 恒带 is_voice，正常语音不误伤）；
+  ③assistant save 23505 catch→find assistant→voiceReplayPayload，不再 500（找不到才 rethrow）；
+  ④并发冲突仅解决“500/replay”，两请求在冲突前的 generation/tool 仍双跑。
+- 重要不符：**render.yaml 实际未加 `VOICE_ORPHAN_RESUME_MS`**（只有 line 63 的 VOICE_TURN_DEADLINE_MS）；
+  生产未在控制台设置时用代码默认 200s，`/health` 不可核验。另 TTL 200s > FE 180s → 前端即使复用 UUID，
+  180–200s 即时重试仍 409（建议 TTL 185–190s 或 FE 退避）。
+- 剩余 P2：并发无 lease/queue（重复 generation/tool）；FE 重试不复用 UUID；模型未取消；save 窄窗口；
+  CLIENT_MESSAGE_NOT_VOICE code 未映射（408/409 响应只有 message）；render.yaml 未补 env；测试缺口。
+- 遗留：stored analysis 缺字段默认 neutral/0（P3 伪分析）、恢复仍强制 multipart 文件、prefix 不受 deadline。
+- 建议 133：先补 per-client-id lease/queue（从根上消除重复 generation）与 FE UUID 复用+重试时序；
+  再补 render.yaml env 与行为测试；Goldfish-R11 复核中。
