@@ -305,3 +305,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 下载/侧边栏/外卖卡（2026-10-29 轮次 105）
 
 - 不透明侧边栏/设置、下载入口、安装 guidance、外卖卡关闭均验证；full24 0 fail，full25 运行中。
+
+## Goldfish 回归修复（2026-10-29 轮次 106）
+
+- 侧边栏 contrast/账号文字、notice 44px；外卖卡键盘冒泡；安装按钮拉伸；full25 exit0。

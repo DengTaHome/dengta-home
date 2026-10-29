@@ -1728,3 +1728,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 新增侧边栏「下载 Android App」与设置页「下载安卓安装包」；安装按钮恢复可见 inline guidance（原先 notice 被设置层遮住）。
 - 外卖任务卡新增 44px 关闭按钮；working 关闭先暂停，其它状态清除；takeout-assistant 19/19。
 - full24：0 failure；full25 跑本轮全部改动的最终全量。
+
+## 轮次 106（2026-10-29 · Goldfish 三个回归修复）
+
+- 侧边栏浅色化：account-menu-trigger、账号小字、分组标题/会话标题改为主题 ink/muted 混合色，对比度通过；notice 关闭按钮补 aria-label + 44px。
+- 外卖卡关闭：父级 keydown 忽略子目标，关闭按钮 onKeyDown 阻止冒泡；键盘 Enter/Space 不再误开任务；测试补 keydown。
+- 设置安装按钮：`.settings-app-actions` 改 align-items:flex-start，安装 guidance 不再把兄弟按钮拉成 84px；install-button 最小高度 44px。
+- full25 exit0 3944 行；最新改动跑 full26。
