@@ -1,62 +1,58 @@
-# 旧版海岸背景与切换器（2026-10-29）
+# 旧版动态海岸背景（2026-10-29）
 
-## 用户诉求
-用户提供旧版截图：奶油/粉橘色海岸、太阳、云、灯塔，以及星夜版本。希望保留旧版氛围，并能自由切换背景。
+## 先纠正上一版的问题
+上一版我把旧版做成了「三张固定图」，这是错的。旧版并不是固定场景：
 
-## 找到的旧版素材
-旧版背景就是仓库里现成的海岸静帧：
+- 太阳在天空中的高度随时间连续变化
+- 月亮高度、月出/月落随时间变化
+- 日出、正午、日落、蓝调时段使用不同的五段天空颜色
+- 星星在夜间逐渐出现
 
-- `public/assets/coast-video/coast-day.webp`
-- `public/assets/coast-video/coast-twilight.webp`
-- `public/assets/coast-video/coast-night.webp`
+本轮重新找回并接回了旧版的太阳/月亮/天空计算，而不是用静态图冒充。
 
-新版实时天空把它们裁在底部当海岸层；旧版截图是整屏静帧 + 柔和天空。本轮没有改动实时天空，而是新增「经典海岸」模式，用这三张旧素材重建旧版观感。
+## 找回的旧代码/素材
+旧版太阳月亮的计算本来还在仓库里，只是新版 UI 没有以旧版方式呈现：
 
-## 实现
-- `src/LegacyCoastBackdrop.jsx` + `src/legacy-coast-backdrop.css`
-  - 整屏 `object-fit: cover` 海岸图
-  - 日光/暮色时叠加柔和太阳光晕与云层
-  - 星夜时叠加月光、星点与暗角
-  - 保留 `prefers-reduced-motion` / DengTa 减少动画开关
-  - 聊天有私密背景图时自动隐藏，不抢用户自己的壁纸
-- `src/dengta-theme.js`
-  - 新增 `background` 偏好：`auto | legacy | legacy-day | legacy-dusk | legacy-night`
-  - 持久化到原有主题存储（按账号隔离）
-  - `data-dengta-background` 写入根节点
-- `src/App.jsx`
-  - `background === "auto"` 时渲染原来的 `CelestialBackdrop` 实时天空
-  - 其它模式渲染 `LegacyCoastBackdrop`，不启动实时天空 canvas，手机更省电
-- `src/ThemeStudio.jsx` + `src/theme-background-switcher.css`
-  - 设置 → 外观与聊天 → 「背景」
-  - 五个选项：实时天空 / 旧版海岸（晨昏自动）/ 晨光海岸 / 暮色海岸 / 星夜灯塔
-  - 每个选项有真实海岸缩略图；固定晨光、暮色、星夜会同步切换浅色/深色显示，避免白字浅底
-  - 选择立即生效并持久化
+- `src/sun-glass-sky.js`
+  - `getSunGlassSky(minute, snapshot)`：按时间插值五段天空颜色、太阳/月亮位置、日出/日落光晕、星空强度
+  - 旧提交中的 `CelestialBackdrop.jsx` 与当前计算一致，后续提交只是性能和手机省电调整
+- `public/assets/coast-video/`
+  - `coast-day.webp`、`coast-twilight.webp`、`coast-night.webp`：旧版海岸静帧
+  - 旧版背景就是这套天空计算 + 海岸静帧
 
-## 默认行为
-- 已有用户默认仍是 `auto`，不会突然换背景。
-- 想回旧版：设置 → 外观与聊天 → 背景 → 「旧版海岸」，或直接选晨光/暮色/星夜固定场景。
-- 选「实时天空」会恢复原来的天气/时间实时变化。
+本轮 `LegacyCoastBackdrop` 不再使用固定 `day/dusk/night` 选择，而是：
 
-## 验证
-- `test/dengta-theme.test.js`、`settings-folders`、`settings-category-navigation`、`interaction-polish`：18 tests 通过。
-- 前端全量回归：**0 failure（3833 行）**。
-- 390×844 实测：
-  - `legacy-day` → `.legacy-coast-backdrop[data-scene=day]`
-  - `legacy-dusk` → `twilight`
-  - `legacy-night` → `night`
-  - `auto` → `.celestial-backdrop` 重新出现
-  - 无横向溢出（docSW=390）
-- 截图：`_audit/legacy-background/legacy-day-direct.png`、`legacy-dusk-direct.png`、`legacy-night-direct.png`、`settings-background-switcher.png`
+1. 从 `snapshot` 取当前分钟、日出、日落
+2. 调 `getSunGlassSky` 得到太阳 `sunX/sunY/sunOpacity`
+3. 得到月亮 `moonX/moonY/moonOpacity`
+4. 得到五段天空颜色 `colors[0..4]`
+5. 得到 `sunriseAura / sunsetAura / blueHour / night` 等光晕与星星强度
+6. 把这些值实时写进 CSS 变量，驱动太阳/月亮高度、颜色、星星和暖光
 
-## 限制
-- 经典海岸模式是固定场景，不跟随实时天气降雨/云量；实时天空仍是默认天气系统。
-- 旧版截图里那种更大的太阳/云是当年动态天空叠层；本轮用 CSS 复原了相近的柔和程度，没有逐像素复刻。
+## 切换入口
+**设置 → 外观与聊天 → 背景**：
 
+- **实时天空**：新版天气/云层/光线系统（默认）
+- **旧版动态天空**：本轮找回的旧版太阳月亮高度、日出日落五段色彩
 
-## 最终交付
-- Vercel `b8dc35a` READY。
-- APK `DengTa-2.13.45-303-backgrounds.apk`，SHA-256 `acc8768c27efd71dfafe9e7e589454558e84337d2c12a9f06b6d7b4411f8a751`；已安装 vivo V2454A（versionCode 303 / 2.13.45）。
-- 入口两处：
-  1. 设置 → 外观与聊天 → 背景
-  2. 命令面板（⌘K / Ctrl+K）→「背景 · 旧版海岸」或「背景 · 实时天空」
-- 旧版素材来自仓库现成的三张海岸静帧；经典模式覆盖整屏，并在手机上禁用实时天空 canvas 以省电。
+也可以 `⌘K` / `Ctrl+K` →「背景 · 旧版海岸」/「背景 · 实时天空」。
+
+## 实测（模拟不同时间，390×844）
+| 时间 | 场景 | 太阳 | 月亮 | 星星 |
+|---|---|---|---|---|
+| 06:40 | twilight | x=11.2%, y=67.2%, opacity=1 | opacity=0 | 0 |
+| 12:00 | day | x=52.7%, y=18.3%, opacity=1 | opacity=0 | 0 |
+| 19:30 | night | opacity=0 | x=16.5%, y=57.0%, opacity=.97 | 1 |
+| 22:30 | night | opacity=0 | x=39.2%, y=24.3%, opacity=.97 | 1 |
+
+同一套五段天空颜色也随这些时间变化；截图：
+
+- `_audit/legacy-dynamic/legacy-0640.png`（低太阳 + 晨光）
+- `_audit/legacy-dynamic/legacy-1735.png`（晚霞）
+- `_audit/legacy-dynamic/legacy-1930.png`（月亮升起）
+- `_audit/legacy-dynamic/legacy-2230.png`（月高悬）
+
+## 发布
+- 前端全量回归：0 failure（3833 行）
+- Vercel：待最新提交 READY
+- APK：本版重新构建，安装后可在设置里切换
