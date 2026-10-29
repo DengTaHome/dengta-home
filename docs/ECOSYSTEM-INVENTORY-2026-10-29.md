@@ -10,7 +10,7 @@
 | # | 仓库 | 类型/用途 | 本地路径 | HEAD / 版本 | 许可 | DengTa 关系 | 结论 |
 |---|---|---|---|---|---|---|---|
 | 1 | DengTaHome/dengta-home | 公开自托管镜像 | `dengta-home` | 旧镜像 | ISC | 发布/文档镜像 | 落后线上；下载链接已修；tag 仍异常 |
-| 2 | DengTaHome/dengta-home-backend | 生产后端 | `_refs/backend-prod` | f96b0b5 / 0.29.76 | ISC（无 LICENSE 文件） | 线上后端 | 与 /health 一致；render.yaml=false 为外部触发器契约；线上 env=true 漂移待手动对齐；health DB 盲区待处理 |
+| 2 | DengTaHome/dengta-home-backend | 生产后端 | `_refs/backend-prod` | f96b0b5 / 0.29.76 | ISC（无 LICENSE 文件） | 线上后端 | 与 /health 一致；render.yaml=false 为外部触发器契约；线上 env=true 漂移待手动对齐（公共仓 Actions 额度被卡，外部定时触发器当前不可用，故暂不能把线上 false，否则后台任务会停；先保留 true 作为回退） |
 | 3 | DengTaHome/dengta-home-frontend | 生产前端 | `_refs/frontend-gh` | 58ae256 / 2.13.43 | 无 LICENSE | Vercel/Capacitor | 已清理调试截图；CSP 手同步 |
 | 4 | DengTaHome/dengta-music-mcp | 网易云 Docker 宿主 | `_refs/music-stable` | 4fde883 | CC BY-NC-SA 4.0（非 MIT） | 线上音乐 MCP | 安全加固已部署；public /health 200 |
 | 5 | （旧副本）frontend-prod | 前端克隆 | 已删除 | 损坏 | — | 无 | 零提交/中断克隆，已删除 |
@@ -45,7 +45,7 @@
 
 ### DengTaHome/dengta-home-backend
 - P1：`/health` 的 `database:"not_checked"`，Render 用 `/health` 做探针；真正的 `/health/database` 存在但不在探针。**未改探针**（避免 DB 短暂故障导致反复重启），保留独立 15 分钟监控。
-- P1：`render.yaml` `BACKGROUND_JOBS_ENABLED=false` 与线上 true 漂移。**未自动改**：测试/外部触发契约要求 false，先恢复 false；线上 env 需在 Render 手动对齐，避免双重本地循环。
+- P1：`render.yaml` `BACKGROUND_JOBS_ENABLED=false` 与线上 true 漂移。**未自动改**：测试/外部触发契约要求 false，先恢复 false；线上 env 暂保留 true：公共仓 Actions 额度未恢复，外部触发器不可用，改成 false 会让后台任务停；等 Actions 恢复后再切 false。
 - P2：`coverage/*` 入库。**已修**：`git rm --cached` + `.gitignore`。
 - P2：无 LICENSE 文件、Dockerfile 与 Node engines 不一致。未改；私有仓库非公开分发。
 
