@@ -1552,3 +1552,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - netlog **没有** `/fonts/DengTaSans-cjk-v2.woff2` 请求
   - 登录页首屏不再下载 7.42MB 字体
 - full12 最新全绿（3938 行/0 failure）；build+CSP 通过。
+
+## 轮次 80（2026-10-29 · 手机字体首访 + 3 视口）
+
+- 生产 f5b590f3 真机验证：390×844 新 profile `data-dengta-font-mode=system`，netlog 无 7.42MB 字体请求。
+- 重新跑 3 个手机视口布局（系统字体默认）：
+  - 360×640、360×780、393×873 均 **未发现布局问题**
+  - 就绪时间从之前 ~272s 降到 **3.1–3.3s**（字体请求/解码消失的直接收益）
+- full12 仍为最新完整 0 failure；inline CSP hash 已更新。
+- 后端 1a49a3a3 在线；DB health /health/database 200 up 357ms。

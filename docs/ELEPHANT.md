@@ -181,3 +181,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - index.html inline 脚本已按 820px 默认 system；CSP hash 更新。
 - Edge headless 390×844 生产实测：fontMode=system，无 7.42MB 字体请求。
 - full12 3938 行 0 failure；build/CSP 通过。
+
+## 手机字体/布局（2026-10-29 轮次 80）
+
+- 生产 f5b590f3：390×844 system、无字体请求。
+- 3 手机视口布局全通过，就绪 3.1–3.3s（之前 ~272s）。
