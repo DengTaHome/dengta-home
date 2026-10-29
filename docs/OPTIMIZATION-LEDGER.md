@@ -1458,3 +1458,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 真机：local-build 11/11、animation-budget 全通过、touch 0<44。
 - full8 全量在 music import 后停滞已停止；`test:music-listening` 3/3（含性能守卫）通过；此前 full6 3924 行/0 failure 仍为最近完整全绿。
 - 前端最新提交已 push，Vercel 待确认。
+
+## 轮次 68（2026-10-29 · 全量测试停滞根因修复）
+
+- full8 停在 `test:companion-activities` 的 `music-import-flow.test.js`；定位为 `vite.close()` 偶发不 settle，导致整个 npm test 永不结束。
+- 修复：teardown 用 2s race 兜底；正常结束后 `process.exit(process.exitCode ?? 0)`，失败仍保留非零退出码。
+- 单文件实测 exit 0；已 push。
+- 同时累计本轮：语音按钮键盘可达；saveData/低内存设备跳过 7.4MB 字体；performance-guards 3 项。
+- full9 全量已重新启动，等待结果。

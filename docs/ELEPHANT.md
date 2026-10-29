@@ -120,3 +120,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - 语音按钮键盘可达；低内存/saveData 使用系统字体，避免 7.4MB webfont。
 - 新增 performance-guards 测试；music-listening 3/3。
 - full8 停滞已停止；最近完整全绿仍是 full6；真机 local-build/animation/touch 通过。
+
+## 全量测试停滞修复（2026-10-29 轮次 68）
+
+- full8 卡在 music-import-flow 的 vite.close()；已加 2s race + process.exit(exitCode) 兜底。
+- 单文件通过；full9 全量重跑。
