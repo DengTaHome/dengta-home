@@ -285,3 +285,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 320 重叠（2026-10-29 轮次 100）
 
 - ⌘K 下移避开胶囊；矩阵新增重叠检查；320 0 问题。
+
+## 320/360 重叠（2026-10-29 轮次 101）
+
+- 断点 365；19/19 0 问题（含重叠检查）。

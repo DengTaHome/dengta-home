@@ -1694,3 +1694,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - Goldfish 实测 320×568 下 `.mobile-command-trigger`（44×44）与状态胶囊重叠 23×26px，遮住胶囊右端。
 - 修复：≤340px 时把 ⌘K 下移到胶囊下方；矩阵新增 command/capsule 重叠断言。
 - 320 验证：0 问题，胶囊点击仍 open=true；390/844/915 继续通过。
+
+## 轮次 101（2026-10-29 · 320/360 重叠闭环）
+
+- 把 ⌘K 下移的断点从 340 扩到 365：320、360×640、360×800 均 0 重叠。
+- 完整 19 视口重跑：**19/19、0 问题**，含 320/360 重叠断言。
+- full21 绿；Vercel 待新提交部署。
