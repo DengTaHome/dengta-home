@@ -289,3 +289,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 320/360 重叠（2026-10-29 轮次 101）
 
 - 断点 365；19/19 0 问题（含重叠检查）。
+
+## 抽屉/设置闪烁（2026-10-29 轮次 102）
+
+- 手机去掉 sidebar/settings 多层 backdrop-filter、scrim 动画，抽屉仅 transform；0 布局/无 heavy backdrop。

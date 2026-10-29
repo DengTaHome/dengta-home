@@ -1700,3 +1700,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 把 ⌘K 下移的断点从 340 扩到 365：320、360×640、360×800 均 0 重叠。
 - 完整 19 视口重跑：**19/19、0 问题**，含 320/360 重叠断言。
 - full21 绿；Vercel 待新提交部署。
+
+## 轮次 102（2026-10-29 · 侧边栏/设置闪烁）
+
+- 用户反馈侧边栏弹出闪屏/动画杂、设置页显示异常。
+- 修复：手机上 `.sidebar`、footer、account slot、`.settings-sheet`/header/scroll、settings cards/folders 全部去掉 backdrop-filter；抽屉只保留 transform + will-change；scrim 去 dim-in；阴影缩小。
+- 验证：320/360/390/844/915 打开抽屉/设置页无 mobile-backdrop、0 布局问题。
