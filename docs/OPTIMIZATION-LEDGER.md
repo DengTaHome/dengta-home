@@ -2167,3 +2167,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 生产 frontend 入口 index-DNV0ffbc.js / CSS index-C7c6_eRS.css；390 Edge/Pixel 登录前后探针 button/select 小目标为空（隐藏 input 1x1 属设计豁免）。
 - 前端全量 round155-frontend.log 0 fail；build/CSP 通过。
 - 剩余：mobile-audit 旧报告可能缓存/时序差异；login/modal 之外深层面板仍建议再跑 360/390 全量；App chunk。
+
+
+## 轮次 156（2026-10-30 · 文字情绪降级 + 触摸/门户）
+
+- HerVoice 情感分析低置信度/neutral 时，按转写文字做谨慎情绪推测（tired/anxious/sad/angry/happy/excited/tender，confidence 0.32，hint 明示“根据文字内容推测，不是声学判断”）；正常高置信/非 neutral 不覆盖。
+- `inferTextEmotion` 单测覆盖 tired/happy/null；backend round156-backend.log 0 fail。
+- 触摸：coarse pointer/窄屏 44px 规则用 !important 覆盖 41px 控件；Playwright 390 登录前后 button/select 小目标为空；隐藏文件输入豁免。
+- 生产 backend bd7747e（/health 已核对），frontend index-DNV0ffbc / CSS C7c6_eRS。
+- 真实情绪验收受 HerVoice 冷启动 502 影响未完成（代码单测绿；下一轮重试）。
