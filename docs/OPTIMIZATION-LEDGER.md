@@ -1764,3 +1764,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 卸载旧 2.13.43(301)，安装新签名 2.13.44(302)：Success。
 - 启动进入 DengTa 登录页，WebView 正常；旧本地数据已清除，需重新登录。
 - 新证书 ab4c7a2f…，仍只可全新安装，不发布更新 feed。
+
+
+## 轮次 111（2026-10-29 · 同源登录代理）
+
+- Vercel rewrite `/supabase/:path*` → Supabase；Vercel/本地 `VITE_SUPABASE_URL` 改同源。
+- 手机 curl 同源 auth health=200，解决 `*.supabase.co` TLS reset 导致登录失败。
+- 新 APK（同源 URL + 新签名）安装 vivo V2454A 成功，启动正常。
+- 记录 docs/SAME-ORIGIN-AUTH-2026-10-29.md。

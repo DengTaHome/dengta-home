@@ -326,3 +326,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 新签名真机（2026-10-29 轮次 110）
 
 - vivo V2454A Android15：卸载旧 301、安装新 302 成功，启动到登录页。
+
+
+## 同源登录代理（2026-10-29 轮次 111）
+
+- /supabase rewrite + VITE_SUPABASE_URL 同源；手机 auth health 200；新 APK 已装。

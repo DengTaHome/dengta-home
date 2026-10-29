@@ -43,3 +43,10 @@ apksigner verify --print-certs <apk>  # ab4c7a2f…
 - 旧 2.13.43(301) 已卸载；新 2.13.44(302) 安装 Success。
 - 启动后进入 DengTa 登录页“欢迎回来”，进程正常。
 - 新证书 ab4c7a2f…；旧本地数据随卸载清除，需要重新登录。
+
+
+## 同源代理 APK（2026-10-29 17:10）
+
+- 文件 `DengTa-2.13.44-302-proxy-auth-newkey.apk`，SHA-256 `29c7cf483c0d1f3717dafeee5c8ad2b2f6f115940401b73b44eefc69185b9bb2`。
+- 已用 `adb install -r` 覆盖安装到 vivo V2454A，启动正常。
+- 登录改为 `https://www.dengtahome.com/supabase`，不再直连 Supabase。
