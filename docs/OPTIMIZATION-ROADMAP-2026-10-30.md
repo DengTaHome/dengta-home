@@ -598,3 +598,30 @@
 - 遗留 P3：voice.js 错误分支假定 data 为对象（parse 兜底需复核）；stored analysis 默认 neutral/0、
   恢复仍强制 multipart、prefix 不受 deadline。
 - 结论：**141 P0=1（生产语音不可用）**；修复并部署前不回收语音重试项；Goldfish-R19 复核中。
+
+## 27. 轮次 141 P0 修复复核（2026-10-30 04:49–05:05）✅ P0 关闭
+
+- 基线：frontend **98617a0**（04:41:43 提交，+10 行）；backend 未变 **7d16b05**（/health 一致）。
+  `round141-frontend-final.log` **0 fail**（04:48:47 完成；source/test mtime 04:41:35 < commit <
+  运行开始 04:47:41 < 结束，覆盖最终内容；.err 仅 deprecation 警告）。
+- 修复验证：①App.jsx:1647-1650 补
+  `const [voiceRetryAvailable, setVoiceRetryAvailable] = useState(false);` 与
+  `const lastVoiceAttemptRef = useRef(null);`（useRef/useState 已有 import；测试补声明断言）；
+  ②生产 `index-D-bsdxs-.js → App-CHhyJHVO.js`（598,745 B）三字面量 **0/0/0**（修复前 4/2/1），
+  “重试这条语音”=1、`voice-retry-button`=1、`client_message_id`=2；③本地 dist `App-BAJA3700.js`
+  同为 0/0/0；④定向 `node test/voice.test.js` 复跑通过。
+- 生产只读审计（Edge headless、Pixel 390、拦截非 GET）：页面加载 **0 pageerror、0 非 GET**；注入
+  `.voice-retry-button` 后 computed minWidth/minHeight=**44px**、fontSize 13px、touch-action
+  manipulation；CSS `/assets/index-BXD6W2ow.css` 含 `.voice-retry-button`×2 + min-height:44px。
+- UUID 复用（源码级，链路恢复可运行）：submitVoiceBlob 接收 options.clientMessageId；ref 保存
+  {blob,durationMs,clientMessageId}；formData 同 UUID；成功清 ref/retry；失败置 retry 可用；
+  retryVoiceTurn 复用同 blob/duration/UUID；voice.js 保留 status/code/retryAfterSeconds。
+- 仍存 P2：①orphan TTL 200s>FE 180s 时序（重试立即点仍可能 409，retryAfterSeconds 未用于禁用/倒计时）；
+  ②跨实例无 DB lease；③模型未取消/tool 副作用；④save 窄窗口；⑤TTL=deadline+60 prefix 长尾；
+  ⑥claim-before-replay 瞬时 409；⑦**测试缺口**：App 重试逻辑仍无运行时行为测试（本次 P0 盲区），
+  建议 jsdom/react-test-renderer 失败语音→按钮→重试同 UUID/blob，或 CI 加 ESLint no-undef +
+  生产 bundle 自由标识符计数门禁（修复前 4/2/1 → 修复后 0，已验证可操作）。
+- 遗留 P3：voice.js 错误分支假定 data 为对象；stored analysis 默认 neutral/0、恢复仍强制 multipart、
+  prefix 不受 deadline。
+- 结论：**141 P0 关闭**（生产语音链路恢复）；无新增 P0/P1；建议 142 处理 retryAfterSeconds 禁用/倒计时与
+  App 运行时测试/门禁，再推进跨实例 lease/模型取消；Goldfish-R20 复核中。

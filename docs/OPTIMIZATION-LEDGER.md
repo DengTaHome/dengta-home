@@ -2040,3 +2040,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 98617a0 补声明；frontend 全量 round141-frontend-final.log 0 fail；build 通过。
 - 生产入口 index-D-bsdxs-.js → App-CHhyJHVO.js；三个长标识符字面量均为 0，重试文案=1。
 - 教训：前端真机审计未走语音提交，只能证明加载/样式；后续需 App 运行时/构建 AST 门禁。
+
+
+## 轮次 142（2026-10-30 · 前端 no-undef 构建门禁）
+
+- 起因：轮次141 P0（漏 hook 声明）build/test/静态审计均未捕获。
+- `package.json` build 改为 `eslint src/App.jsx --quiet && vite build && npm run verify:csp`；no-undef 成为部署门禁。
+- 用 dcf703d App 临时副本验证：eslint 报 7 个 no-undef（lastVoiceAttemptRef/setVoiceRetryAvailable/voiceRetryAvailable）；修复版 build 通过。
+- frontend 全量 round141-frontend-final.log 0 fail；生产 98617a0 App chunk 三长标识符 0/0/0。
+- 剩余：orphan TTL200>FE180 立即重试仍 409；retryAfterSeconds 未消费；App 运行时重试测试仍缺；跨实例 lease/模型取消。
