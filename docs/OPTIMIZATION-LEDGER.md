@@ -1637,3 +1637,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 恢复态 844×390：composer 273–380/390，presence 隐藏，底栏完整；恢复后状态胶囊回归。
 - 消息引用 chip 在 >640px 也补 `::after` 扩展命中区，避免 40×22 假小目标。
 - 最新 CSS 定向 11/11；full17 exit0 3944 行 0 fail。
+
+## 轮次 93（2026-10-29 · full18 全绿）
+
+- full18 完整 `npm test`（真实 transcript 矩阵后的最新 CSS）：**exit 0**，3945 行，0 failure。
+- 18/18 视口 msgCount>0、0 布局问题；恢复态 composer 273–380/390；915 横屏走移动断点。
+- Vercel `27cfb8a` READY。
