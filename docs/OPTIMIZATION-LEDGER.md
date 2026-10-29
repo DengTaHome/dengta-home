@@ -1511,3 +1511,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 测试：app-motion-preference + performance-guards **32/32**；backend module coverage 通过。
 - full10 仍是 3821 行 0 failure，但其时间早于 d11729f；本轮改动后以定向测试 + build 为准。
 - backend latest 待 Render 部署；frontend latest 待 Vercel。
+
+## 轮次 75（2026-10-29 · DB health abort + TTS body abort 测试）
+
+- backend `database-health`：超时不仅 race，还会 abort 底层 Supabase 查询（readOnce(signal) + query.abortSignal）；测试断言 timeoutSignal.aborted。
+- frontend voice.test：新增 response.blob() 阶段 AbortError → speech_cancelled 的行为测试。
+- 401/403 日志已只对匿名请求跳过（已登录真实 403 保留 error_log_id）。
+- full11 全量已启动，仍在跑；full10 仍为最近完整 0 failure。

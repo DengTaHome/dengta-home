@@ -157,3 +157,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - 401/403 匿名才免写日志；登录 403 保留 error_log_id。
 - performance guards 覆盖 lowPower；app-motion false positive 修正；32/32 通过。
 - full10 早于 d11729f，最新以定向测试为准。
+
+## 轮次 75（2026-10-29）
+
+- DB health timeout 会 abort 底层查询；voice body abort 测试。
+- 401/403 仅匿名跳过日志；full11 运行中，full10 最近完整 0 failure。
