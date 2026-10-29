@@ -351,3 +351,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 设置页记忆收尾（2026-10-29 轮次 115）
 
 - fd1ec20 生产验证 19 条摘要/档案可见；全量 0 fail；APK 待手机重连。
+
+
+## 更多回复弹层（2026-10-29 轮次 116）
+
+- 打字不再收起/失焦；有草稿不自动弹；只发送/手动收起；验证 5/5。

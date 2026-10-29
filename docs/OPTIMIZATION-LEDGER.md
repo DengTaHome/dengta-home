@@ -1801,3 +1801,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 
 - 生产 `fd1ec20` 验证设置页 summary/profile/19 条摘要可见；前端全量 0 failure。
 - APK `ba472f97…` 已签名，待手机重连安装；网页端已生效。
+
+
+## 轮次 116（2026-10-29 · 更多回复弹层打字冲突）
+
+- 删除输入框 input 自动收起监听；打字不再失焦/丢字。
+- 有草稿或输入框聚焦时不自动弹回复建议；只保留发送/主动收起关闭。
+- 真实 390×844 验证输入完整、弹层保持、焦点保持、手动收起；单测 5/5。
+- 记录 docs/REPLY-OPTIONS-2026-10-29.md。
