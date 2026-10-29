@@ -717,3 +717,59 @@
   ⑨门禁仅 App.jsx；App chunk ~663kB（P3）。
 - 结论：145 P0=0、P1=0（23505 R21 race 与 session pin 收口）；建议 146 先补 route/前端运行时集成测试，
   再推进跨实例 lease / 模型取消 / save 窄窗口；Goldfish-R23 复核中。
+
+## 32. 轮次 146 全量 src lint 门禁 / recovery call-site 断言复核（2026-10-30 06:00–06:12）
+
+- 基线：frontend **21382e0**（06:00:13，仅 package.json：build 脚本 `eslint src --quiet`）；
+  backend **db6ed2f**（06:00:12，仅 test/voice-turn.test.js +6 行 recovery call-site 精确断言）。
+  本轮 _audit 无 round146 全量日志，以下为独立复跑。
+- 已验证：①`eslint src --quiet` **exit 0**（全 src 零 error；门禁从 App-only 扩展为全 src），
+  全量 `npm run build` exit 0 + verify:csp `{"ok":true,"htmlFiles":3,"allowedHashes":14}`；Vercel
+  `build:web`/Android workflows 均走该 build，直接 `vite build` 仍可绕过（P3）；②backend 新增断言：
+  `voiceTurnRecoveryResponse(voiceOrphanRemainingMs(previousUserMessage,resumeAfterMs))` 嵌套模式、
+  `res.set(recovery.headers)`、`voiceOrphanResumeWindowMs(`；定向 voice-turn **1/1**（仍源码正则，非
+  HTTP/fake req-res 行为测试）；③生产前端现为 `index-DSJNbEpH.js → App-B0e8XYhC.js`（599,237B，hash
+  与上轮不同属重新构建；秒后可重试=1、重试文案=1、三长标识符 0/0/0、client_message_id=2）；
+  backend db6ed2f 为测试-only，生产 `/health` 仍 e1c0049（预期，不是部署异常）。
+- 仍存 P2/P3：①route/集成测试仍缺（fresh-orphan/23505 recovery 无 fake req/res/HTTP；前端倒计时无运行时
+  测试）；②跨实例无 DB lease；③模型未取消/tool 副作用；④assistant save 窄窗口；⑤TTL/prefix 长尾；
+  ⑥claim-before-replay 瞬时 409；⑦retry 仅 pin sessionId（turnContext/voiceModel 未快照，早失败 fallback
+  当前会话）；⑧残留 generic 409 body（previousUser 查不到）、invalid created_at 长恢复、时钟偏差；
+  ⑨`--quiet` 只拦 error（warnings 不进 gate）、直接 vite build 绕过；App chunk ~663kB（P3）。
+- 结论：146 门禁扩展与 call-site 断言均为真实落地，P0=0、P1=0；建议 147 补 route/前端运行时集成测试 +
+  下轮补全量日志对 commit，再推进跨实例 lease/模型取消/save 窄窗口；Goldfish-R24 复核中。
+
+## 33. 轮次 147 voice DB generation lease 复核（2026-10-30 06:13–06:35）⚠ P0
+
+- 基线：backend HEAD **60b8215**（06:12:37，tests-only）在 **3415a5a**（06:10:41，lease 产品改动）之上；
+  工作区 **M server.js**（06:13:01，+3/−1，未提交修复）。生产 `/health`=**60b8215**（比 lead 所述
+  3415a5a 新；60b8215 仅测试，server code 同 3415a5a）。frontend HEAD **1a1760c**（test-only +8 断言）；
+  生产入口 `index-C4-5uC8g.js → App-qQW56gOk.js`（markers 不变）。`round147-backend.log` 06:08:30–06:10:18
+  早于 3415a5a/60b8215 commit 与工作区修复，不能作为最终证据。
+- **P0 证据链**：①saveMessage 把 `generation_lease` 写成 messages 列（state=in_progress、
+  lease_expires_at=now+200s；server.js:3501-3505/6688-6691，generationLeaseFields 实测输出）；
+  ②`claim_chat_generation` RPC（012:339-409，013 删 legacy；生产最终 5-arg 版）只在
+  state null/failed/expired 时 claimed=true → 新插入行 state=in_progress 未过期 → **claimed=false**；
+  ③HEAD 对所有 `clientMessageId && savedUserMessage` 调 claim（server.js:6749），fresh 语音必进
+  409 VOICE_TURN_RECOVERING（约 200s）而不 generation；④工作区修复把条件改为
+  `&& resumedUserMessage`（注释确认“新行已带未过期 lease，重复 claim 必被拒”），但**未 commit/push/
+  deploy**；⑤生产 60b8215 仍跑 3415a5a server code → 线上 fresh 语音被阻塞；⑥测试为 helper/源码正则
+  （recovery 计数=3），从不执行 insert+claim 路径；定向 1/1 通过也发现不了。
+- 分级：P0-1 生产 fresh 语音不可用；P0-2 修复仅工作区未提交/日志不覆盖，必须尽快 commit+deploy 验证；
+  P1-1 无 route/集成测试覆盖 lease claim 语义；P1-2 round147 日志早于 commit/worktree，证据无效。
+- P2：①修复后 fresh 不走 DB lease（靠 unique insert+23505），跨实例 lease 实际只覆盖 resume，需文档化；
+  ②claim 失败 recovery 用 pre-claim savedUserMessage（leaseClaim.message 在 recovery 后才赋值），并发 resume
+  loser 可能先见 1s 再重试；建议用 `leaseClaim?.message || savedUserMessage`；③成功路径未 commit/fail/
+  release lease（state 留 in_progress，卫生项）；④RPC 异常 degrade allow，跨实例 RPC 故障可双 generation；
+  ⑤claim RPC 语义“仅 null/failed/expired 可抢”与“预写 lease 再 claim”冲突，未来需调顺序/RPC；
+  ⑥仍缺 route/浏览器测试；跨实例 lease/模型取消/save 窄窗口/TTL/prefix 等旧项不变。
+- 修复建议：立即 commit/push 工作区 `server.js` → 等 Render deploy → 核对 `/health` 新 revision →
+  真实 fresh 语音验证 200 回复；加 claim 决策纯函数/集成回归（fresh 不 claim、resume 才 claim）；
+  修复后重跑全量日志并记录 commit/mtime 对照。
+- 修复进展（06:15–06:17 复核+）：**f936448（06:15:14）已提交**（`&& resumedUserMessage`，工作区 clean）；
+  `round147-backend-final.log` 0 fail（06:13:05–06:14:54，server.js mtime 06:13:01 < 运行开始 → 覆盖修复
+  内容；commit 晚于日志结束但内容一致）；定向 voice-turn 1/1。**生产 `/health` 06:17 已核对为 f936448**
+  （部署完成）→ P0 代码路径关闭；剩余验收=一次真实 fresh 语音返回 200（本环境无真实音频，未代做）。
+  f936448 未新增测试，现有 recovery 计数=3 断言对条件变化不敏感，仍建议补 mock lease store 行为测试。
+- 结论：**147 P0=1 已修复并部署（f936448），待真实 fresh 语音 200 验收**；补 claim 回归测试与
+  mtime/commit 日志对照；Goldfish-R25 复核中。

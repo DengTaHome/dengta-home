@@ -2083,3 +2083,19 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - frontend 21382e0：build gate 从 `eslint src/App.jsx` 放宽到 `eslint src --quiet`（当前全量 0 error），build/CSP 通过。
 - backend db6ed2f：补 recovery call-site 精确断言（voiceTurnRecoveryResponse(voiceOrphanRemainingMs(...))、res.set(recovery.headers)、voiceOrphanResumeWindowMs），voice-turn pass。
 - 剩余：跨实例 lease、模型/tool 取消、assistant save 窄窗口、route/浏览器失败语音集成测试、retry 的 turnContext/voiceModel 快照、TTL/prefix。
+
+
+## 轮次 147/148（2026-10-30 · 语音 DB lease 与真实生产验收）
+
+- 语音加入 DB generation lease：user 保存写 generation_lease（200s），fresh 依靠唯一插入+23505 恢复；resume 才 claim 过期 lease；claim 失败返回 `VOICE_TURN_RECOVERING`+剩余 TTL；RPC 异常降级放行。
+- 真实测试发现并修复 3 个生产 P0：
+  1. 新插入行再 claim → SQL 必 false，fresh 全部 409；f936448 改为仅 resumed 才 claim。
+  2. voice multipart `fields:9` 拒绝 10 字段表单 → 400 LIMIT_FIELD_COUNT；6c70a8a 改 fields:20/parts:21。
+  3. `voiceTurnClaimed` 在 try 内声明、finally 引用 → 每请求 ReferenceError；c1531c0 移到 try 外，测试断言位置。
+- 5930c02 抽 `claimVoiceGenerationLease`：fresh 不 claim、resume 才 claim，mock store 行为测试；backend round148 0 fail。
+- **真实生产验收**（测试 session 已 DELETE 204）：
+  - fresh zh-webm `/voice/turn` **HTTP 200**，user=4810/assistant=4811，reply 正常；
+  - 同 client_message_id 重放 **HTTP 200**，user/assistant id 相同，无重复；
+  - 504 provider_timeout 后同 CID 重试 **409 VOICE_TURN_RECOVERING, retry_after_seconds=127**，与剩余 TTL 一致。
+- 证据：`_audit/voice-final-response2.json`、`voice-final-replay2.json`、`voice-final-recovery.json`、`voice-final-delete.json`、`round148-backend.log`。
+- 剩余：lease 无 commit/fail/renew、claim 异常 fail-open、created_at/max clamp、TTL200>FE180、前端 snapshot 仍 source 测试、模型取消/save 窄窗、route 运行时测试。
