@@ -2006,3 +2006,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - generic voice 409 保留 Retry-After 兜底。
 - backend round138-backend.log 0 fail、voice-turn pass；生产 backend 25c9429（/health 已核对）。
 - 剩余：跨实例 DB lease、FE 每新 UUID、模型/tool 未取消、server mutation 仍有限。
+
+
+## 轮次 139（2026-10-30 · claim-failure/Retry-After helper）
+
+- `claimVoiceTurnOrRespond` 抽取 claim-failure 分支：成功返回 token 不写 response；失败直接写 409/headers/body。mock res 行为测试覆盖。
+- `setRetryAfterHeader` 统一最少 1s、header 与 body `retry_after_seconds`；generic voice 409 使用。
+- server 使用两个 helper；backend round139-backend.log 0 fail、voice-turn pass；生产 backend 68d2426（/health 已核对），frontend 4debff4。
+- 剩余：跨实例 DB lease、FE 新 UUID、模型/tool 未取消、route call-site mutation、TTL/prefix。

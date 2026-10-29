@@ -504,3 +504,23 @@
   code/retry_after_seconds。
 - 建议 138：全局 exposedHeaders + 统一 Retry-After helper + server 接线行为/mutation 测试；随后 lease/
   FE UUID/模型取消；Goldfish-R16 复核中。
+
+## 23. 轮次 138 apply helper / CORS 复核（2026-10-30 03:59–04:10）
+
+- 基线：backend **25c9429**（03:58:07 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round138-backend.log` **0 fail**（03:57:46 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终内容）；定向 voice-turn **1/1**（mock res 断言 apply helper 的 status/headers/body）。
+- 已验证：①`applyVoiceTurnInProgressResponse(res, guard, key)` 落地：res.status(409)+set 动态
+  Retry-After+json(body)，server claim 失败路径直接 `return apply...`（旧内联移除）；
+  ②全局 CORS `exposedHeaders` 已加 `"Retry-After"`（server.js:711）→ guard/通用 409、语音限流与
+  expressive-speech 429 的 Retry-After 均可跨源读取；③每响应 `Access-Control-Expose-Headers` 已移除
+  （server.js/voice-turn.js grep 0 处）；④通用 voice 409 只补 `Retry-After:5`（getHeader 保护）；
+  ⑤生产 revision=25c9429。上轮“全局未落地”结论作废。
+- 剩余 P2：①跨实例无 DB lease（滚动部署/多实例双 generation，assistant replay 但模型/tool 双跑）；
+  ②FE 重试仍新 UUID + TTL 200>FE 180；③模型未取消/tool 副作用；④save 窄窗口；
+  ⑤mutation 缺口缩小但仍在——apply helper 已行为测试（mock res），但 server 路由调用点仍靠源码正则
+  （不调用但保留 import 也可能绿；`"Retry-After"\s*\n\s*\]` 断言依赖格式）。建议 route 集成测试或把
+  claim-failure 分支抽函数 + mutation；⑥TTL=deadline+60 的 prefix 长尾；⑦claim-before-replay 瞬时 409。
+- 遗留 P3：429 body `retry_after_seconds` 不一致（限流有、expressive-speech 无）；前端未消费
+  code/retry_after_seconds；stored analysis 默认 neutral/0、恢复仍强制 multipart、prefix 不受 deadline。
+- 建议 139：route 级集成测试/分支抽函数 + 429 helper 统一；然后 lease/FE UUID/模型取消；Goldfish-R16 复核中。
