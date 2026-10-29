@@ -625,3 +625,26 @@
   prefix 不受 deadline。
 - 结论：**141 P0 关闭**（生产语音链路恢复）；无新增 P0/P1；建议 142 处理 retryAfterSeconds 禁用/倒计时与
   App 运行时测试/门禁，再推进跨实例 lease/模型取消；Goldfish-R20 复核中。
+
+## 28. 轮次 142 build no-undef 门禁复核（2026-10-30 04:53–05:10）
+
+- 基线：frontend **a107765**（04:53:02，仅 package.json +1/-1）；backend 未变 7d16b05（/health 一致）；
+  round141-final 日志仍有效（产品源码仍 98617a0）。
+- 门禁：`build = eslint src/App.jsx --quiet && vite build && npm run verify:csp`；eslint 10.7.0 已装
+  （lock 一致）；`eslint.config.js` = js.configs.recommended（no-undef=error）+ browser globals + JSX，
+  ignores dist/android/.bugfix。
+- 复现验证：①当前 App lint exit 0；②dcf703d App（git show | eslint --stdin）**精确 7 个 no-undef**
+  （lastVoiceAttemptRef×4/setVoiceRetryAvailable×2/voiceRetryAvailable×1，exit 1）→ 该门禁能拦住本次 P0；
+  ③全量 `npm run build` exit 0（eslint → vite built → verify:csp `{"ok":true,"htmlFiles":3,"allowedHashes":14}`）；
+  ④本地 dist App 三字面量 0/0/0。
+- 部署覆盖：Vercel buildCommand=`npm run build:web` → build（含门禁）✅；android-apk / publish-android-apk
+  工作流用 `npm run build` ✅；直接 `vite build` 可绕过（建议文档化强制 npm build）。
+- 生产：现入口 `index-CvFo_jIW.js` → `App-BAXkQACo.js`（598,745B），“重试这条语音”=1、
+  client_message_id=2、三长标识符 0/0/0 → P0 保持关闭；注意与 lead 所述 App-CHhyJHVO hash 不同，
+  属重新构建（产品源码仍 98617a0），内容等价。
+- 仍存 P2/P3：①门禁只 lint App.jsx（实测 `eslint src` 与 `src/**/*.{js,jsx}` 均 exit 0 → 可零成本放宽）；
+  ②直接 vite build 绕过；③no-undef 不覆盖运行时行为，App retry 行为测试仍缺；④orphan TTL200>FE180
+  立即重试 409、retryAfterSeconds 未用于禁用/倒计时；⑤跨实例 lease、模型未取消、save 窄窗口、
+  TTL/prefix、claim-before-replay；⑥build 警告 App chunk 662.97kB/gzip216.52（P3 性能）。
+- 结论：142 门禁有效、P0 防回归到位；建议 143 放宽到 src 全量 + 文档化 npm build + App 运行时测试/
+  retryAfterSeconds 倒计时；Goldfish-R20 复核中。

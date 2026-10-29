@@ -2049,3 +2049,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 用 dcf703d App 临时副本验证：eslint 报 7 个 no-undef（lastVoiceAttemptRef/setVoiceRetryAvailable/voiceRetryAvailable）；修复版 build 通过。
 - frontend 全量 round141-frontend-final.log 0 fail；生产 98617a0 App chunk 三长标识符 0/0/0。
 - 剩余：orphan TTL200>FE180 立即重试仍 409；retryAfterSeconds 未消费；App 运行时重试测试仍缺；跨实例 lease/模型取消。
+
+
+## 轮次 143（2026-10-30 · 语音重试倒计时/并发锁）
+
+- App 消费 voice.js 保留的 retryAfterSeconds：失败后按钮显示“X 秒后可重试”并禁用，倒计时结束恢复。
+- retryVoiceTurn 增加 in-flight 锁；新录音/取消清 lastVoiceAttemptRef 与 retry 状态，避免旧 attempt 串话。
+- 测试补 wait/in-flight/文案/retryAfterSeconds 源码断言；frontend 全量 round143-frontend.log 0 fail；lint/build/CSP 通过。
+- 生产入口 index-BZhw5hVc.js → App-DQmsj-ir.js，App 含“秒后可重试”、三个长标识符 0。
+- 剩余：retry attempt 未绑 sessionId、无真实失败语音 e2e、orphan TTL200>FE180、跨实例 lease、模型未取消。
