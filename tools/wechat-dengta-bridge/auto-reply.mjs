@@ -224,9 +224,23 @@ function messageText(message) {
     return `[用户发来一条${kinds.length ? kinds.join("/") : message.type || "非文字"}消息，自动回复暂时只能处理文字]`;
 }
 
-async function chatWithDengTa(text, conversationId) {
+async function confirmChannelBinding(externalId, code) {
+    const response = await fetch(`${cfg.backendBaseUrl}/api/v2/qq-bridge/bind/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-dengta-qq-token": cfg.token },
+        body: JSON.stringify({ channel: "wechat", code, external_id: externalId }),
+        signal: AbortSignal.timeout(30000),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) {
+        throw new Error(`bind failed: HTTP ${response.status} ${payload.code || ""} ${payload.message || ""}`.trim());
+    }
+    return payload.binding;
+}
+
+async function chatWithDengTa(text, conversationId, externalId) {
     const body = {
-        qq: cfg.bindingKey,
+        qq: externalId || cfg.bindingKey,
         text,
         client_message_id: crypto.randomUUID(),
     };
@@ -266,7 +280,7 @@ async function pollOnce() {
             }
             let reply = "";
             try {
-                const result = await chatWithDengTa(text, conversations[userId]?.conversationId);
+                const result = await chatWithDengTa(text, conversations[userId]?.conversationId, userId);
                 reply = String(result.reply || "").trim();
                 if (result.conversation_id) {
                     conversations[userId] = { conversationId: result.conversation_id, updatedAt: new Date().toISOString() };
