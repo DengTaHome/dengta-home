@@ -1533,3 +1533,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - full11 覆盖到 music-import teardown 修复、低功耗背景、语音键盘等；晚于最新手机字体默认与 DB health 的改动以定向测试为准。
 - 已启动 full12 复跑最新前端。
 - 后端 DB health 超时会 abort 底层查询；401/403 仅匿名跳过日志。
+
+## 轮次 78（2026-10-29 · full12 最新全绿）
+
+- full12 完整 `npm test`：**exit 0**，3938 行，0 failure 标记。
+- 覆盖最新手机系统字体默认、语音测试、低功耗背景、teardown 修复等。
+- full10/full11/full12 连续全绿；后端 DB health abort、401/403 范围修复已 push。
+- 仍待外部：CNB 写权限、高德认证、凭据轮换。

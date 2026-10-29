@@ -171,3 +171,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## full11 全绿（2026-10-29 轮次 77）
 
 - full11 exit 0，3938 行，0 failure；full12 跑最新手机字体。
+
+## full12 最新全绿（2026-10-29 轮次 78）
+
+- full12 exit 0，3938 行，0 failure；覆盖手机系统字体/语音/低功耗/teardown。
