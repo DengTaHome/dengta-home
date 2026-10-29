@@ -847,3 +847,34 @@
   ⑨dengta-home watcher 状态文件 M（P3 确认提交/忽略）。
 - 结论：await-fail 竞态真实关闭（真实 2s 重试 200 证据），无新增 P0/P1；建议 151 处理成功 completed_at、
   claim fail-open 监控、TTL/FE 对齐、模型取消/save 窄窗与 route E2E；Goldfish-R27 复核中。
+
+## 37. 当前轮（#64 / 轮次160 合并）只读复核（2026-10-30 07:51–08:15）
+
+- 基线：backend **ee7f5f7**（生产 `/health` 一致，`voice_lease_degraded=0`；112134b TTL175、88ad4d1 commit、
+  127ea14 abort gate+degraded、bd7747e 文字情绪、7340f5b 否定/告警、ee7f5f7 复合词过滤）；frontend **eb695ba**
+  （生产 entry `index-DNV0ffbc.js` / CSS `index-C7c6_eRS.css` / App `App-Do6CDCRt.js`）；dengta-home **87a4a63**，
+  backup bundle 27,428,771B（07:50:11，`git bundle verify` OK、HEAD 87a4a63）。
+- 测试：round159-backend.log **0 fail**（07:45:06–07:46:54；相关文件 mtime 07:40:32/07:45:03 < 运行开始，
+  commit ee7f5f7 晚 31s 但内容被覆盖）；round155-frontend.log **0 fail**（index.css 07:27:22 < 运行开始，
+  覆盖 eb695ba）；定向 voice-turn **1/1**。
+- 代码复核：①TTL175（lease/orphan/render/env/clamp）与 FE180 对齐；②成功路径 await `commit`（tenant RPC 幂等
+  插 assistant + user completed/lease null/completed_at；reply_to 唯一索引保证不重复）；lead DB 行 user4821
+  completed 与代码一致；③abort gate 在 assistant save 前 await fail 并 return（修掉 save 窄窗，但 bare return
+  不响应，deadline 晚到窗口会让客户端等 180s，P2）；④degraded 计数 + `/health.voice_lease_degraded` + 5/10
+  次 warn（claim/commit RPC 异常；生产 0）；⑤文字情绪规则+否定（前2字符后缀）+复合词（积累/累计/累积），
+  confidence 0.32/hint“文字推测”；lead fresh tired/0.32/hint 与代码一致；覆盖有限（P2）；⑥触摸 44px media
+  narrow/coarse + !important；生产 CSS 已含；独立审计 390/360：targets<44=0、overflowX=false、CLS0、
+  pageerror=0、非GET=0。
+- 性能：lead（socks5）390 TTFB1158/LCP2332/CLS0/304KB、360 1148/2376/CLS0/304KB；Elephant 独立直连
+  TTFB147/183、LCP488/504、CLS0、transfer378.5KB——方向一致、绝对值随网络/口径变化，不构成矛盾；
+  建议固定测量脚本/代理口径。App chunk ~663KB 登录后加载。
+- 分级：**P0=0**；**P1=1（证据矛盾）**：lead 的“504→409 RECOVERING 127s”与当前 await-fail 语义不一致——
+  504 后 user 行应变 failed、2s 后同 CID 重试应 canResume→claim→200；127s 更像 fail 未提交/旧版/另一实例
+  持有 lease 的恢复剩余（可查 health degraded 计数/日志）；若当前可复现则 fail RPC 有降级路径需升级。
+  **P2**：①save abort gate bare return 无响应窗口（建议 next(504/499)）；②commit 失败仅 degraded+log，
+  DB 留 in_progress；③claim fail-open 跨实例双 generation；④文字情绪否定/复合词覆盖有限；⑤44px 全局规则
+  未审计 App 深层页面；⑥TTL175/FE180 仅 5s 上传余量 + Render env 运行时同步不可核验；⑦性能口径（304 vs
+  378.5KB）未标准化、App chunk 待拆；⑧日志 commit 晚于 log（内容 mtime 覆盖）、无 round160 后端日志；
+  ⑨health degraded 进程内计数（多实例不一致）。
+- 结论：**P0=0、P1=1（证据需澄清）**；建议先澄清 504→409 127s 的复现条件/health 计数，修复 abort gate
+  无响应窗口与 commit 失败补偿，再扩展文字情绪否定/复合词与 App 深层 44px 审计；Goldfish-R28 同时复核。

@@ -2208,3 +2208,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 慢资源集中在 react-core 874ms、supabase-auth 725–978ms、CSS 678–880ms；App 动态包 ~663KB 在登录后加载，不在首屏路径。
 - 未发现需要紧急优化的首屏回退；脚本 `_tools/pw/perf-current.mjs`，记录 `_audit/PERF-2026-10-30.md`。
 - 剩余：登录后 App chunk 可继续拆分；touch 深层面板；claim fail-open、模型取消、route E2E。
+
+
+## 轮次 161（2026-10-30 · abort gate 响应 / 证据澄清）
+
+- abort gate 不再静默 return：deadline → 504 `VOICE_TURN_DEADLINE`，客户端断开 → 499 `VOICE_TURN_CANCELLED`；先 await fail 租约。
+- 澄清 127s RECOVERING 证据属 revision 5930c02（fail 生命周期前）；当前 be2709a/ba73e97 已有 abort→2s 重试 200 证据。
+- backend round161-backend.log 0 fail；生产 backend 8c1721c（/health degraded=0 已核对）；frontend index-DNV0ffbc。
+- 剩余：commit 失败补偿、claim fail-open、模型取消、route E2E、深层触摸、App chunk。
