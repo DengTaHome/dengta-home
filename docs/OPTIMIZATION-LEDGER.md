@@ -1735,3 +1735,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 外卖卡关闭：父级 keydown 忽略子目标，关闭按钮 onKeyDown 阻止冒泡；键盘 Enter/Space 不再误开任务；测试补 keydown。
 - 设置安装按钮：`.settings-app-actions` 改 align-items:flex-start，安装 guidance 不再把兄弟按钮拉成 84px；install-button 最小高度 44px。
 - full25 exit0 3944 行；最新改动跑 full26。
+
+## 轮次 107（2026-10-29 · 收尾）
+
+- full26 最新（侧边栏/下载/外卖/对比度修复）：0 failure 标记，3829 行。
+- Vercel c45a587 READY；后端 /health 200，0.29.76，revision 6c1ccb5c。
+- 侧边栏/设置无透出、对比度达标；下载入口常驻；安装 guidance 内联；外卖卡可关闭（含键盘）。
+- 收尾文档 docs/SESSION-FINAL-2026-10-29.md；唯一备份已更新。
