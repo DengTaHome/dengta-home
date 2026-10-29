@@ -14,7 +14,7 @@
 | 3 | DengTaHome/dengta-home-frontend | 生产前端 | `_refs/frontend-gh` | f5b590f / 2.13.43 | 无 LICENSE | Vercel/Capacitor | 已被调试截图污染；已清理 index；CSP 手同步 |
 | 4 | DengTaHome/dengta-music-mcp | 网易云 Docker 宿主 | `_refs/music-stable` | f042336 | CC BY-NC-SA 4.0（非 MIT） | 线上音乐 MCP | 已修 fail-open token/body limit；部署待网关 token |
 | 5 | （旧副本）frontend-prod | 前端克隆 | 已删除 | 损坏 | — | 无 | 零提交/中断克隆，已删除 |
-| 6 | yxiy171866-boop/x-twikit-mcp | X/Twitter stdio MCP | `_refs/x-twikit-mcp` | dc5c935 | MIT | 本机经 supergateway 接入 | 只读工具已启用；服务端仍暴露写工具，需只读闸门 |
+| 6 | yxiy171866-boop/x-twikit-mcp | X/Twitter stdio MCP | `_refs/x-twikit-mcp` | dc5c935 | MIT | 本机经 supergateway 接入 | 已加服务端只读闸门；默认拒写 |
 | 7 | Anko3o/Music-Mcp-Netease | 网易云 MCP + 播放器 | `_refs/music-mcp-netease` | 06e5a258 | CC BY-NC-SA 4.0 | 参考/备选 | 不搬代码；非商用+SA 传染 |
 | 8 | Cheiineeey/netease-music-mcp | 网易云 MCP 备选 | 无本地 | 547afbe0 | PolyForm Noncommercial | 未集成 | 禁止并入；鉴权/CORS 风险 |
 | 9 | Vael-KY/netease-music-mcp | 网易云 MCP 备选 | 无本地 | 7a9344b (v3.2.1) | MIT | Cookie 方案参考 | 已补 attribution；未挂 MCP；默认 0.0.0.0 无鉴权 |
@@ -99,6 +99,15 @@
 5. frontend：移除根目录调试截图/XML 的 git 跟踪；新增 inline 字体行为测试；已 push。
 6. 补 Vael-KY cookie 方案 attribution；已 push 公开镜像。
 7. 本清单 + 四个 Goldfish 审计报告记录在 Elephant 账本。
+
+## 本轮追加动作（第二批）
+
+- x-twikit-mcp：服务端新增 `_write_tool` 闸门，默认 `X_MCP_READ_ONLY=1`；`post_tweet/reply_tweet/send_direct_message/favorite_tweet/retweet/delete_tweet` 会直接返回只读错误；本地已用 MCP client 验证 tools=12、写工具被拒。可复现补丁更新到 `tools/x-mcp/patches/server.py.patch`。
+- GZdeepseek 本地 X 隧道已用只读 wrapper 重启；DengTa 只读工具仍可用。
+- frontend：新增 inline 字体行为测试（真实执行启动脚本，覆盖 mobile/desktop/stored/无 matchMedia）。
+- backend：`render.yaml` 后台任务开关与线上对齐；`coverage/*` 停止跟踪。
+- 公开镜像：README/feed 指向 `v2.13.43`；Vael attribution 已加。
+- music-stable：安全加固已 push；**尚未重建 VPS 镜像**，需先确认 `MUSIC_GATEWAY_TOKEN` 在 env。
 
 ## 仍待决策/执行
 
