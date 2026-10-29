@@ -186,3 +186,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - 生产 f5b590f3：390×844 system、无字体请求。
 - 3 手机视口布局全通过，就绪 3.1–3.3s（之前 ~272s）。
+
+## 最新 6/6 布局（2026-10-29 轮次 81）
+
+- 手机 3 + 平板/折叠/桌面 3 全通过，就绪 3.1–3.5s。
+- 生产手机首屏 system 字体、无字体请求；full13 运行中。
