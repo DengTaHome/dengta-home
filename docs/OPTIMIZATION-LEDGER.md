@@ -2022,3 +2022,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 测试新增 call-site 精确断言：claimVoiceTurnOrRespond 参数、if(!claimToken)return、release(key,token)、setRetryAfterHeader(result.retryAfterMs)。
 - backend round140-backend.log 0 fail、voice-turn pass；生产 backend 7d16b05（/health 已核对），frontend 4debff4。
 - 剩余：跨实例 DB lease、FE 新 UUID、模型/tool 未取消、route 级集成仍缺。
+
+
+## 轮次 141（2026-10-30 · 前端语音重试/错误元数据）
+
+- `submitVoiceBlob` 支持复用 `clientMessageId`，失败后保存 blob/时长/id，新增“重试这条语音”按钮；重试复用同一 UUID，避免 orphan 重复 user。
+- `voice.js` HTTP 失败保留 `status`/`code`/`retryAfterSeconds`（body 或 Retry-After header），供 UI 消费。
+- 按钮 44px、focus-visible、touch-action；App/voice 测试补 409 元数据与源码断言。
+- frontend 全量 round141-frontend.log 0 fail；build 通过；生产入口 index-9xpX95ig.js / App-C6cBHmYT.js 含重试文案/class。
+- 实机：Edge Pixel 390 登录后 overflow=0、CLS=0、0 console/pageerror；Redmi K30 360 overflow=0、retryCss=true、0 error。
+- 剩余：orphan TTL 200s > FE 180s，立即重试仍可能 409；UI 未展示 retry_after_seconds；重试自动播报可能重复；跨实例 DB lease/模型取消仍在。

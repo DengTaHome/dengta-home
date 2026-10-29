@@ -547,3 +547,24 @@
   前端未消费 retry 信息；stored analysis 默认 neutral/0、恢复仍强制 multipart、prefix 不受 deadline。
 - 建议 140：route 级集成/call-site mutation + Retry-After 去重（复用 helper）；然后 lease/FE UUID/模型取消；
   Goldfish-R17 复核中。
+
+## 25. 轮次 140 统一 Retry-After / call-site 断言复核（2026-10-30 04:20–04:32）
+
+- 基线：backend **7d16b05**（04:19:08 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round140-backend.log` **0 fail**（04:18:48 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终内容）；定向 voice-turn **1/1**。
+- 已验证：①server 所有 Retry-After 生产点统一走 `setRetryAfterHeader`：语音限流（返回秒数写 body）、
+  companion/interact catch、expressive-speech 429（**body 已补 `retry_after_seconds`**）、error middleware
+  通用 voice 409；grep 已无裸 `res.set("Retry-After")`；②test 新增 4 条精确 call-site 源码正则
+  （claimVoiceTurnOrRespond 参数、`if (!claimToken) return;`、release key/token、setRetryAfterHeader
+  参数）→ mutation 面收窄；③全局 CORS 仍暴露、无每响应 Expose 回退；④生产 revision=7d16b05。
+- 仍存 P2：①call-site mutation **未真正收口**——仍是源码正则、无路由 fake req/res 集成测试；
+  值级变异（guardKey 组成、guardTtlMs 取值/传参）未必被覆盖，建议抽分支/集成 + mutation；
+  ②跨实例无 DB lease；③FE 新 UUID + TTL200>FE180；④模型未取消/tool 副作用；⑤save 窄窗口；
+  ⑥TTL=deadline+60 prefix 长尾；⑦claim-before-replay 瞬时 409。
+- 仍存 P3：Retry-After 计算两份实现（voiceTurnInProgressResponse 自算 min/ceil；建议复用
+  setRetryAfterHeader）；server 未使用 applyVoiceTurnInProgressResponse import 却有源码断言（冗余）；
+  generic voice 409 body 仍无 retry_after_seconds（guard 有）；companion/interact 429/错误仅有 header；
+  前端未消费 retry 信息；stored analysis 默认 neutral/0、恢复仍强制 multipart、prefix 不受 deadline。
+- 建议 141：route 级集成测试（claim 成功/失败/finally release）+ Retry-After 去重/清理未用 import；
+  然后 lease/FE UUID/模型取消；Goldfish-R18 复核中。
