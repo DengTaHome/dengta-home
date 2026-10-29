@@ -361,3 +361,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 回复弹层收尾（2026-10-29 轮次 117）
 
 - 全量 0 fail、3a14b50 READY、APK 待重连安装。
+
+
+## 全页面适配（2026-10-29 轮次 118）
+
+- together/music 页 723px min-content、设置 select、胶囊宽度全部修复；11 视口 286 项 0 failure。

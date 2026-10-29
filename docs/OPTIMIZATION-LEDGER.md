@@ -1814,3 +1814,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 ## 轮次 117（2026-10-29 · 回复弹层收尾）
 
 - 前端全量 0 failure；Vercel 3a14b50 READY；APK 4a097906 已签名待手机重连。
+
+
+## 轮次 118（2026-10-29 · 全页面全尺寸适配）
+
+- 根因：together/music 页 min-content 被长 select/头部撑到 ~723px；设置 select 405px；彩虹胶囊手机+9px/桌面+10px。
+- 修复 min-width:0/100%、单列、选择器宽度、胶囊显式宽度。
+- 新增全页面审计：11 视口 × 15 页面 + 11 设置分类，286 项 0 failure。
+- 记录 docs/ALL-PAGES-ADAPTATION-2026-10-29.md。
