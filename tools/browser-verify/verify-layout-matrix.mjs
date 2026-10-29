@@ -163,7 +163,7 @@ for (const device of DEVICES) {
         };
         const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
         if (docWidth > vw + 1) issues.push({ kind: "horizontal-overflow", detail: `scrollWidth=${docWidth} > ${vw}` });
-        const command = document.querySelector(".mobile-command-trigger");
+        const command = document.querySelector(".mobile-command-dock");
         const capsule = document.querySelector(".sun-glass-liquid-capsule-toggle");
         if (command && capsule) {
             const a = command.getBoundingClientRect();
