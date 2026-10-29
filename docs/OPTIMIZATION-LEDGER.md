@@ -2032,3 +2032,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - frontend 全量 round141-frontend.log 0 fail；build 通过；生产入口 index-9xpX95ig.js / App-C6cBHmYT.js 含重试文案/class。
 - 实机：Edge Pixel 390 登录后 overflow=0、CLS=0、0 console/pageerror；Redmi K30 360 overflow=0、retryCss=true、0 error。
 - 剩余：orphan TTL 200s > FE 180s，立即重试仍可能 409；UI 未展示 retry_after_seconds；重试自动播报可能重复；跨实例 DB lease/模型取消仍在。
+
+
+## 轮次 141 修复（P0：未声明 hooks）
+
+- Elephant 发现 dcf703d 缺少 `lastVoiceAttemptRef` / `voiceRetryAvailable` / `setVoiceRetryAvailable` 声明，语音提交会 ReferenceError；build/源码正则/静态 CSS 均未捕获。
+- 98617a0 补声明；frontend 全量 round141-frontend-final.log 0 fail；build 通过。
+- 生产入口 index-D-bsdxs-.js → App-CHhyJHVO.js；三个长标识符字面量均为 0，重试文案=1。
+- 教训：前端真机审计未走语音提交，只能证明加载/样式；后续需 App 运行时/构建 AST 门禁。

@@ -568,3 +568,33 @@
   前端未消费 retry 信息；stored analysis 默认 neutral/0、恢复仍强制 multipart、prefix 不受 deadline。
 - 建议 141：route 级集成测试（claim 成功/失败/finally release）+ Retry-After 去重/清理未用 import；
   然后 lease/FE UUID/模型取消；Goldfish-R18 复核中。
+
+## 26. 轮次 141 前端语音重试复核（2026-10-30 04:39–05:05）⚠ P0
+
+- 基线：frontend **dcf703d**（04:30:32 提交；语音相关文件 mtime 早于 commit；`round141-frontend.log`
+  0 fail，04:37:18 覆盖最终内容）。backend 未变 **7d16b05**（生产 /health 一致）。
+  生产入口 `index-9xpX95ig.js` → `App-C6cBHmYT.js`，含“重试这条语音”/`voice-retry-button`。
+- **P0：dcf703d 缺少声明，生产语音提交会 ReferenceError**：
+  ①`git grep` 全 src 只有 `lastVoiceAttemptRef`/`voiceRetryAvailable`/`setVoiceRetryAvailable` 的
+  使用点（App.jsx:4095/4250/4251/4278/4298/8478），无任何 `useState/useRef` 声明，也不是 props/context；
+  ②生产 App chunk 中这些标识符以**未压缩自由变量**出现 `lastVoiceAttemptRef`×4、
+  `setVoiceRetryAvailable`×2、`voiceRetryAvailable`×1（与源码引用次数一致；已声明的局部 state/ref 会被
+  minify 成短名）→ 运行到即 ReferenceError；
+  ③每次 `submitVoiceBlob` 第一行就引用 `lastVoiceAttemptRef` → **所有语音提交**（不止失败）崩溃，
+  成功路径/失败路径/错误渲染/重试按钮全受影响。生产语音链路当前不可用。
+- 为什么没抓到（测试/审计盲区）：build（esbuild）不做 undeclared 检查；voice.test.js 是源码正则 +
+  FakeXHR（不执行 App 运行时）；真机审计 0 pageerror 只覆盖页面加载/样式（未走语音提交交互），
+  retryCss=true 只证明 CSS 存在。
+- 源码设计本身正确（待修复后生效）：UUID 复用（options.clientMessageId + lastVoiceAttemptRef + 同 UUID
+  formData）、失败显示“重试这条语音”、重试复用同一 blob/durationMs/UUID；voice.js 错误对象保留
+  status/code/retryAfterSeconds（body 优先/header 兜底，跨源依赖后端全局 CORS expose）；CSS 44px/
+  focus-visible/touch-action、原生 button 在 role=alert 内可键盘操作。
+- 修复：App 组件补 `const lastVoiceAttemptRef = useRef(null);`
+  `const [voiceRetryAvailable, setVoiceRetryAvailable] = useState(false);` → 重跑全量+build → 校验生产
+  App chunk 中上述字面量计数为 **0**（部署门禁）→ 重新部署；补 App 层行为测试（jsdom/react-test-renderer
+  失败语音→按钮→重试同 UUID/blob）或真实失败语音浏览器审计 + ESLint no-undef。
+- 其余 P2：orphan TTL 200s>FE 180s 的重试时序（retryAfterSeconds 尚未在 UI 消费/倒计时）；跨实例
+  DB lease；模型未取消/tool 副作用；save 窄窗口；claim-before-replay；App 重试逻辑无运行时测试。
+- 遗留 P3：voice.js 错误分支假定 data 为对象（parse 兜底需复核）；stored analysis 默认 neutral/0、
+  恢复仍强制 multipart、prefix 不受 deadline。
+- 结论：**141 P0=1（生产语音不可用）**；修复并部署前不回收语音重试项；Goldfish-R19 复核中。
