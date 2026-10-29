@@ -1809,3 +1809,8 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 有草稿或输入框聚焦时不自动弹回复建议；只保留发送/主动收起关闭。
 - 真实 390×844 验证输入完整、弹层保持、焦点保持、手动收起；单测 5/5。
 - 记录 docs/REPLY-OPTIONS-2026-10-29.md。
+
+
+## 轮次 117（2026-10-29 · 回复弹层收尾）
+
+- 前端全量 0 failure；Vercel 3a14b50 READY；APK 4a097906 已签名待手机重连。

@@ -37,3 +37,11 @@ input.addEventListener("input", closeOnType);
 - 单测 `test/reply-options-trigger.test.js`：5/5 通过（新增输入不收起回归）
 - `npm run build` 成功
 - 截图：`_audit/reply-options-typing.png`
+
+
+## 最终验证（2026-10-29 18:20）
+- 前端全量：0 failure（3829 行）；reply-options 单测 5/5
+- Vercel `3a14b50` READY
+- 最终 APK：`_audit/DengTa-2.13.44-302-reply-options.apk`
+  - SHA-256：`4a097906a3fb6b7b29dceb03def737643ae8206ed562ced1de8850743868afd0`
+  - 手机当前未连接，待重新插入后 `adb install -r`；网页端已生效

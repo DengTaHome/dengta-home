@@ -356,3 +356,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 更多回复弹层（2026-10-29 轮次 116）
 
 - 打字不再收起/失焦；有草稿不自动弹；只发送/手动收起；验证 5/5。
+
+
+## 回复弹层收尾（2026-10-29 轮次 117）
+
+- 全量 0 fail、3a14b50 READY、APK 待重连安装。
