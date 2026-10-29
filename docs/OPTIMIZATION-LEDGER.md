@@ -1613,3 +1613,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 修复设置搜索框实际高度 42→44px；横屏抽屉“新建对话”29×29→44×44；设置/音乐/抽屉测试不误报 offcanvas 与原生 switch。
 - 全量 full16：**exit 0**，3944 行，0 failure 标记。
 - Vercel `f2c6531` READY（含全部手机适配 CSS）。
+
+## 轮次 90（2026-10-29 · Goldfish 纠正后重跑）
+
+- Goldfish 指出上轮 16/16 是加载壳假绿：脚本只等 2.5s，截图仍在“正在唤醒/正在加载”，msgCount=0；且缺失元素会跳过、空页也 0 问题。
+- 修复验证器：等 `.connection-recovery`/启动幕消失，且出现消息或会话内容；断言 `.main-panel/.composer` 必须存在；缺失/白屏抛错退出 1。
+- 视口改为 17 个：新增 568×320 小横屏，915×412 改为 896×414（避免 >900 桌面断点）。
+- 短横屏不再隐藏整个 presence stack：压缩到 76px、隐藏 ribbon/ambient，保留状态胶囊；320/390/横屏点击胶囊 `.status-panel.is-open=true`。
+- 真实就绪重跑：**17/17 0 布局问题**，ready 6.2–7.5s；设置/音乐/抽屉 0 问题。
+- full16 exit0 3944 行 0 fail（CSS 前）；最新 CSS 定向 11/11。
