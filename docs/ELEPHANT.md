@@ -141,3 +141,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - full10 3821 行 0 failure；full9 唯一样式顺序失败已修；teardown 停滞已修。
 - 401/403 不再写 chat_error_logs；前端 keyboard/lowdata/perf guards/浏览器验证保持通过。
+
+## 低功耗背景（2026-10-29 轮次 72）
+
+- CelestialBackdrop 在 saveData/deviceMemory≤4 时冻结 Canvas/视频为静态帧。
+- RainbowAgentMark 读取 data-dengta-reduced-motion==="true"；test teardown lint 修复。

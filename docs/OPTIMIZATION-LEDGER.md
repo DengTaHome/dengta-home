@@ -1488,3 +1488,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 后端：未认证 401/403 不再写 chat_error_logs，避免匿名探测放大 DB 写入；module coverage 通过。
 - 前端：语音键盘可达、低内存设备跳过 7.4MB 字体、performance-guards；真机 local-build 11/11、animation 全通过、touch 0<44。
 - backend 最新提交待 Render 部署；frontend 2a30695 READY。
+
+## 轮次 72（2026-10-29 · 低功耗设备静态背景）
+
+- `CelestialBackdrop` 在 saveData 或 deviceMemory≤4 时把 `reduceMotion` 视为 true：三块全屏 Canvas 只画一帧，不再 30fps 持续绘制；海岸视频也走静态图。
+- 修正 RainbowAgentMark 对 App 内 reduced-motion 的读取值（`"true"` 而非 `"1"`）。
+- music-import teardown `process.exit` 改为 globalThis，lint 恢复 0 error。
+- lint/build/定向测试通过；低功耗设备首屏/滚动合成压力进一步降低。
