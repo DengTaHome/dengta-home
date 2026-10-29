@@ -1843,3 +1843,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - XHub 真实 MCP 连接与工具调用；ChannelHub 同步设置+绑定码；后端通用 MCP callTool、channel bind confirm、DB scope。
 - 微信桥确认绑定/按 external_id 解析已实测；同步冲突修复；命令面板最近/清空/计数/滚动与夜间对比度修复。
 - Elephant/Goldfish 审查完成，P1 对比度/recent 布局/绑定断链已修；外部完整一起听页、X 上游 404、QQ 桥自动绑定仍待下一轮。
+
+
+## 轮次 122（2026-10-29 · 独立栏目收尾）
+
+- 前端全量 0 failure/3834 行；后端 0 failure；Vercel 72cdb13 READY。
+- APK 78d325ae 已安装 vivo V2454A；微信/QQ 绑定+DB scope e2e 通过；命令面板对比度/最近布局修复。
+- 剩余：外部完整一起听页、X 上游 404、QQ 桥自动绑定。

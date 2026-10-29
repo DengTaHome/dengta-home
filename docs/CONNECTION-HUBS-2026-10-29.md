@@ -82,3 +82,11 @@ Elephant（架构）与 Goldfish（只读）都跑完：
 - X 上游 twikit 的 `search_tweets` 返回 `Twitter search error: 404`；Hub 能正确显示失败，但搜索不可用。12 工具中只接了搜索/发帖两个操作，其余仍是只读工具清单。
 - QQ 桥脚本（SnowLuma）尚未自动处理绑定码；QQ 通道 sync 真实可用，QQ 动态绑定需要再改 QQ 桥。
 - 媒体/NSFW 只保存开关，没有完整媒体管线；绑定 confirm 目前以 6 位码作为持有证明，建议后续加限流/锁定。
+
+
+## 最终验证（2026-10-29 21:10）
+- 前端全量：**0 failure（3834 行）**
+- 后端全量：0 failure（5 tests）
+- Vercel `72cdb13` READY
+- 手机 APK：`_audit/DengTa-2.13.44-302-hubs.apk`，SHA-256 `78d325ae0f77a510a0a60c1c60de292089ba34c47bfe62574bb49ac79326b444`，已 `adb install -r` 到 vivo V2454A，启动正常。
+- Goldfish 最终 palette/hubs：320/390/844/1280 四入口正确、无横向溢出；命令面板对比度失败已清零；最近使用 chip 在结果列表内可点；绑定码生成成功。
