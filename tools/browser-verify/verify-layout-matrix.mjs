@@ -240,6 +240,25 @@ for (const device of DEVICES) {
     }, { vw: device.width, vh: device.height });
 
     await page.screenshot({ path: `${OUT}/layout-${device.width}x${device.height}.png`, timeout: 120_000 });
+    // Short landscape: the compact floating capsule must still open the full
+    // status panel (JS and CSS breakpoints must agree). Close it afterwards.
+    if (device.height <= 560) {
+        try {
+            const capsule = page.locator(".sun-glass-liquid-capsule-toggle").first();
+            if (await capsule.count()) {
+                await capsule.click({ timeout: 8000 });
+                await page.waitForTimeout(700);
+                const panelOpen = await page.evaluate(() => Boolean(document.querySelector(".status-panel")?.classList.contains("is-open")));
+                if (!panelOpen) audit.issues.push({ kind: "status-panel-unreachable", detail: "capsule did not open .status-panel" });
+                await page.keyboard.press("Escape").catch(() => {});
+                await page.waitForTimeout(300);
+            } else {
+                audit.issues.push({ kind: "status-capsule-missing", detail: "no capsule in short landscape" });
+            }
+        } catch (error) {
+            audit.issues.push({ kind: "status-panel-error", detail: String(error).slice(0, 160) });
+        }
+    }
     results.push({ device: device.name, readyMs, ...audit, issueCount: audit.issues.length });
     console.log(`\n=== ${device.name} === 就绪 ${(readyMs / 1000).toFixed(1)}s`);
     if (!audit.issues.length) console.log("  ✓ 未发现布局问题");
