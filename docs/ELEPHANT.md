@@ -114,3 +114,9 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - 触屏 tap 不加载动图；取消语音后不自动播放；TTS body abort 统一错误；≤820px blur 全关。
 - 语音按钮键盘可达；后端 SIGTERM 优雅关闭。
 - 真机：local-build 11/11、animation 全通过、touch 0<44；backend d0fafa7、frontend bcbb0ea。
+
+## 轮次 67（2026-10-29）
+
+- 语音按钮键盘可达；低内存/saveData 使用系统字体，避免 7.4MB webfont。
+- 新增 performance-guards 测试；music-listening 3/3。
+- full8 停滞已停止；最近完整全绿仍是 full6；真机 local-build/animation/touch 通过。

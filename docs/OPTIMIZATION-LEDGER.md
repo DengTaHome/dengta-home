@@ -1449,3 +1449,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 无障碍：语音按住按钮加 KeyDown/KeyUp（Space/Enter 长按录音、松开发送）。
 - 后端：SIGTERM/SIGINT 优雅关闭 http server、backgroundJobLoop、diary timer；backend d0fafa7 在线。
 - 前端 bcbb0ea READY。
+
+## 轮次 67（2026-10-29 · 键盘可达 + 低内存字体 + 性能守卫）
+
+- 语音按住按钮支持 Space/Enter 长按录音、松开发送；不再只能触屏/鼠标。
+- 数据节省/低内存设备（saveData 或 deviceMemory≤4）默认使用系统字体，避免首次下载/解码 7.4MB CJK webfont。
+- 新增 `test/performance-guards.test.mjs`：静态首帧存在且 <64KB、触屏不会启动 426KB 动图、hidden/scroll pause 与 low-data 字体契约。
+- 真机：local-build 11/11、animation-budget 全通过、touch 0<44。
+- full8 全量在 music import 后停滞已停止；`test:music-listening` 3/3（含性能守卫）通过；此前 full6 3924 行/0 failure 仍为最近完整全绿。
+- 前端最新提交已 push，Vercel 待确认。
