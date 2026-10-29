@@ -1540,3 +1540,15 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 覆盖最新手机系统字体默认、语音测试、低功耗背景、teardown 修复等。
 - full10/full11/full12 连续全绿；后端 DB health abort、401/403 范围修复已 push。
 - 仍待外部：CNB 写权限、高德认证、凭据轮换。
+
+## 轮次 79（2026-10-29 · 手机首访字体真正生效）
+
+- 修复了 Goldfish 发现的首访缺口：`index.html` 预置脚本现在同步判断 `(max-width: 820px)`：
+  - 无存储时手机 `fontMode=system`，桌面 `standard`
+  - 已存用户选择不被覆盖
+- 更新 `vercel.json` CSP inline script sha256（构建后取 dist 内容计算，保留 CRLF 语义）。
+- 真机验证（Edge headless 全新 profile，390×844，生产 f5b590f3）：
+  - `<html data-dengta-font-mode="system">`
+  - netlog **没有** `/fonts/DengTaSans-cjk-v2.woff2` 请求
+  - 登录页首屏不再下载 7.42MB 字体
+- full12 最新全绿（3938 行/0 failure）；build+CSP 通过。

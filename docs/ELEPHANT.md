@@ -175,3 +175,9 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## full12 最新全绿（2026-10-29 轮次 78）
 
 - full12 exit 0，3938 行，0 failure；覆盖手机系统字体/语音/低功耗/teardown。
+
+## 手机首访字体（2026-10-29 轮次 79）
+
+- index.html inline 脚本已按 820px 默认 system；CSP hash 更新。
+- Edge headless 390×844 生产实测：fontMode=system，无 7.42MB 字体请求。
+- full12 3938 行 0 failure；build/CSP 通过。
