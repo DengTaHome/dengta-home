@@ -1495,3 +1495,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 修正 RainbowAgentMark 对 App 内 reduced-motion 的读取值（`"true"` 而非 `"1"`）。
 - music-import teardown `process.exit` 改为 globalThis，lint 恢复 0 error。
 - lint/build/定向测试通过；低功耗设备首屏/滚动合成压力进一步降低。
+
+## 轮次 73（2026-10-29 · 低功耗/401 上线）
+
+- backend `a783535` 已在线：401/403 不再写 chat_error_logs。
+- frontend `d11729f`：低功耗设备冻结 Celestial Canvas/视频；RainbowAgentMark 读取 App reduced-motion === "true"。
+- full10 全量 3821 行 0 failure；full9 唯一失败/teardown 停滞均已修。
+- 已启动 Goldfish 只读复核（低功耗/401/teardown）。

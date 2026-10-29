@@ -146,3 +146,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - CelestialBackdrop 在 saveData/deviceMemory≤4 时冻结 Canvas/视频为静态帧。
 - RainbowAgentMark 读取 data-dengta-reduced-motion==="true"；test teardown lint 修复。
+
+## 轮次 73（2026-10-29）
+
+- backend a783535 在线（401/403 不写日志）；frontend d11729f（低功耗冻结背景）。
+- full10 3821 行 0 failure；Goldfish 复核启动。
