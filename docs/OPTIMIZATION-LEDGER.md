@@ -1667,3 +1667,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 已恢复 `render.yaml` false；线上 `/health` 仍 `background_jobs_enabled=true` 的漂移保留为手动对齐项，避免把 IaC 改成双重本地循环。
 - `production-auth-config.test.js` 重跑 1/1 通过；后端全量重跑中。
 - 已修正 inventory/ledger 中“已对齐 true”的过度承诺。
+
+## 轮次 97（2026-10-29 · 后端全量恢复全绿）
+
+- 后端全量重跑：**exit 0**，1107 行，0 failure 标记；显示 `duration_ms 403`。
+- `render.yaml` 保持 BACKGROUND_JOBS_ENABLED=false（外部触发器契约），测试 1/1。
+- 线上 health background_jobs_enabled=true 漂移仍列为手动对齐项，不自动改 IaC。
+- 前端 full20：0 failure 标记；Vercel c2c9a1b READY。

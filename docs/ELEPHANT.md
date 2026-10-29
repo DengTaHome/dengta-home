@@ -269,3 +269,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - render.yaml=false 是外部触发器契约；上轮改 true 导致测试失败，已恢复 false。
 - 线上 health=true 漂移待 Render 手动对齐；生产配置测试 1/1 通过。
+
+## 后端全量（2026-10-29 轮次 97）
+
+- backend npm test exit0 1107 行 0 fail；render.yaml=false 配置测试通过。
