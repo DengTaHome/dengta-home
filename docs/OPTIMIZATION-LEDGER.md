@@ -1835,3 +1835,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 全页面审计 286 项 0 failure；最终 52 项 0；19 机型矩阵 0；前端全量 0 failure。
 - Vercel 8bc2530 READY；APK 96c79789 待手机重连安装。
 - Goldfish 两项问题已修：听歌页浮块、音乐导入 select。
+
+
+## 轮次 121（2026-10-29 · 独立栏目与绑定闭环）
+
+- 新增「一起听与连接」独立分组：music/x/wechat/qq；手机快捷聊天/一起听/微信/X。
+- XHub 真实 MCP 连接与工具调用；ChannelHub 同步设置+绑定码；后端通用 MCP callTool、channel bind confirm、DB scope。
+- 微信桥确认绑定/按 external_id 解析已实测；同步冲突修复；命令面板最近/清空/计数/滚动与夜间对比度修复。
+- Elephant/Goldfish 审查完成，P1 对比度/recent 布局/绑定断链已修；外部完整一起听页、X 上游 404、QQ 桥自动绑定仍待下一轮。
