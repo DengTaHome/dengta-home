@@ -2122,3 +2122,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 真实生产回归（be2709a）：fresh zh-webm `/voice/turn` HTTP 200，user=4812/assistant=4813，71.8s；测试 session DELETE 204；临时 token/env/音频已清理。
 - backend round150-backend.log 0 fail；生产 backend ba73e97（/health 已核对），frontend index-C4-5uC8g。
 - 剩余：成功 lease 无 commit/completed_at、claim fail-open、TTL200>FE180、模型取消/save窄窗、route/真实 504 自动化 E2E。
+
+
+### 轮次 150 追加：abort→立即 retry 真实验收
+
+- 客户端 25s 断开（curl exit 28）→ 服务端 catch await fail；2s 后同 CID 重试 **HTTP 200**（19.9s，user=4814/assistant=4815），未出现 409 RECOVERING。
+- 测试 session DELETE 204；token/音频临时文件清理。证明 await fail 后租约可立即 reclaim。
