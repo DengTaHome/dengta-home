@@ -371,3 +371,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## Goldfish 追加（2026-10-29 轮次 119）
 
 - 浮块全页面、顶栏去重、导入 select 限宽；390/1280 0 failure。
+
+
+## 全页面收口（2026-10-29 轮次 120）
+
+- 286 项审计 0 fail、19 机型 0、全量 0；Goldfish 两项修复；8bc2530 READY。

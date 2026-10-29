@@ -1828,3 +1828,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 
 - 浮块全页面渲染；手机顶栏隐藏重复 ⌘K；音乐导入 select 限宽。
 - 390/1280 全页面 52 项 0 failure；听歌页浮块打开命令面板正常。
+
+
+## 轮次 120（2026-10-29 · 全页面适配收口）
+
+- 全页面审计 286 项 0 failure；最终 52 项 0；19 机型矩阵 0；前端全量 0 failure。
+- Vercel 8bc2530 READY；APK 96c79789 待手机重连安装。
+- Goldfish 两项问题已修：听歌页浮块、音乐导入 select。

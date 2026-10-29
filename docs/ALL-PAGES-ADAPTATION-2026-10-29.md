@@ -47,3 +47,25 @@
 - 修复：浮块改为**全页面渲染**，手机隐藏顶栏重复的 ⌘K；音乐导入对话框 select/input/textarea 限 100% 宽、overflow-x hidden。
 - 390 验证：听歌页浮块可打开命令面板；导入弹层无元素超出视口；顶栏更干净。
 - 最终复测：390 + 1280 全 52 项 0 failure。
+
+
+## 最终收口（2026-10-29 19:25）
+- 286 项全页面审计（11 视口 × 15 视图 + 11 设置分类）：0 failure
+- 最终 390 + 1280 复测：52 项 0 failure
+- 19 机型布局矩阵（聊天/横屏/状态面板/浮块）：0 问题
+- 前端全量：0 failure（3829 行）
+- Vercel `8bc2530` READY
+- 最终 APK：`_audit/DengTa-2.13.44-302-allpages.apk`
+  - SHA-256：`96c79789e537b67d2f2e08693e2c238daac546690caa797fe6164ff710da9fe2`
+  - 手机当前未连接，待重新插入后 `adb install -r`
+- Goldfish 复核发现并已修复：听歌页无浮块、音乐导入 select 405px 溢出；其余状态面板/回复选项/外卖通过。
+
+## 验证命令
+```powershell
+# 全页面几何审计（需 5173 端口本地服务/账号夹具）
+node D:\GZdeepseek\_audit\all-pages-audit.mjs
+# 聊天 19 机型矩阵
+node tools\browser-verify\verify-layout-matrix.mjs
+# 前端全量
+cd D:\GZdeepseek\_refs\frontend-gh; npm test
+```
