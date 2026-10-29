@@ -29,3 +29,11 @@
 ## 说明
 - 这次没有改后端数据结构；后端 19 条记忆与 v1 档案原地保留。
 - 伴侣档案的“性格/偏好”字段本身仍受后端提取规则影响：已有线索会显示，但条目要等后续档案刷新整理。
+
+
+## 最终验证（2026-10-29 18:10）
+- 生产 Vercel `fd1ec20` READY；真实账号生产页面：summary=true、profile=true、memoryItems=19，无 pageerror（仅一个 404 静态资源）。
+- 前端全量：0 failure（3829 行）。
+- 最终 APK：`_audit/DengTa-2.13.44-302-memory-settings.apk`
+  - SHA-256：`ba472f97eec9506ce54c8f480d0d1d70a4fb976415f1719bedef8a7c70edecfd`
+  - 手机当前未连接，待重新插入后 `adb install -r`；网页端已生效。

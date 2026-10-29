@@ -346,3 +346,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 设置页记忆/档案（2026-10-29 轮次 114）
 
 - 设置 persona 顶部加入 CompanionProfile + LocalMemorySummaries；19 条摘要可见；档案线索可见。
+
+
+## 设置页记忆收尾（2026-10-29 轮次 115）
+
+- fd1ec20 生产验证 19 条摘要/档案可见；全量 0 fail；APK 待手机重连。

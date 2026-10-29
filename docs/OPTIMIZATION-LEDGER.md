@@ -1795,3 +1795,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 档案为空时展示最近聊天提取线索。
 - 390×844 真实账号验证 summary/profile/memoryItems=19，无 pageerror。
 - 记录 docs/MEMORY-PROFILE-SETTINGS-2026-10-29.md。
+
+
+## 轮次 115（2026-10-29 · 设置页记忆收尾）
+
+- 生产 `fd1ec20` 验证设置页 summary/profile/19 条摘要可见；前端全量 0 failure。
+- APK `ba472f97…` 已签名，待手机重连安装；网页端已生效。
