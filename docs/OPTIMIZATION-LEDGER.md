@@ -1643,3 +1643,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - full18 完整 `npm test`（真实 transcript 矩阵后的最新 CSS）：**exit 0**，3945 行，0 failure。
 - 18/18 视口 msgCount>0、0 布局问题；恢复态 composer 273–380/390；915 横屏走移动断点。
 - Vercel `27cfb8a` READY。
+
+## 轮次 94（2026-10-29 · 915 状态胶囊修复）
+
+- Goldfish 发现 915×412 移动布局已生效，但胶囊点击仍走 JS 的 820 断点，只开心潮浮层，`.status-panel` 不开。
+- 修复 `CompanionStatus.jsx`：JS 断点改为与 CSS 一致的复合条件 `(max-width:820px), (orientation:landscape) and (max-height:560px) and (max-width:960px)`。
+- 矩阵新增短横屏胶囊回归：点击后强断言 `.status-panel.is-open=true`；568/844/896/915 全部通过。
+- 18/18 视口真实消息 0 问题，ready 19.3–23.3s。

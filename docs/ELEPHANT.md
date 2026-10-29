@@ -255,3 +255,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## full18（2026-10-29 轮次 93）
 
 - full18 exit0 3945 行 0 fail；18 视口真实 transcript 0 问题；恢复态/915 修复。
+
+## 915 胶囊（2026-10-29 轮次 94）
+
+- JS 断点同步 960 复合条件；915 胶囊可打开 status-panel；矩阵新增点击回归。
