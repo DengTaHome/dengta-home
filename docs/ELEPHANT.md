@@ -232,3 +232,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - 16 视口（含 844×390/915×412 横屏）0 布局问题。
 - 短横屏隐藏 presence stack，composer 不再出视口；菜单/回复按钮 44px。
+
+## 手机全界面（2026-10-29 轮次 89）
+
+- 主/抽屉/设置/音乐 × 320/390/844 横屏 = 0；搜索框 44px、抽屉新建 44px。
+- full16 exit0 3944 行 0 fail；Vercel f2c6531 READY。
