@@ -2159,3 +2159,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - `/health` 新增 `voice_lease_degraded` 计数（claim/commit RPC 异常 +1），便于发现 fail-open 降级；字段置于 checks 前避免 health 契约测试破坏。
 - backend round154-backend-final.log 0 fail；生产 backend 127ea14（/health revision/degraded=0/voice_turn=true 已核对），frontend index-C4-5uC8g。
 - 剩余：fail-open 仅计数无告警、模型取消/save 窄窗残余、route E2E、前端 snapshot 仅源码测试、App chunk。
+
+
+## 轮次 155（2026-10-30 · 触摸目标 44px）
+
+- 新增 coarse pointer / narrow viewport 规则：真实 button、role=button、select 最小 44px；隐藏文件输入 exempt；对既有 41px 高度控件用 !important 覆盖。
+- 生产 frontend 入口 index-DNV0ffbc.js / CSS index-C7c6_eRS.css；390 Edge/Pixel 登录前后探针 button/select 小目标为空（隐藏 input 1x1 属设计豁免）。
+- 前端全量 round155-frontend.log 0 fail；build/CSP 通过。
+- 剩余：mobile-audit 旧报告可能缓存/时序差异；login/modal 之外深层面板仍建议再跑 360/390 全量；App chunk。
