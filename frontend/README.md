@@ -1,5 +1,7 @@
 # DengTa Home · 灯塔的家
 
+> 维护提示：此目录是公开镜像的旧快照，可能落后于当前前端源码。生产修复请以 `_refs/frontend-gh` 为准；不要用本目录直接 rebuild，否则会回退手机适配与首屏修复。`frontend/dist` 仅用于本地浏览器验证，可能来自更新构建。
+
 面向成年用户的 AI 陪伴应用，围绕持续对话、个性化角色、长期记忆与共同活动构建。DengTa Home 把聊天、日记、音乐、观影和创作放在同一个日常空间中，并提供浏览器、PWA 和 Android 体验。
 
 An AI companion app for adults, built around continuous conversation, personal characters, long-term memory, and shared activities. This repository contains the React web client and Capacitor Android app.

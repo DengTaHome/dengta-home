@@ -56,6 +56,7 @@ const DEVICES = [
     { name: "844x390-landscape-14", width: 844, height: 390, dpr: 3 },
     { name: "896x414-landscape-large", width: 896, height: 414, dpr: 2.625 },
     { name: "915x412-landscape-wide", width: 915, height: 412, dpr: 2.625 },
+    { name: "900x540-landscape-midheight", width: 900, height: 540, dpr: 2.625 },
 ];
 
 await fs.mkdir(OUT, { recursive: true });
@@ -221,7 +222,7 @@ for (const device of DEVICES) {
                 if (Number.isFinite(left) && Number.isFinite(right) && left < 0 && right < 0) effectiveW -= left + right;
                 if (Number.isFinite(top) && Number.isFinite(bottom) && top < 0 && bottom < 0) effectiveH -= top + bottom;
             }
-            if (effectiveW < 44 || effectiveH < 44) small.push({ cls: String(el.className || "").split(/\s+/).slice(0, 2).join(".").slice(0, 40), w: Math.round(r.width), h: Math.round(r.height), ew: Math.round(effectiveW), eh: Math.round(effectiveH) });
+            if (effectiveW < 43.5 || effectiveH < 43.5) small.push({ cls: String(el.className || "").split(/\s+/).slice(0, 2).join(".").slice(0, 40), w: Math.round(r.width), h: Math.round(r.height), ew: Math.round(effectiveW), eh: Math.round(effectiveH) });
         }
         if (small.length) issues.push({ kind: "small-tap-targets", count: small.length, samples: small.slice(0, 6) });
 

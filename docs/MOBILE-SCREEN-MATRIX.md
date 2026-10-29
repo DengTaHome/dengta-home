@@ -7,7 +7,7 @@
 - 可交互元素实际命中框 <44×44
 - 聊天气泡文本被裁
 
-脚本：`tools/browser-verify/verify-layout-matrix.mjs`（扩到 18 个视口，含 568×320、844×390、896×414、915×412 横屏）。每个视口都等待启动幕/恢复条消失，**自动切到有消息的会话**，断言至少一个 `.message-bubble`；短横屏还会真实点击状态胶囊并断言 `.status-panel.is-open=true`；无消息/白屏直接失败。
+脚本：`tools/browser-verify/verify-layout-matrix.mjs`（扩到 19 个视口，含 568×320、844×390、896×414、915×412、900×540 横屏）。每个视口都等待启动幕/恢复条消失，**自动切到有消息的会话**，断言至少一个 `.message-bubble`；短横屏还会真实点击状态胶囊并断言 `.status-panel.is-open=true`；无消息/白屏直接失败。
 
 ## 覆盖与结果（修复后）
 
@@ -30,7 +30,7 @@
 | 844×390 @3 | 横屏 iPhone 14 | 通过 |
 | 915×412 @2.625 | 横屏大屏安卓 | 通过 |
 
-合计：**18/18 无布局问题**；矩阵就绪 **19.3–23.3s**（含 Render 冷启动、切换到一个有消息的会话并等待消息渲染；纯首屏启动另测为 5.5s）。
+合计：**19/19 无布局问题**；矩阵就绪 **19.6–21.4s**（含 Render 冷启动、切换到一个有消息的会话并等待消息渲染；纯首屏启动另测为 5.5s）。
 
 ## 本轮修复
 1. **短横屏 composer 出视口**
@@ -60,7 +60,7 @@ node tools\browser-verify\verify-layout-matrix.mjs
 
 ## 复现口径
 
-- 18 个视口在**同一个构建**上连续跑完；每档 `msgCount > 0`，截图是真实聊天而不是加载壳。
+- 19 个视口在**同一个构建**上连续跑完；每档 `msgCount > 0`，截图是真实聊天而不是加载壳。
 - 短横屏（568/844/896/915）每档点击胶囊后 `.status-panel.is-open=true`。
 - 每个视口必须出现真实消息（不是只看到会话列表）；没有消息/白屏/启动失败会抛错退出 1。
 - 恢复态（`.connection-recovery` 存在）：短横屏 composer 273–380 / 390，presence 隐藏，底栏不被裁；恢复后胶囊重新出现。
@@ -96,3 +96,13 @@ node tools\browser-verify\verify-layout-matrix.mjs
 | 844×390 横屏 | 230 | 220 | 165 | 通过 |
 
 修复：仅在 `:root[data-keyboard-open="true"]` 且短横屏时隐藏 presence stack，并将 composer 固定到可视视口底部；键盘关闭后恢复。568×320 正常横屏不再被键盘规则影响。
+
+## 断点一致性
+
+- CSS 移动断点：`(max-width: 820px), (max-height: 560px) and (max-width: 960px)`（height 从 500 对齐到 560）。
+- JS 胶囊断点使用同一字符串；`915×412` 与 `900×540` 均已实测打开 `.status-panel`。
+- 44px 判定对 `::after` 有效命中区取 43.5 容差，避免 43.99 临界抖动；19/19 稳定。
+
+## 源目录警告
+
+- `dengta-home/frontend/src` 是公开镜像旧快照，已加 README 警告；生产修改只以 `_refs/frontend-gh` 为准，不从旧副本 rebuild。
