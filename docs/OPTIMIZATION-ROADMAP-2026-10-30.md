@@ -137,3 +137,52 @@
 4. APK 真机验证窗口：vivo V2454A 是否仍连接、Actions 额度是否恢复？
 5. HerVoice 上游真实 p95 与情绪标签词表能否拿到（决定 R5 的降级策略）？
 6. Vercel 生产 SHA 核对方式（有 token 时补验）。
+
+## 6. 轮次 125 修复复核结果（2026-10-30 00:40）
+
+- 基线：frontend HEAD `7a79cbb`（00:16 提交，含全部修复；工作树仅 cap sync 生成 gradle）；backend HEAD
+  `4df3049`（已上线 `revision=4df3049`）。本地 dist 构建（00:01:16）与 7a79cbb 源码一致（之后无 src 改动）。
+- 测试：backend 全量绿（00:03:22 完成，fail 计数全 0）；frontend 全量绿（`round125-full-green2.log`，
+  00:13:34 完成，fail 计数全 0）。00:05 的 2 条红为旧测试断言（warmup 自动触发），已随 00:06 测试更新
+  消除（10/10），非产品回归。
+- 已验证修复：feed/仓库 APK 移除 + 契约测试 10/10；voice abort 竞态；TTS SSRF 基础加固（IPv6/私网/DNS，
+  已上线）；危机话题不走 quiet_refusal；voice 错误脱敏；scroll pause 手势门控；回复选项初始历史不自动生成；
+  启动 0 写请求（本地新构建 4 上下文）；侧栏关闭 inert（移动正确）；一级 44×44 语音按钮；
+  844×390 message-list 200px；音乐工作室按钮 44px；Redmi 980 关闭按钮命中（模拟）；320 dock 避让 CSS。
+- 剩余 P1：
+  1) **侧栏 inert 过度应用**：coarse pointer 的 1280/1100/1024 宽屏侧栏可见却 inert+aria-hidden 且无菜单按钮
+     （`App.jsx:1586-1601/10743`）；修复=inert 仅按 drawer 模式（≤820 或 force-mobile），补 1280/1024 coarse 测试。
+  2) **feed apk_url 直连 supabase.co 在 CN 网络 TLS 重置**（本机实测直连失败；同源 `/supabase` 代理 200/36.5MB）；
+     修复=feed 改同源代理 + 同步 `test/cast-receiver.test.js:172` 契约 + 真实手机网络复测。
+  3) **TTS redirect 未禁**：`services/openai-speech.js:130` fetch 默认 follow，可 302→内网；修复=`redirect:"manual"`
+     + 拒绝 3xx + 补 redirect/DNS-private 测试。
+- 剩余 P2：①844×390 + connection-recovery 横幅时 composer 第二行越出视口 33px；②音乐工作室 iframe
+  `onLoad` 仍 noop，帧内失败无反馈；③命令面板 Esc/对比度本轮 diff 未见改动，且审计账号 0 sessions/0 messages
+  限制了 320 弹层与真实消息态端到端复验。
+- 部署状态：`7a79cbb` 已于 00:16 提交 / 00:17 push / 00:18 生产部署（入口 `index-gG5gJtEf.js`、
+  CSS `index-a3pHUSyD.css`，与本地审计构建一致）。生产复验：844×390 message-list=200、一级语音按钮
+  可见且 enabled、启动未交互 startupWrites=[]；同时 **P1-1（1280 coarse 侧栏可见但 inert）与
+  P2-1（844×390 + recovery 横幅 composerBottom=429）已在生产复现**。
+- 建议 round 126 顺序调整：先修 P1-1（改动小、用户面大）→ P1-2 feed 同源代理（feed+契约）→ P1-3 redirect；
+  P2 穿插；语音流式化/R3/R4/R5 按原计划后移。
+
+## 7. 轮次 125 二次复核（2026-10-30 00:35–00:58）
+
+- 基线：frontend `74ca38f`（00:43 提交，origin/main 已同步；生产入口 `index-D9uY4h1-.js`、
+  CSS `index-Cj2EJUlh.css`）；backend `cf02b7f`（TTS redirect 拒绝，**生产 `revision=cf02b7f4…` 已上线**）。
+- 测试：frontend 全量 `round125-full-green4.log`（00:41:53 完成，0 fail）；backend 全量
+  `round125-backend-green4.log`（00:36:49 完成，0 fail）；cast-receiver+app-updates 14/14、openai-speech 1/1。
+- 已关闭（上轮 3 个 P1）：①侧栏 inert 范围（触控桌面 1280/1100 可见且 **not inert**，菜单隐藏；
+  force-mobile 设备仍走抽屉，正确）；②feed 同源代理（HEAD 200、36,536,695B、sha256 与 feed 一致；
+  app-updates/cast-receiver 契约同步）；③TTS redirect（`redirect:"manual"`+3xx 拒绝，已上线）。
+- 逐项通过：启动无写请求（生产新构建、userActivation 模拟、空闲 12s → `writes=[]`，28 条消息）；
+  844×390+recovery（message-list=120、composer bottom=359、语音/回复/发送 44px 全在视口内、无横向溢出）；
+  Redmi 抽屉（打开焦点=关闭按钮、main inert、scrim tabIndex=-1、Tab 5/5 留在侧栏、Esc 关闭并移除 inert）；
+  音乐工作室 overlay（延迟 iframe 时“正在连接播放器” → 12s 后“播放器加载较慢”+重试/浏览器打开 44px）。
+- 剩余 P2：①`data-dengta-reduced-motion` 仍被 `App.jsx:10679-10683` 应用内偏好覆盖为 "false"
+  （CSS 媒体规则已停 9s 动画；修=OR OS reduce + 行为测试）；②iframe HTTP 401 仍 onLoad → overlay 提前消失
+  （已知限制）；③视觉/焦点类修复无 npm test 自动化用例，孤儿测试仍未接线；④同源 APK 下载本机 ~206KB/s
+  （能下但慢，非代码缺陷）。
+- 生产验证结论：本轮 7 项修复在生产构建上 6.5/7 通过（reduce 根属性部分通过），P0=0。
+- 下一步（round 126 起）：先补 reduce 根属性 + 视觉/焦点自动化测试 → 回到语音流式化 R2、R3 全页面、
+  R4 CSS 预算、R5 后端 CI/readiness；孤儿测试接线零风险可随时插入。

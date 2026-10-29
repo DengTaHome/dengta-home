@@ -1866,3 +1866,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 修复更新链路：android.json/download.json 从 301/2.13.43 更新到 305/2.13.47；APK 发布到官网 downloads。
 - 音乐工作室独立栏目 + 旧版动态天空一并进入 2.13.47。
 - 注意：2.13.43 历史 APK 使用旧 debug 证书，跨该版本更新需卸载重装一次；2.13.44 起可覆盖。
+
+
+## 轮次 125（2026-10-29/30 · 8h 新一轮第 1 轮）
+
+- P0 清零：frontend 全量绿（round125-full-green5.log，0 fail），backend 全量绿（round125-backend-green4.log，0 fail）。
+- APK 发布链：36.5MB APK 改放 Supabase object storage，通过 Render 受保护上传路由；feed 走同源 `/supabase` 代理（HEAD 200 / 36,536,695B），`public/downloads` 大二进制已移出 git；更新契约测试 14/14。
+- 安全：TTS 自定义地址拒绝 IPv6/私网/重定向（302 测试）；危机话题不再走 quiet_refusal；语音模型错误脱敏；语音上传取消竞态修复；启动不再自动 warmup/companion-state/reply-options。
+- 适配/无障碍：Redmi 抽屉关闭 inert+aria-hidden，打开聚焦关闭钮、main inert、Tab trap、Esc；844×390 横屏正文 200px、带 recovery 可内部滚动；第一级 44×44 语音按钮；OS reduce 根属性与彩虹动画；命令坞 320 遮挡；音乐工作室 44px 按钮/加载反馈。
+- 生产：frontend bafa9e2 → 3b653f0，backend cf02b7f；入口 index-DtgCwAtE.js（bafa）与最新 3b653f0 部署；备份 bundle 26.0MB / HEAD f401786，web-dist 为生产抓取，releases 加 2.13.47。
+- 剩余：语音流式/幂等/并行化（R2）、CSS 首屏拆分（R4）、后端 CI/readiness（R5）、多行横屏 composer 已加内部滚动但真机仍待验、iframe 401 跨域无法识别。
