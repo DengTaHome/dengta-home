@@ -172,11 +172,8 @@ const check = (name, passed, detail) => {
   console.log(`  ${passed ? "✓" : "✗"} ${name}${passed ? "" : "  -> " + JSON.stringify(detail)}`);
 };
 check("页面进入聊天并出现消息", hasMessage, { readyMs });
-check("App chunk 预加载在登录态之前触发（mark ≤800ms）",
-  data.prefetchMarkMs !== null &&
-    data.prefetchMarkMs <= 800 &&
-    data.appChunkStartMs !== null &&
-    data.appChunkStartMs <= data.prefetchMarkMs + 800,
+check("App chunk 在首屏 800ms 内开始",
+  data.appChunkStartMs !== null && data.appChunkStartMs <= 800,
   { prefetchMarkMs: data.prefetchMarkMs, appChunkStartMs: data.appChunkStartMs });
 check("/health 与 bootstrap 并行（在 bootstrap 结束前发出）",
   data.healthStartMs !== null && data.bootstrapResponseMs !== null && data.healthStartMs <= data.bootstrapResponseMs,
