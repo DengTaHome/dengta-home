@@ -1427,3 +1427,15 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 歌词弹层：接入 `useSettingsSheetNavigation`（focus trap/返回/Escape），关闭按钮和歌词行 44px 触摸目标。
 - 真机：verify-local-build 11/11、verify-animation-budget 全通过、touch targets 0<44px。
 - 前端最新提交已 push，Vercel 待确认。
+
+## 轮次 65（2026-10-29 · Goldfish 流畅度复核闭环）
+
+- 触屏 tap 误触发 426KB 动图：RainbowAgentMark 仅允许 `pointerType=mouse` + `(hover:hover) and (pointer:fine)`，并读取 App 内 `data-dengta-reduced-motion`；触屏保持 15KB 静态图。
+- 取消语音后仍播放：`refreshSessions` 后补 `cancelled()` 检查，自动朗读前再检查。
+- TTS body abort：`response.blob()` 的 AbortError 统一转为 `speech_cancelled`，不再漏原始错误。
+- 平板 blur：新增 ≤820px 高 specificity `backdrop-filter:none !important`，覆盖 701–820 的 22–28px blur cap。
+- 测试工具修正：
+  - touch 检查改为计算 ::after 有效触摸区；移除 message-reference-button 的 44px 布局扩张，恢复紧凑视觉。
+  - animation 检查删除“无语音按钮即 skip=passe”假绿；滚动检查改为向上滚动并标注 synthetic。
+- 验证：verify-local-build 11/11；verify-animation-budget 全通过；verify-touch-targets 0<44。
+- 后端 `voice_analysis_retention_enabled` 已在 `_refs/backend-prod` 消费（false 时只存 `{is_voice:true}`）；Goldfish 引用的 `dengta-home/backend` 是旧的。

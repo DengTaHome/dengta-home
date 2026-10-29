@@ -100,3 +100,11 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - 情绪关闭/无分析不挂 voiceAnalysis。
 - 歌词弹层 focus trap/Escape/44px target。
 - 浏览器：local-build 11/11、animation-budget 全通过、touch 0<44px。
+
+## Goldfish 流畅度复核闭环（2026-10-29 轮次 65）
+
+- 触屏 tap 不再加载 426KB 动图（仅 fine hover + mouse pointer）；App 内 reduced-motion 也生效。
+- 取消语音后 RefreshSessions 返回不再自动播放；TTS body abort 统一 speech_cancelled。
+- ≤820px backdrop blur 全部关闭（高 specificity > 原有 820 caps）。
+- 测试：touch 按 ::after 有效区、animation 不再假 skip；local-build 11/11、animation 全过、touch 0<44。
+- backend `voice_analysis_retention_enabled` 已消费；审计引用的 dengta-home/backend 是旧副本。
