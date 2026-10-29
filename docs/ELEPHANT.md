@@ -195,3 +195,9 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## full13 全绿（2026-10-29 轮次 82）
 
 - full13 exit 0，3938 行 0 failure；含 inline 手机字体/CSP/DB health。
+
+## 生态全量审查（2026-10-29 轮次 83）
+
+- 新建 `docs/ECOSYSTEM-INVENTORY-2026-10-29.md`：24 个仓库/镜像 + 依赖，逐仓读 README/LICENSE/入口/配置/关键源码，四组独立只读审计。
+- 关键动作：删 `_refs/frontend-prod`/`_refs/artifacts`；公开镜像 README+Android feed 指向 v2.13.43；music-stable fail-closed token/body/常量时间+测试；backend render.yaml 对齐/coverage 停跟踪；frontend 调试截图 untrack；typography 行为测试；Vael attribution。
+- 仍待：CNB token、Amap、kiwi 鉴权、x-twikit 写工具闸门、music 新镜像部署、公开镜像 tag 清理。
