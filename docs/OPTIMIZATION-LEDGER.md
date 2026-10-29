@@ -1439,3 +1439,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - animation 检查删除“无语音按钮即 skip=passe”假绿；滚动检查改为向上滚动并标注 synthetic。
 - 验证：verify-local-build 11/11；verify-animation-budget 全通过；verify-touch-targets 0<44。
 - 后端 `voice_analysis_retention_enabled` 已在 `_refs/backend-prod` 消费（false 时只存 `{is_voice:true}`）；Goldfish 引用的 `dengta-home/backend` 是旧的。
+
+## 轮次 66（2026-10-29 · Goldfish 高优修复 + 键盘/关机）
+
+- 触屏 tap：RainbowAgentMark 仅 mouse + fine hover 才启动动图，App 内 reduced-motion 也阻断；触屏保持静态图。
+- 取消语音：refreshSessions 后与自动朗读前再检查 cancelled；TTS body abort 转 speech_cancelled。
+- 平板 blur：≤820px 高 specificity 覆盖 backdrop-filter，消除 701–820 的 22–28px 模糊。
+- 测试质量：touch 按 ::after 有效区测量；animation 删除假 skip、滚动标注 synthetic；verify-local-build 最终 11/11、animation 全通过、touch 0<44。
+- 无障碍：语音按住按钮加 KeyDown/KeyUp（Space/Enter 长按录音、松开发送）。
+- 后端：SIGTERM/SIGINT 优雅关闭 http server、backgroundJobLoop、diary timer；backend d0fafa7 在线。
+- 前端 bcbb0ea READY。

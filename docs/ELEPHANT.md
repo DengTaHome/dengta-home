@@ -108,3 +108,9 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - ≤820px backdrop blur 全部关闭（高 specificity > 原有 820 caps）。
 - 测试：touch 按 ::after 有效区、animation 不再假 skip；local-build 11/11、animation 全过、touch 0<44。
 - backend `voice_analysis_retention_enabled` 已消费；审计引用的 dengta-home/backend 是旧副本。
+
+## 轮次 66（2026-10-29）
+
+- 触屏 tap 不加载动图；取消语音后不自动播放；TTS body abort 统一错误；≤820px blur 全关。
+- 语音按钮键盘可达；后端 SIGTERM 优雅关闭。
+- 真机：local-build 11/11、animation 全通过、touch 0<44；backend d0fafa7、frontend bcbb0ea。
