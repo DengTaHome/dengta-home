@@ -313,3 +313,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 收尾（2026-10-29 轮次 107）
 
 - full26 0 failure；Vercel c45a587 READY；后端 6c1ccb5c；收尾文档/备份已更新。
+
+## 光子流动恢复（2026-10-29 轮次 108）
+
+- 移除 ≤820px 手机 fallback；仅 saveData/reduced-motion fallback；390 拖动验证流体。

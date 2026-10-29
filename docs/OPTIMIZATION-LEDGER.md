@@ -1742,3 +1742,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - Vercel c45a587 READY；后端 /health 200，0.29.76，revision 6c1ccb5c。
 - 侧边栏/设置无透出、对比度达标；下载入口常驻；安装 guidance 内联；外卖卡可关闭（含键盘）。
 - 收尾文档 docs/SESSION-FINAL-2026-10-29.md；唯一备份已更新。
+
+## 轮次 108（2026-10-29 · 恢复彩虹胶囊光子流动）
+
+- 原因：`StatusFlowField.jsx` 对所有 ≤820px 手机强制 fallback，流体引擎不初始化。
+- 恢复：去掉手机全局降级；仅 `saveData` 时 fallback，保留 reduced-motion。
+- 验证：390 状态面板 `.status-flow-field--ready`，拖动后出现绿/蓝流体；320/360/844/915 正常。
+- 记录：docs/STATUS-FLOW-2026-10-29.md。
