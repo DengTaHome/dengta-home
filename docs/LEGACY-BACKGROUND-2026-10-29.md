@@ -39,6 +39,7 @@
 
 ## 验证
 - `test/dengta-theme.test.js`、`settings-folders`、`settings-category-navigation`、`interaction-polish`：18 tests 通过。
+- 前端全量回归：**0 failure（3833 行）**。
 - 390×844 实测：
   - `legacy-day` → `.legacy-coast-backdrop[data-scene=day]`
   - `legacy-dusk` → `twilight`
