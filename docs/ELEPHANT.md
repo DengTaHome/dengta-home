@@ -281,3 +281,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## full21（2026-10-29 轮次 99）
 
 - full21 exit0 3945 行 0 fail；19 视口真实消息 0 问题。
+
+## 320 重叠（2026-10-29 轮次 100）
+
+- ⌘K 下移避开胶囊；矩阵新增重叠检查；320 0 问题。

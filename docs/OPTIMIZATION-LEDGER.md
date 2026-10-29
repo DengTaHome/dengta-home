@@ -1688,3 +1688,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - full21 完整 `npm test`（19 视口断点对齐后）：**exit 0**，3945 行，0 failure。
 - 19/19 真实消息视口 0 问题；键盘三场景、915/900 胶囊通过；后端全量 exit0。
 - Vercel `52482be` READY；APK 候选 SHA-256 `7547fef6…`，签名阻塞未发布。
+
+## 轮次 100（2026-10-29 · 320 胶囊/⌘K 重叠）
+
+- Goldfish 实测 320×568 下 `.mobile-command-trigger`（44×44）与状态胶囊重叠 23×26px，遮住胶囊右端。
+- 修复：≤340px 时把 ⌘K 下移到胶囊下方；矩阵新增 command/capsule 重叠断言。
+- 320 验证：0 问题，胶囊点击仍 open=true；390/844/915 继续通过。
