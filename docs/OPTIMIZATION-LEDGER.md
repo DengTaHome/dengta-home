@@ -2176,3 +2176,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 触摸：coarse pointer/窄屏 44px 规则用 !important 覆盖 41px 控件；Playwright 390 登录前后 button/select 小目标为空；隐藏文件输入豁免。
 - 生产 backend bd7747e（/health 已核对），frontend index-DNV0ffbc / CSS C7c6_eRS。
 - 真实情绪验收受 HerVoice 冷启动 502 影响未完成（代码单测绿；下一轮重试）。
+
+
+## 轮次 157（2026-10-30 · 真实情绪降级验收）
+
+- 真实生产 fresh voice 200（user=4823/assistant=4824，40.8s）；`voice_analysis.emotion=tired`、confidence=0.32、hint 明示文字推测。
+- 验证 HerVoice 情感不可用时文字降级链路真实生效；测试 session DELETE 204，token/音频清理。
+- 生产 backend bd7747e，frontend index-DNV0ffbc；backend round156 0 fail。
+- 剩余：低置信文字误判、fail-open 告警、模型取消/save 后副作用、route E2E、App chunk。
