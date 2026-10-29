@@ -38,12 +38,22 @@ function loadPlaywright() {
 }
 
 const DEVICES = [
-    { name: "360x640-dpr2-small-old", width: 360, height: 640, dpr: 2 },
-    { name: "360x780-dpr3-main-cn", width: 360, height: 780, dpr: 3 },
+    { name: "320x568-dpr2-se1", width: 320, height: 568, dpr: 2 },
+    { name: "360x640-dpr2-small", width: 360, height: 640, dpr: 2 },
+    { name: "360x800-dpr3-tall", width: 360, height: 800, dpr: 3 },
+    { name: "375x667-dpr2-se2", width: 375, height: 667, dpr: 2 },
+    { name: "375x812-dpr3-x", width: 375, height: 812, dpr: 3 },
+    { name: "390x844-dpr3-14", width: 390, height: 844, dpr: 3 },
     { name: "393x873-dpr2.75-pixel", width: 393, height: 873, dpr: 2.75 },
     { name: "412x915-dpr2.625-large", width: 412, height: 915, dpr: 2.625 },
+    { name: "414x896-dpr2-xr", width: 414, height: 896, dpr: 2 },
+    { name: "428x926-dpr3-max", width: 428, height: 926, dpr: 3 },
+    { name: "430x932-dpr3-pro", width: 430, height: 932, dpr: 3 },
     { name: "480x1040-dpr2-fold", width: 480, height: 1040, dpr: 2 },
+    { name: "600x960-dpr2-small-tablet", width: 600, height: 960, dpr: 2 },
     { name: "800x1280-dpr2-tablet", width: 800, height: 1280, dpr: 2 },
+    { name: "844x390-landscape-14", width: 844, height: 390, dpr: 3 },
+    { name: "915x412-landscape-large", width: 915, height: 412, dpr: 2.625 },
 ];
 
 await fs.mkdir(OUT, { recursive: true });
