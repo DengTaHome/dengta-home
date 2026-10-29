@@ -201,3 +201,13 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - 新建 `docs/ECOSYSTEM-INVENTORY-2026-10-29.md`：24 个仓库/镜像 + 依赖，逐仓读 README/LICENSE/入口/配置/关键源码，四组独立只读审计。
 - 关键动作：删 `_refs/frontend-prod`/`_refs/artifacts`；公开镜像 README+Android feed 指向 v2.13.43；music-stable fail-closed token/body/常量时间+测试；backend render.yaml 对齐/coverage 停跟踪；frontend 调试截图 untrack；typography 行为测试；Vael attribution。
 - 仍待：CNB token、Amap、kiwi 鉴权、x-twikit 写工具闸门、music 新镜像部署、公开镜像 tag 清理。
+
+## 生态审查修正与部署（2026-10-29 轮次 84）
+
+- Goldfish 复核纠正：x-twikit 只读闸门仅在本机 worktree/补丁，上游 dc5c935 仍可写；清单已改为“本机补丁、未合并上游”。
+- HEAD 已校正：backend f96b0b5、frontend 58ae256、music 4fde883；公开镜像 54 个重复 tag（非 63 全同）。
+- 公开镜像：README/feed 已指 v2.13.43；Vael attribution 已提交；THIRD_PARTY_NOTICES 在 origin/main。
+- music-stable：proxy/entrypoint/Dockerfile 安全加固已部署到 VPS（pull 4fde883、重建镜像、重启）；public /health 200、无 token /mcp 401、.netease_cred 保留。
+- backend render.yaml/coverage、frontend 根调试图/XML untrack、typography 行为测试均已落地。
+- CNB 非前端-only（backend-main/opensource-main 等）；sync 仍只推 frontend-main，无写 token。
+- 仍待：x 闸门合并上游、公开镜像 tag 清理、kiwi 鉴权、CNB/Amap/凭据轮换。
