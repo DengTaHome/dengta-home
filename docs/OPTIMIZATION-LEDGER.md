@@ -1598,3 +1598,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 本地 startup timeline：首条消息 5.5s（前 7.6s）、health 622ms、bootstrap 3.2s、全部断言通过。
 - full15（含 App.jsx 并行探针、visual-loop 行为测试）：日志 3829 行，`fail 0`，0 failure 标记。
 - APK 2.13.44/302 候选已构建，但签名证书 `0d63…` ≠ 渠道 `38a03…`；Actions dispatch 40802990852/40803149576 启动即失败（无 job/log）；`adb devices` 无设备。候选不发布，见 docs/ANDROID-APK-2.13.44-BLOCKER.md；已设 11/01 重试提醒。
+
+## 轮次 88（2026-10-29 · 全系列手机屏幕适配）
+
+- 布局矩阵从 6 个扩到 **16 个手机/折叠/平板视口**：320、360（640/800）、375（667/812）、390、393、412、414、428、430、480、600、800，以及 844×390、915×412 横屏。
+- 发现并修复横屏短屏：presence stack 占满高度导致 composer 落到视口外；短横屏隐藏 presence stack，composer 回归可视区。
+- 横屏触控：菜单/新建对话/更多回复按钮补到 44px。
+- 重新跑矩阵：**16/16 未发现布局问题**，就绪 3.1–3.2s；横屏截图 composer 可见。
+- targeted 测试 14/14 通过。

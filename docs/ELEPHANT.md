@@ -227,3 +227,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - Vercel 70c229e READY；startup 5.5s（前 7.6s），health 622ms 与 bootstrap 并行。
 - full15 3829 行 fail 0；APK 2.13.44 因签名证书不匹配/Actions 额度/adb 无设备不能发布。
+
+## 全系列手机屏幕（2026-10-29 轮次 88）
+
+- 16 视口（含 844×390/915×412 横屏）0 布局问题。
+- 短横屏隐藏 presence stack，composer 不再出视口；菜单/回复按钮 44px。
