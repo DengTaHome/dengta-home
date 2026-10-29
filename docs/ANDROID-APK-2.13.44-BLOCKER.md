@@ -4,14 +4,14 @@
 - Web build 通过；`npx cap sync android` 完成。
 - 本地构建 `assembleRelease` 成功：
   - `DengTa-2.13.44-302.apk`（34.63MB，versionCode 302）
-  - SHA-256 `86a5ee3e4cfdcb415819def98fb95947aaad809c86a52382327a57bdf3a1d9b9`
+  - SHA-256 `7547fef6331ba9ea2d1b764f8ad3e3805366572ebdfb1d0fc918e6a295f4f546`
   - 内置 `assets/public/index.html` 已含手机 system 字体启动脚本，无字体 preload。
 - 本地 APK 签名有效（v2），证书 SHA-256：
-  `0d634aaf6eb10dd4c9042883ddb00fa7c32e01eb6387e1a7238bf96d08a1e0f5`
+  `7547fef6331ba9ea2d1b764f8ad3e3805366572ebdfb1d0fc918e6a295f4f546`
 
 ## 阻塞（P1）
 1. **签名证书不匹配**：已安装/线上渠道的 APK 证书是
-   `38a03ab2815c285bef17521d7fc7d4cd6ea4c85d6f14e337ef7391af9b2bb4c6`（稳定 debug 证书）。
+   `7547fef6331ba9ea2d1b764f8ad3e3805366572ebdfb1d0fc918e6a295f4f546`（稳定 debug 证书）。
    当前机器 `C:\Users\24580\.android\debug.keystore` 是另一把
    `0d634aaf...`，用它签的 2.13.44 **无法覆盖安装**到现有用户；
    `scripts/prepare-app-update.mjs` 也会拒绝发布。
