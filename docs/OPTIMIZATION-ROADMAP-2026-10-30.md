@@ -480,3 +480,27 @@
 - 遗留 P3：stored analysis 默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline。
 - 建议 137：server wiring 抽可单测函数/route 集成测试（含 mutation 检查）；决定单实例文档化 vs DB lease；
   FE UUID/退避与模型取消并行；Goldfish-R15 复核中。
+
+## 22. 轮次 137 in-progress 响应抽取 / CORS 复核（2026-10-30 03:54–04:05）
+
+- 基线：backend **f6cab4e**（03:52:34 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round137-backend.log` **0 fail**（03:52:12 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终内容）；定向 voice-turn **1/1**（helper 行为：status/code/headers.Retry-After="5"/
+  Expose-Headers/body.retry_after_seconds=5；fake clock +1s→4）。
+- 已验证：①`voiceTurnInProgressResponse(guard,key)` 抽取（409 + 动态 Retry-After + body
+  retry_after_seconds + Expose-Headers，header/body 一致）；server claim 失败改用它，内联计算移除；
+  ②通用 voice 409 在错误中间件补 `Retry-After:5` + Expose，且 `!res.getHeader("Retry-After")` 保护
+  （guard raw 409 不会被覆盖）✅；③生产 revision=f6cab4e。
+- **不符/缺口**：①“全局 CORS exposedHeaders 加 Retry-After”**未落地**——server.js:704-710 仍无
+  Retry-After，本轮无 CORS 改动；现状靠每响应 expose，覆盖 voice guard/通用 409，但 429（语音限流、
+  expressive-speech ~3143/6165/7075）的 Retry-After 跨源仍不可读。建议加进全局 exposedHeaders 并去掉
+  每响应覆盖；②mutation 缺口仍在：helper 单测 ✅，但 server 接线仅源码正则，且 Retry-After/
+  Expose-Headers/retry_after_seconds 在 server.js 其它位置也出现 → 删 `res.set(inProgress.headers)`
+  或接错 status/body 仍可能绿。建议抽 `applyVoiceTurnInProgressResponse(res, ...)` 对 mock res 断言，
+  或 route 集成测试 + mutation；③429 与 409 的 Retry-After 响应未统一 helper。
+- 剩余 P2：跨实例 DB lease；FE 新 UUID + TTL200>FE180；模型未取消/tool 副作用；save 窄窗口；
+  mutation/wiring；TTL=deadline+60 的 prefix 长尾；claim-before-replay 瞬时 409。
+- 遗留 P3：stored analysis 默认 neutral/0、恢复仍强制 multipart 文件、prefix 不受 deadline；前端未消费
+  code/retry_after_seconds。
+- 建议 138：全局 exposedHeaders + 统一 Retry-After helper + server 接线行为/mutation 测试；随后 lease/
+  FE UUID/模型取消；Goldfish-R16 复核中。

@@ -1997,3 +1997,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - server 用 helper；全局 CORS exposedHeaders 加 Retry-After；通用 voice 409 兜底补 Retry-After。
 - backend round137-backend.log 0 fail、voice-turn pass；生产 backend f6cab4e（/health 已核对），frontend 4debff4。
 - 剩余：跨实例 DB lease、FE 新 UUID、模型/tool 未取消、mutation/route 集成仍有限。
+
+
+## 轮次 138（2026-10-30 · in-progress 响应 apply/CORS）
+
+- in-progress 409 改为 `applyVoiceTurnInProgressResponse(res, guard, key)`，mock res 行为测试 status/headers/body/retry_after_seconds。
+- 全局 CORS exposedHeaders 增加 Retry-After；移除每响应 Access-Control-Expose-Headers 覆盖，避免丢其它暴露头。
+- generic voice 409 保留 Retry-After 兜底。
+- backend round138-backend.log 0 fail、voice-turn pass；生产 backend 25c9429（/health 已核对）。
+- 剩余：跨实例 DB lease、FE 每新 UUID、模型/tool 未取消、server mutation 仍有限。
