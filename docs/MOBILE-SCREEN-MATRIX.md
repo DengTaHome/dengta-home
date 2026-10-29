@@ -56,3 +56,14 @@ node tools\browser-verify\verify-layout-matrix.mjs
 - 浏览器无法模拟真实刘海/挖孔 safe-area 像素值；已用 CSS `env()` + Android edge-to-edge 规则覆盖，真机仍需复核。
 - 系统字体放大（Android 无障碍缩放）未做 200% 专项；当前布局按 px 流式，若后续出现大字溢出再补。
 - 横屏时隐藏 presence stack 是取舍：优先保证输入框可达；需要状态信息可转回竖屏。
+
+## 扩展：设置 / 音乐 / 抽屉界面
+在同一 320×568、390×844、844×390 横屏下打开菜单抽屉、设置页、音乐页检查：
+
+- 主界面：0 布局问题
+- 菜单抽屉：0
+- 设置页：0（修复 `.settings-home-search-field input` 高度 42→44）
+- 音乐页：0（随机播放开关保留原生 51×31 视觉，label 为实际命中区）
+- 横屏抽屉：修复 `session-heading button` 新建对话 29×29→44×44
+
+验证脚本 `_audit/verify-surfaces.mjs`（本地临时审计；截图在 `_audit/browser-surfaces/`）。
