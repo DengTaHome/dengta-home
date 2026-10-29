@@ -1756,3 +1756,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 产物：DengTa-2.13.44-302-fresh-install-newkey.apk，36,510,356B，SHA-256 ff9d1a5c…，新证书 ab4c7a2f…，apksigner v3 通过。
 - 限制：只能全新安装，旧版需卸载；不上传现有更新 feed。
 - 记录 docs/ANDROID-APK-NEW-KEY-2026-10-29.md。
+
+
+## 轮次 110（2026-10-29 · 新签名 APK 真机安装）
+
+- vivo V2454A / Android 15 已连接。
+- 卸载旧 2.13.43(301)，安装新签名 2.13.44(302)：Success。
+- 启动进入 DengTa 登录页，WebView 正常；旧本地数据已清除，需重新登录。
+- 新证书 ab4c7a2f…，仍只可全新安装，不发布更新 feed。

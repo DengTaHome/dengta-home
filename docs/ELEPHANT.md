@@ -321,3 +321,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 新签名 APK（2026-10-29 轮次 109）
 
 - 新 keystore（ab4c7a2f…）构建 fresh-install APK；不能覆盖旧版/更新 feed，详见 docs。
+
+
+## 新签名真机（2026-10-29 轮次 110）
+
+- vivo V2454A Android15：卸载旧 301、安装新 302 成功，启动到登录页。
