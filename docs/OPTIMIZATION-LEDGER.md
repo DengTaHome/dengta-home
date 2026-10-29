@@ -2099,3 +2099,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - 504 provider_timeout 后同 CID 重试 **409 VOICE_TURN_RECOVERING, retry_after_seconds=127**，与剩余 TTL 一致。
 - 证据：`_audit/voice-final-response2.json`、`voice-final-replay2.json`、`voice-final-recovery.json`、`voice-final-delete.json`、`round148-backend.log`。
 - 剩余：lease 无 commit/fail/renew、claim 异常 fail-open、created_at/max clamp、TTL200>FE180、前端 snapshot 仍 source 测试、模型取消/save 窄窗、route 运行时测试。
+
+
+### 轮次 148 收尾：真实 voice 验收与密钥卫生
+
+- 真实生产 fresh voice HTTP 200，同 client_message_id 重放 200 相同 user/assistant id，504 后重试 409 VOICE_TURN_RECOVERING retry_after_seconds=127，测试 session DELETE 204。
+- 为避免凭证落盘：已删除临时 `_audit-local-server.js`、Render env dump、登录 token/auth 响应、测试音频与会话临时文件；backend worktree clean。`_audit/voice-final-*.json` 仅保留无凭证的响应证据。
