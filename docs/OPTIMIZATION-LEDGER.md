@@ -1712,3 +1712,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 手机侧边栏改不透明主题卡片色，brand 标题/副标题修正对比；设置页 sheet/scroll/page 改不透明主题背景，卡片/文件夹实色。
 - 侧边栏增加「下载 Android App」，设置页增加「下载安卓安装包」；安装按钮恢复可见的 guidance 反馈（原先 notice 被设置层遮住，看起来没反应）。
 - 320/360/390/844/915 截图与审计通过。
+
+## 轮次 104（2026-10-29 · 外卖任务卡可关闭）
+
+- 用户反馈取消点餐后任务卡关不掉。
+- 根因：任务卡只有“打开进度”点击区，没有 dismiss；暂停后任务变 manual_review 会一直保留卡片。
+- 修复：卡片改为 `role=button` 容器 + 独立 44px 关闭按钮；App 传入 onDismiss：
+  - working 状态关闭会先暂停自动化
+  - manual_review/error/payment 状态直接清除卡片并收起面板
+- 新增组件测试：卡内关闭不触发打开，onDismiss 只调用一次；takeout-assistant 19/19 通过。
