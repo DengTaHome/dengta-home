@@ -1822,3 +1822,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 修复 min-width:0/100%、单列、选择器宽度、胶囊显式宽度。
 - 新增全页面审计：11 视口 × 15 页面 + 11 设置分类，286 项 0 failure。
 - 记录 docs/ALL-PAGES-ADAPTATION-2026-10-29.md。
+
+
+## 轮次 119（2026-10-29 · Goldfish 追加修复）
+
+- 浮块全页面渲染；手机顶栏隐藏重复 ⌘K；音乐导入 select 限宽。
+- 390/1280 全页面 52 项 0 failure；听歌页浮块打开命令面板正常。

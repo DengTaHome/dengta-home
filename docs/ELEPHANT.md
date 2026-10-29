@@ -366,3 +366,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 全页面适配（2026-10-29 轮次 118）
 
 - together/music 页 723px min-content、设置 select、胶囊宽度全部修复；11 视口 286 项 0 failure。
+
+
+## Goldfish 追加（2026-10-29 轮次 119）
+
+- 浮块全页面、顶栏去重、导入 select 限宽；390/1280 0 failure。
