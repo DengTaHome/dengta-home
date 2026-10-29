@@ -2136,3 +2136,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - helper/route 默认、clamp min 175s、测试期望同步；`canResume` 仍优先 lease/failed 状态。
 - backend round151-backend.log 0 fail；生产 backend 112134b（/health 已核对），frontend index-C4-5uC8g。
 - 剩余：成功 lease 无 commit/completed_at、claim fail-open、模型取消/save 窄窗、route E2E。
+
+
+## 轮次 152（2026-10-30 · 成功 lease commit）
+
+- 语音 assistant 保存成功后调用 `voiceGenerationLeaseStore.commit`：RPC 发现已有 assistant 则 deduplicated 并置 user `completed`/清 lease；失败仅记录，不影响回复。
+- 成功路径 `voiceLeaseSettled=true`，finally 不再 fail；失败/超时仍 await fail。
+- backend round152-backend.log 0 fail；生产 backend 88ad4d1（/health 已核对），frontend index-C4-5uC8g。
+- 剩余：claim fail-open、模型取消/save 窄窗、route/真实失败自动化 E2E、成功 commit 的真实 DB 状态复测。
