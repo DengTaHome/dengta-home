@@ -222,3 +222,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - /health 622ms 与 bootstrap 并行；首条消息 5.5s（前 7.6s）。
 - full14 全绿；full15 跑 App.jsx/visual-loop 最新改动。
 - APK 2.13.44 构建成功但签名/额度/无设备三重阻塞，候选不发布。
+
+## 启动并行上线 / APK 阻塞（2026-10-29 轮次 87）
+
+- Vercel 70c229e READY；startup 5.5s（前 7.6s），health 622ms 与 bootstrap 并行。
+- full15 3829 行 fail 0；APK 2.13.44 因签名证书不匹配/Actions 额度/adb 无设备不能发布。

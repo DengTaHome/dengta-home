@@ -1591,3 +1591,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 同步更新过时断言：App chunk 不再依赖已移除的 prefetch mark。
 - 新增 visual-loop 冻结行为测试并纳入 design-polish 套件；full14 全绿，full15 跑最新改动。
 - APK：2.13.44 候选构建成功但签名证书不匹配渠道、Actions dispatch 启动即失败（无 job/log）、adb 无设备；候选不发布，详见 docs/ANDROID-APK-2.13.44-BLOCKER.md。
+
+## 轮次 87（2026-10-29 · 启动并行上线 + APK 阻塞）
+
+- 前端 `70c229e` 已部署 Vercel READY；线上首屏 `/health` 与 bootstrap 并行。
+- 本地 startup timeline：首条消息 5.5s（前 7.6s）、health 622ms、bootstrap 3.2s、全部断言通过。
+- full15（含 App.jsx 并行探针、visual-loop 行为测试）：日志 3829 行，`fail 0`，0 failure 标记。
+- APK 2.13.44/302 候选已构建，但签名证书 `0d63…` ≠ 渠道 `38a03…`；Actions dispatch 40802990852/40803149576 启动即失败（无 job/log）；`adb devices` 无设备。候选不发布，见 docs/ANDROID-APK-2.13.44-BLOCKER.md；已设 11/01 重试提醒。
