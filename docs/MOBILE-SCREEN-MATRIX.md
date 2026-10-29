@@ -106,3 +106,19 @@ node tools\browser-verify\verify-layout-matrix.mjs
 ## 源目录警告
 
 - `dengta-home/frontend/src` 是公开镜像旧快照，已加 README 警告；生产修改只以 `_refs/frontend-gh` 为准，不从旧副本 rebuild。
+
+## 抽屉/设置页闪烁与合成（2026-10-29）
+
+用户反馈侧边栏弹出时闪屏、动画杂，设置页显示异常。根因不是布局，而是手机上把多层 `backdrop-filter` 放在正在 `transform` 的抽屉/滚动容器里：
+
+- `.sidebar` / `.sidebar-footer` / `.sidebar-account-slot`
+- `.settings-sheet` / `.settings-sheet-header` / `.settings-sheet-scroll`
+- `.settings-page .settings-card` / `.settings-folder`
+
+修复：
+- 手机/coarse 指针下这些层全部 `backdrop-filter: none !important`
+- 抽屉只保留 `transform` 过渡，加 `will-change: transform`
+- 遮罩不再播 `dim-in`，避免抽屉+遮罩双动画
+- 抽屉阴影从 60px 缩小到 18px，降低重绘
+
+验证：surface 审计在 320/360/390/844/915 打开抽屉+设置页后，无 `mobile-backdrop`、0 布局问题；截图见 `_audit/browser-surfaces/`。
