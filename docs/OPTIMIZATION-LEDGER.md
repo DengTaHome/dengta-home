@@ -1903,3 +1903,30 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 测试：backend round127-backend.log 0 fail；定向 voice-turn 1/1。
 - 生产 backend 40ea725（revision 已核对），frontend 008da05。
 - 结构性 P1 仍在：生成超时为单次 provider 调用 60s，工具多轮最坏 180–360s；下一轮 route 总 deadline/signal 或 transcript-first。
+
+
+## 轮次 128（2026-10-30 · 语音总 deadline）
+
+- `/voice/turn` 增加总 deadline：`VOICE_TURN_DEADLINE_MS` 默认 140s、env 可配；generation 用 `raceWithAbort` 与 turnAbort signal 竞争；deadline/客户端 close → 504/499，跳过 assistant 保存；timer 在 finish/close 清理。
+- `raceWithAbort` 抽到 `services/voice-turn.js` 并加 abort/resolve 行为测试；render.yaml 记录 deadline env。
+- 测试：backend round128-backend-final.log 0 fail；定向 voice-turn 1/1。
+- 生产 backend b843e7f（/health 已核对），frontend 008da05。
+- 剩余 P2：模型 provider 调用本身仍未取消（只放弃保存）、orphan user / 重试复用 UUID 未闭环、deadline 在 HerVoice 阶段返回 499 语义可再细化。
+
+
+## 轮次 129（2026-10-30 · Goldfish-R7 P1 修复）
+
+- `raceWithAbort` 在 signal 已 abort 时先给输入 promise attach catch，避免 Node24 unhandledRejection；补 pre-aborted + late reject 测试。
+- 路由 generateReply 前 abort guard（e076009）；deadline 默认 140s、clamp 上限 170s < 前端 180s（4debff4），避免客户端先超时。
+- 测试：backend round129-backend.log 0 fail、voice-turn pass；frontend round129-frontend.log 运行中。
+- 生产 backend 0706312（/health 已核对）、frontend 4debff4。
+- 剩余：orphan user/lease、模型/tool 未真正取消、assistant save 窄窗口、504 code 被过滤成 request_failed。
+
+
+## 轮次 130（2026-10-30 · deadline clamp / 语音 code）
+
+- `VOICE_TURN_DEADLINE_MS` 实际 clamp 170s（默认140s，30–170s），前端 180s > 后端上限 → 客户端先超时结构性错位关闭。
+- 错误响应保留 `VOICE_TURN_DEADLINE`/`VOICE_TURN_CANCELLED` code，不再被过滤成 request_failed；其它路由映射不变。
+- 测试：backend round129-backend-final2.log 0 fail、voice-turn pass；frontend 4debff4 全量 0 fail。
+- 生产 backend cd618cd（/health 已核对），frontend 4debff4（入口 index-BezGkGb9.js）。
+- P0/P1=0；剩余 P2：orphan/lease、模型/tool 未取消、save 窄窗口、prefix 无 deadline、clamp/code 缺行为测试、前端未消费 code。

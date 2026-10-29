@@ -297,3 +297,64 @@
 - 新增 P2/P3：后置任务 touch/proactive/autonomous 失败被静默吞（建议补日志/后台 job 化，避免主动消息
   调度丢失）；进程重启窗口后置任务可能丢；测试仍仅源码正则断言（无行为/异常/顺序测试）。
 - 结论：127 P0=0；P1 结构性问题收窄但未清零（生成总量无上限）；其余为 P2/P3。
+
+## 13. 轮次 128 语音总 deadline 复核（2026-10-30 02:08–02:22）
+
+- 基线：backend **b843e7f**（02:06:46 提交，**生产 `/health` revision=b843e7f 已上线**）；
+  frontend 008da05 未改。改动：`VOICE_TURN_DEADLINE_MS`（clamp 30–300s、默认 140s、render.yaml
+  140000）；server.js deadline 定时器 + close/finish 清理 + generation 用 `raceWithAbort(turnAbort.signal)`；
+  raceWithAbort helper + 测试。
+- 测试：`round128-backend-final.log` **0 fail**（02:06:17 完成；mtime/运行窗口/commit 已核对，覆盖最终提交）；
+  定向 voice-turn 复跑 **1/1** pass（含 raceWithAbort abort→504 / resolve 直通）。
+- 已验证：deadline 到点 abort → generation race 返回 504 `VOICE_TURN_DEADLINE`；客户端断开 → 499
+  `VOICE_TURN_CANCELLED`；race 先 reject → **assistant 不保存**、后置任务不执行；`finish`/`close`
+  都清定时器；raceWithAbort 两侧 handler 齐全（被放弃的 generation 不会 unhandledRejection）。
+- 覆盖缺口：**deadline 只 race generation 段**，prefix（settings/conversation/context/MCP/worldBook/
+  chatTools）无 race/信号（HerVoice 另有 60s）；prefix 卡住可越过 140s。且 deadline 在 prefix 阶段触发时，
+  代码仍会先启动 `generateReply` 再 race 立即 504 → 一次无效模型调用 + 可能工具副作用。
+- P1 状态：**客户端可见的 generation 等待已关闭**（正常路径 ≤140s 返回 504，150s 客户端不再先超时）。
+- 剩余 P2：①模型/tool 未被取消（abort 后仍可能写库副作用）；②孤儿 user 消息 + 同 UUID 永久 409
+  （无 TTL；人工重试新 UUID 会多一条 user 消息）；③前端 150s vs deadline 140s 仅 10s 余量
+  （上传/冷启动排队可先断；env 可调到 300s 而前端 150s 静默错位，建议 180s 或 deadline 120s + 一致性测试）；
+  ④prefix 无 deadline（见上）；⑤测试仍偏源码正则，race 断言在顶层 IIFE、route 行为/清理未覆盖。
+- 建议 129：先修 ②（orphan 清理/lease）与 ①（signal 下传 + executeTool 闸门），再 transcript-first；
+  随后 R3 全页面 980、R4 CSS 预算、R5 后端 CI/readiness。
+- 部署注意：`/health` 不暴露 `VOICE_TURN_DEADLINE_MS`，运行时 env 值需 Render 控制台确认
+  （默认 140000 与 render.yaml 一致，未同步时默认值仍对齐）。
+
+## 14. 轮次 129 unhandledRejection 修复复核（2026-10-30 02:18–02:32）
+
+- 基线：frontend **4debff4**（FE 180s；生产入口 `index-BezGkGb9.js`、语音 chunk 含 `18e4`）；
+  backend **0706312**（生产 `/health` revision 已核对；含 e076009 生成前 abort guard）。
+- 测试：`round129-backend.log` **0 fail**（02:16:27 完成，mtime/运行窗口/commit 已核对覆盖最终提交）；
+  定向 voice-turn 复跑 **1/1**（pre-aborted + late reject）；`round129-frontend.log` **0 fail**
+  （02:25:47 完成）。
+- 已验证：raceWithAbort 早期 abort 路径先 `promise.catch(()=>{})` → Node24 unhandledRejection 不再发生
+  （测试用 setImmediate 留出检测窗口，全量 0 fail 证明）；e076009 在 generateReply 前加 abort guard
+  （deadline 504/断线 499，避免无效模型调用）；正常 abort 路径两侧 handler 齐全。
+- **与 lead 描述不符（重要）**：e076009 commit message 称“clamp deadline below client”，但代码未改：
+  `server.js:6472-6475` 仍 `Math.min(300_000, ...)`，全仓无 `170_000`；env 可调到 141–300s 并超过
+  FE 180s → 错位可复发（当前生产 env=140000 无影响）。建议补 clamp 170_000 + 配置契约测试。
+- 剩余 P2：①orphan user/同 UUID 409（无 TTL/lease）；②模型/tool 未取消（abort 后仍可能写库副作用）；
+  ③assistant 保存窄窗口无 abort 再检查；④504/499 code 未映射给客户端（safeCode/白名单过滤，前端只能
+  靠 message）；⑤prefix（DB/context）不在 deadline race 内；⑥route 行为/清理/clamp 无自动化测试。
+- 建议 130：先补 clamp 170s + 504/499 code 映射（小改动），再 orphan/lease 与 signal 下传；
+  之后 transcript-first / R3/R4/R5。
+
+## 15. 轮次 130 clamp / 语音 code 映射复核（2026-10-30 02:33–02:45）
+
+- 基线：backend **cd618cd**（02:31:25 提交，生产 `/health` revision 已核对一致）；frontend **4debff4**
+  未改（180s；生产入口 `index-BezGkGb9.js`、语音 chunk 含 `18e4`）。
+- 测试：`round129-backend-final2.log` **0 fail**（02:31:03 完成；server/test mtime 早于运行开始、
+  commit 晚于运行结束 → 覆盖最终提交）；定向 voice-turn 复跑 **1/1**。
+- 已验证：①deadline clamp 真正改为 `170_000`（默认 140000、env 可配、上限 170s），旧 300s 移除，
+  测试含负向断言；②`voiceLifecycleCode` 对 `VOICE_TURN_DEADLINE`/`VOICE_TURN_CANCELLED` 绕过
+  safeCode/白名单过滤并置于 publicErrorCode 最前 → voice 504/499 响应现在带可识别 `code`，
+  其他路由映射不变（isVoiceRequest 门控）；③FE 180s > BE 上限 170s > 默认 140s，env 误配也会被
+  clamp → “客户端先超时”的结构性错位关闭。
+- 剩余 P2：①orphan user/同 UUID 永久 409（无 TTL/lease）；②模型/tool 未取消（abort 后仍可能写库副作用）；
+  ③assistant 保存窄窗口无 abort 再检查；④prefix（DB/context）不在 deadline race 内；
+  ⑤clamp/code 无行为测试、race 断言在顶层 IIFE、无前后端常量一致性测试；⑥前端仍未消费 code（P3，
+  可做差异化提示/UUID 复用）；XHR 计时含上传/冷启动，env=170 时仅 ~10s 余量（默认 140 时 ~40s，P3 观察）。
+- 结论：130 P0=0、P1=0（clamp/code 收口）；建议 131 优先 orphan/lease + signal 下传，再 transcript-first；
+  Goldfish-R9 复核进行中。
