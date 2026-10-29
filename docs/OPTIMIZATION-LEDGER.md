@@ -2151,3 +2151,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 真实 fresh voice 200（user=4821/assistant=4822，11.7s）；Supabase 用户 token+anon RLS 直读该 user 行：`state=completed`、`lease_id=null`、`lease_expires_at=null`、`completed_at` 已写、`is_voice=true`。
 - 测试 session DELETE 204；token/音频/响应临时文件清理。
 - 生产 backend 88ad4d1；成功 lease commit P2 关闭；剩余 claim fail-open、模型取消/save 窄窗、route E2E、TTL/FE 已对齐 175<180。
+
+
+## 轮次 154（2026-10-30 · 保存 abort 闸门 / lease 退化指标）
+
+- assistant 保存前检查 `turnAbort.signal.aborted`；已断线/超时不再落库，先 fail lease。
+- `/health` 新增 `voice_lease_degraded` 计数（claim/commit RPC 异常 +1），便于发现 fail-open 降级；字段置于 checks 前避免 health 契约测试破坏。
+- backend round154-backend-final.log 0 fail；生产 backend 127ea14（/health revision/degraded=0/voice_turn=true 已核对），frontend index-C4-5uC8g。
+- 剩余：fail-open 仅计数无告警、模型取消/save 窄窗残余、route E2E、前端 snapshot 仅源码测试、App chunk。
