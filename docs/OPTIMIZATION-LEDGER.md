@@ -1721,3 +1721,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - working 状态关闭会先暂停自动化
   - manual_review/error/payment 状态直接清除卡片并收起面板
 - 新增组件测试：卡内关闭不触发打开，onDismiss 只调用一次；takeout-assistant 19/19 通过。
+
+## 轮次 105（2026-10-29 · 下载/侧边栏/外卖卡闭环）
+
+- 侧边栏改为不透明主题卡片色，brand 标题/副标题对比修复；设置页 sheet/scroll/page 与卡片实色。
+- 新增侧边栏「下载 Android App」与设置页「下载安卓安装包」；安装按钮恢复可见 inline guidance（原先 notice 被设置层遮住）。
+- 外卖任务卡新增 44px 关闭按钮；working 关闭先暂停，其它状态清除；takeout-assistant 19/19。
+- full24：0 failure；full25 跑本轮全部改动的最终全量。
