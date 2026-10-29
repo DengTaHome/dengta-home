@@ -336,3 +336,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 ## 可拖动命令浮块（2026-10-29 轮次 112）
 
 - 四边吸附收起/点击展开；位置持久化；面板底部 sheet 去 blur；3 视口 PASS。
+
+
+## 浮块收尾（2026-10-29 轮次 113）
+
+- 19 视口 0 问题、全量 0 fail、41042b3 READY；APK 820967fc 待手机重连安装。

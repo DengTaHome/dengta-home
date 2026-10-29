@@ -1780,3 +1780,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 命令面板改底部 sheet（手机/横屏），去掉 backdrop-filter，加 grabber/柔光/图标。
 - 新验证脚本 3 视口（390/320/844）全 PASS；command-palette 测试 1/1。
 - 记录 docs/COMMAND-DOCK-2026-10-29.md。
+
+
+## 轮次 113（2026-10-29 · 浮块收尾）
+
+- 布局矩阵 19 视口 0 问题；前端全量 0 failure/3829 行；Vercel 41042b3 READY。
+- 生产页面确认 `.mobile-command-dock` 可见；最终 APK 已签名，待手机重连安装。
