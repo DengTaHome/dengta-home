@@ -1576,3 +1576,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - full13 完整 `npm test`（含 inline 手机字体/CSP/DB health/语音等最新改动）：**exit 0**，3938 行，0 failure。
 - 最新 6/6 视口布局 0 问题；手机生产 f5b590f3 首屏 system 字体、无 7.42MB 字体请求。
 - full10→13 连续全绿；CNB 镜像仍待写权限。
+
+## 轮次 85（2026-10-29 · APK 2.13.44 构建与阻塞）
+
+- 本地 `assembleRelease` 成功：2.13.44/302，34.73MB，内置最新手机字体脚本。
+- 阻塞：本机 debug 证书 0d634aaf… ≠ 已安装渠道 38a03ab…；无稳定 keystore；Actions workflow dispatch 4s 失败（额度/计费）；adb 无设备。
+- 候选 `DengTa-2.13.44-302.apk` 仅全新安装/模拟器，不可发布升级。
+- 新增 visual-loop 行为测试（reduced motion 只画一帧、无 timer；hidden 不排帧；dispose 停止）。

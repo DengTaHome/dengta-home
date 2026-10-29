@@ -211,3 +211,8 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 - backend render.yaml/coverage、frontend 根调试图/XML untrack、typography 行为测试均已落地。
 - CNB 非前端-only（backend-main/opensource-main 等）；sync 仍只推 frontend-main，无写 token。
 - 仍待：x 闸门合并上游、公开镜像 tag 清理、kiwi 鉴权、CNB/Amap/凭据轮换。
+
+## APK 2.13.44 阻塞（2026-10-29）
+
+- 构建成功 302/2.13.44，但本机 debug cert 0d63… ≠ 渠道 38a03…；Actions 额度失败、无 adb 设备。候选不发布。
+- 需原稳定 keystore 或 Actions 恢复；新增 visual-loop 冻结行为测试。
