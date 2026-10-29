@@ -1473,3 +1473,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 已更新两处期望顺序；`mobile-layout` 单测通过。
 - 之前 `music-import-flow` 的 Vite teardown 停滞已修；full9 能完整结束即为证明。
 - 已启动 full10 复跑。
+
+## 轮次 70（2026-10-29 · full10 收尾）
+
+- full10 完整跑完（3821 行），**0 failure 标记**；仅有一个 Vite test server 的 “Port 24678 in use” 警告，不影响断言。
+- full9 唯一失败（mobile-layout stylesheet order）已修；music-import-flow 的 Vite teardown 停滞已修。
+- 本轮累计：语音键盘可达、低内存设备跳过 7.4MB 字体、performance-guards、触屏动图限制、≤820 blur 关闭、TTS/preflight 取消、歌词 focus trap。
+- backend d0fafa7；frontend 2a30695 READY。

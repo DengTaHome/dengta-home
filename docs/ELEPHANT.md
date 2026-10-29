@@ -130,3 +130,9 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - full9 只在 mobile-layout 的 stylesheet order 失败（缺 refusal-banner.css）；已修并单测通过。
 - full10 复跑中；music-import-flow teardown 停滞已修。
+
+## full10 收尾（2026-10-29 轮次 70）
+
+- full10 3821 行、0 failure 标记（一个 Vite 测试端口警告）。
+- full9 失败已修；music-import teardown 停滞已修。
+- backend d0fafa7、frontend 2a30695 READY。
