@@ -52,8 +52,9 @@ const DEVICES = [
     { name: "480x1040-dpr2-fold", width: 480, height: 1040, dpr: 2 },
     { name: "600x960-dpr2-small-tablet", width: 600, height: 960, dpr: 2 },
     { name: "800x1280-dpr2-tablet", width: 800, height: 1280, dpr: 2 },
+    { name: "568x320-landscape-small", width: 568, height: 320, dpr: 2 },
     { name: "844x390-landscape-14", width: 844, height: 390, dpr: 3 },
-    { name: "915x412-landscape-large", width: 915, height: 412, dpr: 2.625 },
+    { name: "896x414-landscape-large", width: 896, height: 414, dpr: 2.625 },
 ];
 
 await fs.mkdir(OUT, { recursive: true });
@@ -97,18 +98,38 @@ const { chromium } = loadPlaywright();
 const browser = await chromium.launch({ channel: "msedge", headless: true, args: ["--no-sandbox"], proxy: { server: "http://127.0.0.1:10809", bypass: "127.0.0.1,localhost" } });
 
 const results = [];
+let fatalError = null;
 for (const device of DEVICES) {
     const context = await browser.newContext({ viewport: { width: device.width, height: device.height }, deviceScaleFactor: device.dpr, isMobile: true, hasTouch: true });
+    try {
     const page = await context.newPage();
     const session = { access_token: auth.access_token, token_type: "bearer", expires_in: auth.expires_in, expires_at: Math.floor(Date.now() / 1000) + auth.expires_in - 60, refresh_token: auth.refresh_token, user: auth.user };
     await page.addInitScript(([k, v]) => { try { globalThis.localStorage.setItem(k, v); } catch { } }, ["dengta_home_auth_v1", JSON.stringify(session)]);
     const startedAt = Date.now();
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await page.waitForSelector(".main-panel", { timeout: 150_000 }).catch(() => {});
-    // 等真正的界面元素（会话列表或输入框），而不是只有外壳
-    await page.waitForSelector(".composer, .session-select, .message-bubble", { timeout: 120_000 }).catch(() => {});
-    await page.waitForTimeout(2500);
+    await page.waitForSelector(".main-panel", { timeout: 150_000 });
+    // Do not treat the loading shell as "ready": wait until the recovery banner
+    // and startup veil are gone AND real chat/session content exists. A blank or
+    // failed boot must fail the matrix instead of producing an empty issue list.
+    await page.waitForFunction(() => {
+        const composer = document.querySelector(".composer");
+        const recovery = document.querySelector(".connection-recovery");
+        const startup = document.querySelector(".app-startup-page, .dengta-prelude");
+        const hasMessages = document.querySelectorAll(".message-bubble").length > 0;
+        const hasSessions = Boolean(document.querySelector(".session-select, .session-list, .session-item"));
+        return Boolean(composer && !recovery && !startup && (hasMessages || hasSessions));
+    }, { timeout: 150_000 });
+    await page.waitForTimeout(500);
     const readyMs = Date.now() - startedAt;
+    const required = await page.evaluate(() => ({
+        mainPanel: Boolean(document.querySelector(".main-panel")),
+        composer: Boolean(document.querySelector(".composer")),
+        messages: document.querySelectorAll(".message-bubble").length,
+        sessions: document.querySelectorAll(".session-select, .session-list, .session-item").length,
+    }));
+    if (!required.mainPanel || !required.composer || (required.messages === 0 && required.sessions === 0)) {
+        throw new Error(`layout prerequisites missing at ${device.name}: ${JSON.stringify(required)}`);
+    }
 
     const audit = await page.evaluate(({ vw, vh }) => {
         const issues = [];
@@ -129,6 +150,9 @@ for (const device of DEVICES) {
         };
         const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
         if (docWidth > vw + 1) issues.push({ kind: "horizontal-overflow", detail: `scrollWidth=${docWidth} > ${vw}` });
+        const msgCount = document.querySelectorAll(".message-bubble").length;
+        const sessionCount = document.querySelectorAll(".session-select, .session-list, .session-item").length;
+        if (msgCount === 0 && sessionCount === 0) issues.push({ kind: "missing-content", detail: "no message/session content" });
 
         // 交互元素被推出视口（排除 off-canvas）
         const pushed = [];
@@ -189,7 +213,7 @@ for (const device of DEVICES) {
         }
         if (clipped.length) issues.push({ kind: "clipped-chat-text", count: clipped.length, samples: clipped.slice(0, 5) });
 
-        return { issues, docWidth };
+        return { issues, docWidth, msgCount, sessionCount };
     }, { vw: device.width, vh: device.height });
 
     await page.screenshot({ path: `${OUT}/layout-${device.width}x${device.height}.png`, timeout: 120_000 });
@@ -197,7 +221,13 @@ for (const device of DEVICES) {
     console.log(`\n=== ${device.name} === 就绪 ${(readyMs / 1000).toFixed(1)}s`);
     if (!audit.issues.length) console.log("  ✓ 未发现布局问题");
     for (const issue of audit.issues) console.log(`  ✗ ${issue.kind}: ${issue.detail || JSON.stringify(issue.samples || issue.count)}`);
-    await context.close();
+    } catch (error) {
+        fatalError = error;
+        results.push({ device: device.name, error: String(error).slice(0, 300), issueCount: 0 });
+        console.error(`\n=== ${device.name} === ERROR ${String(error).slice(0, 300)}`);
+    } finally {
+        await context.close();
+    }
 }
 
 await fs.writeFile(`${OUT}/layout-matrix.json`, JSON.stringify({ ranAt: new Date().toISOString(), results }, null, 2), "utf8");
@@ -205,4 +235,4 @@ const total = results.reduce((sum, item) => sum + item.issueCount, 0);
 console.log(`\n合计问题: ${total}`);
 await browser.close();
 server.close();
-process.exit(total > 0 ? 1 : 0);
+process.exit(total > 0 || fatalError ? 1 : 0);
