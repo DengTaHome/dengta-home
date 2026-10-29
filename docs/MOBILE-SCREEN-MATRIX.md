@@ -7,7 +7,7 @@
 - 可交互元素实际命中框 <44×44
 - 聊天气泡文本被裁
 
-脚本：`tools/browser-verify/verify-layout-matrix.mjs`（扩到 17 个视口，含 568×320 小横屏与 896×414 大横屏）。每个视口都断言 `.main-panel`、`.composer` 和消息/会话内容存在。
+脚本：`tools/browser-verify/verify-layout-matrix.mjs`（扩到 18 个视口，含 568×320、844×390、896×414、915×412 横屏）。每个视口都等待启动幕/恢复条消失，**自动切到有消息的会话**，断言至少一个 `.message-bubble`；无消息/白屏直接失败。
 
 ## 覆盖与结果（修复后）
 
@@ -30,14 +30,15 @@
 | 844×390 @3 | 横屏 iPhone 14 | 通过 |
 | 915×412 @2.625 | 横屏大屏安卓 | 通过 |
 
-合计：**17/17 无布局问题**；真实就绪 **6.2–7.5s**（含 Render 冷启动/登录数据）。
+合计：**18/18 无布局问题**；矩阵就绪 **19.3–20.9s**（含 Render 冷启动、切换到一个有消息的会话并等待消息渲染；纯首屏启动另测为 5.5s）。
 
 ## 本轮修复
 1. **短横屏 composer 出视口**
    - 原因：presence stack（227px）+ 恢复条（74px）+ topbar 占满 390/412px，`.view-content` 被压到 41px，composer 溢出到视口下方。
    - 修复：短横屏把 presence stack 压到 76px、隐藏 ribbon/ambient 大卡片，**保留状态胶囊**；收紧 composer padding。聊天输入框与状态入口都可见。
 2. **横屏触控目标**
-   - `.menu-button`、`.new-chat-top`、`.composer-reply-options-button` 提升到 44px；最后者用 `.composer .composer-reply-options-button` 覆盖组件后加载的 32px 规则。\n   - 设置搜索框 42→44px；抽屉 `.session-heading button` 29→44px。
+   - `.menu-button`、`.new-chat-top`、`.composer-reply-options-button` 提升到 44px；最后者用 `.composer .composer-reply-options-button` 覆盖组件后加载的 32px 规则。
+   - 设置搜索框 42→44px；抽屉 `.session-heading button` 29→44px。
 3. 已有适配保留：
    - `viewport-fit=cover`、`interactive-widget=resizes-content`
    - Android 15 edge-to-edge 顶部安全区
@@ -49,10 +50,25 @@
 ```powershell
 cd D:\GZdeepseek\dengta-home
 node tools\browser-verify\verify-layout-matrix.mjs
-# 16 个视口；期望 合计问题: 0
+# 18 个视口；期望 合计问题: 0
 ```
 
-## 状态面板/设置/音乐可达性\n\n- 320×568、390×844、844×390 下点击状态胶囊：`.status-panel.is-open=true`，rect 正常（304×456 / 374×732 / 430×214）。\n- 菜单抽屉、设置页、音乐页均 0 布局问题。\n\n## 复现口径\n\n- 17 个视口在**同一个构建**上连续跑完（本次为 `dist` 最新构建），不再出现跨构建拼接。\n- 每个视口必须出现真实消息/会话内容，否则脚本抛错退出 1；白屏/启动失败不会再被当成 0 问题。\n\n## 边界
+## 状态面板 / 设置 / 音乐可达性
+
+- 320×568、390×844、844×390 下点击状态胶囊：`.status-panel.is-open=true`，rect 正常（304×456 / 374×732 / 430×214）。
+- 菜单抽屉、设置页、音乐页均 0 布局问题。
+
+## 复现口径
+
+- 18 个视口在**同一个构建**上连续跑完；每档 `msgCount > 0`，截图是真实聊天而不是加载壳。
+- 每个视口必须出现真实消息（不是只看到会话列表）；没有消息/白屏/启动失败会抛错退出 1。
+- 恢复态（`.connection-recovery` 存在）：短横屏 composer 273–380 / 390，presence 隐藏，底栏不被裁；恢复后胶囊重新出现。
+
+## 已验证的恢复态
+
+- 844×390 下拦截 bootstrap 12s：`.connection-recovery=true`，`.composer` 273–380（视口 390），presence display=none；底栏完整可见。
+
+## 边界
 - 浏览器无法模拟真实刘海/挖孔 safe-area 像素值；已用 CSS `env()` + Android edge-to-edge 规则覆盖，真机仍需复核。
 - 系统字体放大（Android 无障碍缩放）未做 200% 专项；当前布局按 px 流式，若后续出现大字溢出再补。
 - 横屏时 presence stack 压缩为单行胶囊，状态面板仍可点击打开；ribbon 文案在横屏隐藏，完整状态进面板。

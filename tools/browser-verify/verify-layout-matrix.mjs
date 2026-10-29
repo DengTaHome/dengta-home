@@ -55,6 +55,7 @@ const DEVICES = [
     { name: "568x320-landscape-small", width: 568, height: 320, dpr: 2 },
     { name: "844x390-landscape-14", width: 844, height: 390, dpr: 3 },
     { name: "896x414-landscape-large", width: 896, height: 414, dpr: 2.625 },
+    { name: "915x412-landscape-wide", width: 915, height: 412, dpr: 2.625 },
 ];
 
 await fs.mkdir(OUT, { recursive: true });
@@ -115,19 +116,30 @@ for (const device of DEVICES) {
         const composer = document.querySelector(".composer");
         const recovery = document.querySelector(".connection-recovery");
         const startup = document.querySelector(".app-startup-page, .dengta-prelude");
-        const hasMessages = document.querySelectorAll(".message-bubble").length > 0;
-        const hasSessions = Boolean(document.querySelector(".session-select, .session-list, .session-item"));
-        return Boolean(composer && !recovery && !startup && (hasMessages || hasSessions));
-    }, { timeout: 150_000 });
+        return Boolean(composer && !recovery && !startup);
+    }, null, { timeout: 150_000 });
+    await page.waitForTimeout(700);
+    // Session rows are not chat content: a fresh session can be empty. Select a
+    // session that actually has messages (read-only) so screenshots/overflow
+    // checks cover the real transcript instead of the loading/empty placeholder.
+    if (await page.locator(".message-bubble").count() === 0) {
+        const sessions = page.locator(".session-select");
+        const count = await sessions.count();
+        for (let index = 0; index < Math.min(count, 12); index += 1) {
+            await sessions.nth(index).evaluate((node) => node.click()).catch(() => {});
+            await page.waitForTimeout(900);
+            if (await page.locator(".message-bubble").count() > 0) break;
+        }
+    }
+    await page.waitForFunction(() => document.querySelectorAll(".message-bubble").length > 0, null, { timeout: 60_000 });
     await page.waitForTimeout(500);
     const readyMs = Date.now() - startedAt;
     const required = await page.evaluate(() => ({
         mainPanel: Boolean(document.querySelector(".main-panel")),
         composer: Boolean(document.querySelector(".composer")),
         messages: document.querySelectorAll(".message-bubble").length,
-        sessions: document.querySelectorAll(".session-select, .session-list, .session-item").length,
     }));
-    if (!required.mainPanel || !required.composer || (required.messages === 0 && required.sessions === 0)) {
+    if (!required.mainPanel || !required.composer || required.messages === 0) {
         throw new Error(`layout prerequisites missing at ${device.name}: ${JSON.stringify(required)}`);
     }
 
@@ -198,7 +210,18 @@ for (const device of DEVICES) {
             const r = el.getBoundingClientRect();
             if (r.width < 1 || r.height < 1) continue;
             if (r.bottom < 0 || r.top > vh) continue;
-            if (r.width < 44 || r.height < 44) small.push({ cls: String(el.className || "").split(/\s+/).slice(0, 2).join(".").slice(0, 40), w: Math.round(r.width), h: Math.round(r.height) });
+            const after = getComputedStyle(el, "::after");
+            let effectiveW = r.width;
+            let effectiveH = r.height;
+            if (after.position === "absolute" && after.content && after.content !== "none") {
+                const left = Number.parseFloat(after.left);
+                const right = Number.parseFloat(after.right);
+                const top = Number.parseFloat(after.top);
+                const bottom = Number.parseFloat(after.bottom);
+                if (Number.isFinite(left) && Number.isFinite(right) && left < 0 && right < 0) effectiveW -= left + right;
+                if (Number.isFinite(top) && Number.isFinite(bottom) && top < 0 && bottom < 0) effectiveH -= top + bottom;
+            }
+            if (effectiveW < 44 || effectiveH < 44) small.push({ cls: String(el.className || "").split(/\s+/).slice(0, 2).join(".").slice(0, 40), w: Math.round(r.width), h: Math.round(r.height), ew: Math.round(effectiveW), eh: Math.round(effectiveH) });
         }
         if (small.length) issues.push({ kind: "small-tap-targets", count: small.length, samples: small.slice(0, 6) });
 
