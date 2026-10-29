@@ -1570,3 +1570,9 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - 就绪时间 3.1–3.5s（此前同脚本 ~272s，主要为登录/字体等待；字体请求已消失）
 - 生产 f5b590f3：手机 390×844 首屏 system 字体、无 7.42MB 字体请求。
 - full13 全量运行中；full12 为最近完整 0 failure。
+
+## 轮次 82（2026-10-29 · full13 全绿）
+
+- full13 完整 `npm test`（含 inline 手机字体/CSP/DB health/语音等最新改动）：**exit 0**，3938 行，0 failure。
+- 最新 6/6 视口布局 0 问题；手机生产 f5b590f3 首屏 system 字体、无 7.42MB 字体请求。
+- full10→13 连续全绿；CNB 镜像仍待写权限。

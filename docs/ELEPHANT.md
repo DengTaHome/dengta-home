@@ -191,3 +191,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - 手机 3 + 平板/折叠/桌面 3 全通过，就绪 3.1–3.5s。
 - 生产手机首屏 system 字体、无字体请求；full13 运行中。
+
+## full13 全绿（2026-10-29 轮次 82）
+
+- full13 exit 0，3938 行 0 failure；含 inline 手机字体/CSP/DB health。
