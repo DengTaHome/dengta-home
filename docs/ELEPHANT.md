@@ -167,3 +167,7 @@ D:\GZdeepseek\_tools\python312\python.exe D:\GZdeepseek\dengta-home\tools\x-mcp\
 
 - 手机首次访问默认系统字体，避免 7.4MB 品牌字体下载；桌面仍 standard。
 - typography/performance 9 项通过；DB health abort；full11 运行中。
+
+## full11 全绿（2026-10-29 轮次 77）
+
+- full11 exit 0，3938 行，0 failure；full12 跑最新手机字体。
