@@ -2014,3 +2014,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - `setRetryAfterHeader` 统一最少 1s、header 与 body `retry_after_seconds`；generic voice 409 使用。
 - server 使用两个 helper；backend round139-backend.log 0 fail、voice-turn pass；生产 backend 68d2426（/health 已核对），frontend 4debff4。
 - 剩余：跨实例 DB lease、FE 新 UUID、模型/tool 未取消、route call-site mutation、TTL/prefix。
+
+
+## 轮次 140（2026-10-30 · Retry-After 全站点统一）
+
+- 语音限流、错误中间件、expressive-speech 429 的内联 Retry-After 全部改用 setRetryAfterHeader；expressive 429 body 补 retry_after_seconds。
+- 测试新增 call-site 精确断言：claimVoiceTurnOrRespond 参数、if(!claimToken)return、release(key,token)、setRetryAfterHeader(result.retryAfterMs)。
+- backend round140-backend.log 0 fail、voice-turn pass；生产 backend 7d16b05（/health 已核对），frontend 4debff4。
+- 剩余：跨实例 DB lease、FE 新 UUID、模型/tool 未取消、route 级集成仍缺。

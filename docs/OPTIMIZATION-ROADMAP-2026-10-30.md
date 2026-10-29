@@ -524,3 +524,26 @@
 - 遗留 P3：429 body `retry_after_seconds` 不一致（限流有、expressive-speech 无）；前端未消费
   code/retry_after_seconds；stored analysis 默认 neutral/0、恢复仍强制 multipart、prefix 不受 deadline。
 - 建议 139：route 级集成测试/分支抽函数 + 429 helper 统一；然后 lease/FE UUID/模型取消；Goldfish-R16 复核中。
+
+## 24. 轮次 139 claim-failure / Retry-After helper 复核（2026-10-30 04:07–04:18）
+
+- 基线：backend **68d2426**（04:06:10 提交，生产 `/health` revision 已核对一致）；frontend 4debff4 未改。
+- 测试：`round139-backend.log` **0 fail**（04:05:48 完成；mtimes 早于运行开始、commit 晚于运行结束 →
+  覆盖最终内容）；定向 voice-turn **1/1**（两个 mock res 行为块）。
+- 已验证：①`claimVoiceTurnOrRespond(res,guard,key,ttlMs)`：成功返回 token 不写 res；失败写 409/headers/
+  body 返回 ""；server 改为 `const claimToken=claimVoiceTurnOrRespond(...); if(!claimToken) return;
+  voiceTurnClaimed={key,token}`，claim-failure 分支有行为测试（成功 calls.length=0，失败 status/set/json）；
+  ②`setRetryAfterHeader(res,ms,body?)`：min 1s + header + 可选 body.retry_after_seconds，返回秒数；
+  generic voice 409 改用 `setRetryAfterHeader(res,5000)`（header 5s，getHeader 保护）；
+  ③全局 CORS 暴露未回退；④生产 revision=68d2426。
+- 剩余 P2：①call-site mutation 缺口仍在——helper 有行为测试，但 server 路由调用点仍只靠源码正则（停止
+  调用但保留 import/传错 ttl 仍可能绿），建议 route 集成（fake req/res）或分支抽纯函数 + mutation；
+  ②跨实例无 DB lease；③FE 新 UUID + TTL200>FE180；④模型未取消/tool 副作用；⑤save 窄窗口；
+  ⑥TTL=deadline+60 prefix 长尾；⑦claim-before-replay 瞬时 409。
+- 剩余 P3：Retry-After 逻辑重复（voiceTurnInProgressResponse 与 setRetryAfterHeader 各自 min/ceil，
+  claimVoiceTurnOrRespond 与 apply helper 各自 set/status/json）；server 未使用
+  applyVoiceTurnInProgressResponse import（冗余）；generic 409 body 无 retry_after_seconds（guard 有）；
+  expressive-speech 429 body 无该字段；`setRetryAfterHeader` 未测 0/负/NaN/大值与 body 写入分支；
+  前端未消费 retry 信息；stored analysis 默认 neutral/0、恢复仍强制 multipart、prefix 不受 deadline。
+- 建议 140：route 级集成/call-site mutation + Retry-After 去重（复用 helper）；然后 lease/FE UUID/模型取消；
+  Goldfish-R17 复核中。
