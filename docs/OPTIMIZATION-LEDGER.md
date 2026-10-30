@@ -2260,3 +2260,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 部署不再包含 36MB APK 二进制；`public/downloads` 清空，rewrite 满足原生 policy。
 - 前端 round170 全量 0 fail；后端 round167 全量 0 fail；Elephant P0=0/P1=0；Goldfish-R35。
 - 已知 P2：debug 证书、git 历史大文件 blob、composer 无登录真机视觉、首 token 18.9s、rewrite 依赖存储 ACL。
+
+
+## 轮次 165 补充（2026-10-30 · 下载页与最终复核）
+
+- `/download` 默认链接与兜底已改为 2.13.50/308（原 latest 与 2.13.49 均 404）；CSP 同时接受 CRLF/LF 内联脚本 hash；Vercel 实测 `/download` 200 且含 308 链接。
+- feed 308 site URL 通过 Vercel rewrite 到 Supabase 对象存储，部署无 36MB APK 二进制；APK release `debuggable=false`，cert 0d634aaf。
+- 前端 round170 全量 0 fail；后端 round167 全量 0 fail；Elephant/Goldfish P0=0。
+- 已知：APK 仍用 debug 证书（升级兼容）、聊天首 token 18.9s 上游、NetEase 需重新扫码、composer 未登录真机视觉。
