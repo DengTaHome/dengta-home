@@ -2223,3 +2223,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - REPO-WATCH 01:11Z 本次变化 4：DengTa 前后端/docs 为本地已推送提交（8fe042b/8c1721c/27790aa），无需处理。
 - 上游 x-twikit-mcp 更新到 358c4549（v1.2.0，新增 notifications/trends/VIP/DM 等）；DengTa 已接 12 工具，本机 worktree 有 `X_MCP_READ_ONLY` 闸门但上游尚未合并，**需用户决定是否适配/合并并补测试**；未改生产数据/未部署。
 - 其余 13 项目无变化。
+
+
+## 轮次 163（2026-10-30 · 涂鸦/会话恢复/流式体验/通道绑定）
+
+- 涂鸦：手动「想一张涂鸦」不再被聊天历史门槛拦截；真实 API 验证 ideas 201→generate 200 ready（gpt-image-2）。
+- 会话：后端 loadConversation 404 时自动新建会话并继续（session_recovered），修复清理后旧会话 ID 导致「找不到这个会话」。
+- 微信/QQ：ChannelHub 增加步骤说明、复制绑定码、有效期倒计时、每 4 秒自动检测；QQ bind start→confirm→active→cleanup 真实链路通过；新增前端可用性测试。
+- 流式：TypewriterText 改为跨 chunk 连续追字，不再每收到一段就从头重打；AI 默认切到 deepseek-flash（官方）后首 token 约 18s，首段后字符输出恢复连续。
+- 网易云：隐私清理删除 `netease_cookie_sessions`，当前 connected=false，需要重新在 DengTa 内扫码；网易云 App 登录不等同于 DengTa 授权。
+- 生产 backend 9a06e65；frontend Typewriter/ChannelHub 已部署（index-Bq36ltst，TypewriterText-Bab-CRI2）。
