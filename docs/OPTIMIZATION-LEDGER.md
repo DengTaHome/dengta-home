@@ -2242,3 +2242,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 后端 chat-contract 断言按 session recovery 更新，全量 0 fail；前端更新 feed 契约（允许原生允许的 site APK），cast/app-updates 定向 14/14，round169 全量执行中。
 - 流式：聊天列表直出，Typewriter 只用于 moments/nursery；AI 默认 deepseek-flash 首 token 约18.9s。
 - 待办：移动输入框 307 真机复核；NetEase 需重新扫码；R34/Elephant 复核。
+
+
+## 轮次 164 补充（2026-10-30 · 307 更新链路闭环）
+
+- 生产 feed 307/2.13.49（android.json + legacy download.json 200），APK URL `.../downloads/DengTa-2.13.49.apk` HEAD 200、36,467,047B、SHA f63b1e3a…；APK `debuggable=false`，证书 0d634aaf 与 2.13.47 相同。
+- 原生 AppUpdatePolicy 与 JS 均接受 site `/downloads/*.apk`；旧的 `/supabase` URL 被原生拒，已修复。已删除旧 2.13.48 debug APK 对象。
+- 前端 cast-receiver 契约允许原生允许的 site APK；round169 全量 **0 fail**；后端 round167 全量 0 fail。
+- Typewriter 完成后再来新文本的 `last` 重置已补；聊天列表仍直出，Typewriter 仅 moments/nursery。
+- 复核：Elephant P0=0/P1=0；Goldfish-R34 无新 P0；已知 P2：debug 证书、Vercel 存 site APK 成本、未登录真机视觉。
