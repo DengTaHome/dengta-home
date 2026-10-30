@@ -2216,3 +2216,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 澄清 127s RECOVERING 证据属 revision 5930c02（fail 生命周期前）；当前 be2709a/ba73e97 已有 abort→2s 重试 200 证据。
 - backend round161-backend.log 0 fail；生产 backend 8c1721c（/health degraded=0 已核对）；frontend index-DNV0ffbc。
 - 剩余：commit 失败补偿、claim fail-open、模型取消、route E2E、深层触摸、App chunk。
+
+
+## 轮次 162（2026-10-30 · REPO-WATCH 检查）
+
+- REPO-WATCH 01:11Z 本次变化 4：DengTa 前后端/docs 为本地已推送提交（8fe042b/8c1721c/27790aa），无需处理。
+- 上游 x-twikit-mcp 更新到 358c4549（v1.2.0，新增 notifications/trends/VIP/DM 等）；DengTa 已接 12 工具，本机 worktree 有 `X_MCP_READ_ONLY` 闸门但上游尚未合并，**需用户决定是否适配/合并并补测试**；未改生产数据/未部署。
+- 其余 13 项目无变化。
