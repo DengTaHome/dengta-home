@@ -2233,3 +2233,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 流式：TypewriterText 改为跨 chunk 连续追字，不再每收到一段就从头重打；AI 默认切到 deepseek-flash（官方）后首 token 约 18s，首段后字符输出恢复连续。
 - 网易云：隐私清理删除 `netease_cookie_sessions`，当前 connected=false，需要重新在 DengTa 内扫码；网易云 App 登录不等同于 DengTa 授权。
 - 生产 backend 9a06e65；frontend Typewriter/ChannelHub 已部署（index-Bq36ltst，TypewriterText-Bab-CRI2）。
+
+
+## 轮次 164（2026-10-30 · 应用内更新修复）
+
+- 原生 AppUpdatePolicy 只接受 `/downloads/*.apk`、GitHub Release 或直连 Supabase storage；旧 feed 的 `/supabase/...` 被拒，导致应用内更新不可用。
+- 已发布 **2.13.49(307) release**（debuggable=false，cert 0d634aaf，36,467,047B，SHA f63b1e3a…），APK 托管 `https://www.dengtahome.com/downloads/DengTa-2.13.49.apk`；android.json 与 download.json 均 307，APK HEAD 200。
+- 后端 chat-contract 断言按 session recovery 更新，全量 0 fail；前端更新 feed 契约（允许原生允许的 site APK），cast/app-updates 定向 14/14，round169 全量执行中。
+- 流式：聊天列表直出，Typewriter 只用于 moments/nursery；AI 默认 deepseek-flash 首 token 约18.9s。
+- 待办：移动输入框 307 真机复核；NetEase 需重新扫码；R34/Elephant 复核。
