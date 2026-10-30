@@ -2251,3 +2251,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 前端 cast-receiver 契约允许原生允许的 site APK；round169 全量 **0 fail**；后端 round167 全量 0 fail。
 - Typewriter 完成后再来新文本的 `last` 重置已补；聊天列表仍直出，Typewriter 仅 moments/nursery。
 - 复核：Elephant P0=0/P1=0；Goldfish-R34 无新 P0；已知 P2：debug 证书、Vercel 存 site APK 成本、未登录真机视觉。
+
+
+## 轮次 165（2026-10-30 · 流式聊天与 2.13.50）
+
+- 聊天 text SSE 处理器移除 per-token `flushSync`（逐字同步渲染会阻塞 Android WebView），改为 React 批处理；chat-latency 测试新增断言。
+- 发布 **2.13.50(308) release**（debuggable=false，cert 0d634aaf，36,467,003B，SHA 7fbf1469…），APK 通过 site `/downloads/DengTa-2.13.50.apk` + Vercel rewrite 到 Supabase 对象存储；feed android/download 均 308，HEAD 200。
+- 部署不再包含 36MB APK 二进制；`public/downloads` 清空，rewrite 满足原生 policy。
+- 前端 round170 全量 0 fail；后端 round167 全量 0 fail；Elephant P0=0/P1=0；Goldfish-R35。
+- 已知 P2：debug 证书、git 历史大文件 blob、composer 无登录真机视觉、首 token 18.9s、rewrite 依赖存储 ACL。
