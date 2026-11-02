@@ -2287,3 +2287,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - Android 发布：`publish-android-apk.yml` **dry_run=true** run 41370983295 **success**（构建/签名校验通过，未发布/未改 feed）。
 - 未执行 live publish：workflow 仍期望旧稳定证书 38a03ab2，而当前用户安装链为 0d634aaf；强发会破坏覆盖升级，且本地 2.13.50/308 已在线。若要走 Actions 正式发版，需先更新 workflow keystore secret 或决定切换签名。
 - 本地 feed 仍 308，APK 36,467,003B/SHA 7fbf1469…；本轮未改生产数据。
+
+
+## 轮次 167 补充（2026-11-02 · REPO-WATCH 与 CNB）
+
+- `tools/repo-watch/watch.mjs` 改为无 env 时自动读取 `_credentials` 的 proxy；`run-watch.cmd` 不再硬编码 10809。实测 GitHub+CNB 均成功（errors=0，CNB HEAD `4916b678`）。
+- 2026-11-02T01:20Z 检查：变化 2：SnowLuma **v2.3.4**（`e9faec0e`）、qq-bridge **PR#146**（`b80fa51b`）；影响 QQ 桥，需决策升级/补 verify:adaptation。x-twikit 无新变化。
+- 未改生产数据。

@@ -30,8 +30,28 @@ function token() {
 }
 const TOKEN = token();
 
+function credentialProxy() {
+    try {
+        const cred = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, "utf8"));
+        const value = cred?.proxy;
+        if (typeof value === "string") return value;
+        return String(value?.http || value?.https || value?.socks5 || "").trim();
+    } catch {
+        return "";
+    }
+}
+function configuredProxy() {
+    return (
+        process.env.GITHUB_PROXY ||
+        process.env.CNB_PROXY ||
+        process.env.HTTPS_PROXY ||
+        process.env.HTTP_PROXY ||
+        credentialProxy()
+    );
+}
+
 function proxyArgs() {
-    const proxy = process.env.GITHUB_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY || "";
+    const proxy = configuredProxy();
     return proxy ? ["--proxy", proxy, "--ssl-no-revoke"] : ["--noproxy", "*"];
 }
 
@@ -131,7 +151,7 @@ for (const repo of (config.cnbRepos || [])) {
     try {
         const gitBin = process.env.GIT_BIN || (fs.existsSync("D:\\GZdeepseek\\_tools\\git\\cmd\\git.exe") ? "D:\\GZdeepseek\\_tools\\git\\cmd\\git.exe" : "git");
         const args = ["ls-remote", `https://cnb.cool/${repo}.git`, "refs/heads/frontend-main"];
-        const proxy = process.env.CNB_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY || "";
+        const proxy = configuredProxy();
         if (proxy) args.unshift("-c", `http.proxy=${proxy}`, "-c", `https.proxy=${proxy}`);
         const output = execFileSync(gitBin, args, { encoding: "utf8", windowsHide: true, timeout: 30000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
         const sha = String(output).trim().split(/\s+/)[0] || "";

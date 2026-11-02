@@ -6,7 +6,7 @@
 ## 手动运行
 
 ```powershell
-$env:GITHUB_PROXY='http://127.0.0.1:10809'   # 本机需要代理时
+$env:GITHUB_PROXY='http://127.0.0.1:7877'   # 可选；不设置时自动读取 _credentials 的 proxy
 node tools\repo-watch\watch.mjs
 ```
 
