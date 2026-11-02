@@ -36,3 +36,12 @@
 - 旧 keystore 未找回；按用户确认生成新 keystore。
 - 全新安装 APK：docs/ANDROID-APK-NEW-KEY-2026-10-29.md，证书 b4c7a2f…。
 - 旧版不能覆盖升级；不要上传到现有更新 feed。
+
+## 2026-11-02：Actions 额度恢复与签名检查
+
+- 本机代理端口变为 `7877`（原 10809 不可用）；`nov1-deploy.ps1 -DryRun` 通过：GitHub API OK、7 workflows、feed 2.13.50/308。
+- CNB 同步：`sync-cnb.yml` run **41370603706 success**，frontend main 已镜像。
+- APK 构建校验：`publish-android-apk.yml` **dry_run=true** run **41370983295 success**；说明 Actions 可正常构建并恢复 secret 中的稳定 keystore（cert `38a03ab2…`）。
+- **未执行 live publish**：当前线上/用户安装链证书是 `0d634aaf…`，Actions 稳定 keystore 是 `38a03ab2…`；直接发布会生成签名不兼容的 309，违反“不要发布签名不兼容的 APK”。
+- 当前线上仍是本地构建的 **2.13.50/308**（cert 0d634aaf，36,467,003B，SHA 7fbf1469…），可覆盖升级。
+- 若要走 Actions 正式发布：需把 workflow 的 `ANDROID_STABLE_DEBUG_KEYSTORE_BASE64_V2` 及证书校验改为当前 `0d634aaf…`，再 dispatch live；或接受换签后用户卸载重装。需用户决策。
