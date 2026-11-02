@@ -2278,3 +2278,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
   - yxiy171866-boop/x-twikit-mcp `cf2d3e04`（2026-10-31）：client session reuse/anti-bot pacing/error formatting；影响 X 工具，需用户决定是否适配/合并并补测试。
   - Derpyu520/qq-bridge `b77e4a26` v0.2.1-r2（2026-10-31）：QQ 桥上游升级，升级前跑 verify:adaptation，未改生产。
 - DengTa 前后端为本地已推送提交（5001059/da16cbd/4916b67），无新增上游变化；本次没有修改生产数据或部署。
+
+
+## 轮次 167（2026-11-02 · GitHub Actions 额度恢复检查）
+
+- 代理端口已从 10809 变为本机 7877；用临时凭据跑 `nov1-deploy.ps1 -DryRun`：GitHub API OK、7 workflows、feed 2.13.50/308。
+- CNB 镜像同步：`sync-cnb.yml` run 41370603706 **success**，frontend main 已镜像。
+- Android 发布：`publish-android-apk.yml` **dry_run=true** run 41370983295 **success**（构建/签名校验通过，未发布/未改 feed）。
+- 未执行 live publish：workflow 仍期望旧稳定证书 38a03ab2，而当前用户安装链为 0d634aaf；强发会破坏覆盖升级，且本地 2.13.50/308 已在线。若要走 Actions 正式发版，需先更新 workflow keystore secret 或决定切换签名。
+- 本地 feed 仍 308，APK 36,467,003B/SHA 7fbf1469…；本轮未改生产数据。
