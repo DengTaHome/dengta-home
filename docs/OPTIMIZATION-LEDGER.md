@@ -2268,3 +2268,13 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - feed 308 site URL 通过 Vercel rewrite 到 Supabase 对象存储，部署无 36MB APK 二进制；APK release `debuggable=false`，cert 0d634aaf。
 - 前端 round170 全量 0 fail；后端 round167 全量 0 fail；Elephant/Goldfish P0=0。
 - 已知：APK 仍用 debug 证书（升级兼容）、聊天首 token 18.9s 上游、NetEase 需重新扫码、composer 未登录真机视觉。
+
+
+## 轮次 166（2026-11-02 · REPO-WATCH 检查）
+
+- 最近检查 2026-11-01T01:10Z：17 项目，变化 3，错误 1（CNB 因本机代理 10809 未启动失败，非仓库问题）。
+- 新更新：
+  - SnowLuma/SnowLuma `7882081b` v2.3.2（2026-10-31）：QQ 网关上游升级，接入前需核兼容版本，未改生产。
+  - yxiy171866-boop/x-twikit-mcp `cf2d3e04`（2026-10-31）：client session reuse/anti-bot pacing/error formatting；影响 X 工具，需用户决定是否适配/合并并补测试。
+  - Derpyu520/qq-bridge `b77e4a26` v0.2.1-r2（2026-10-31）：QQ 桥上游升级，升级前跑 verify:adaptation，未改生产。
+- DengTa 前后端为本地已推送提交（5001059/da16cbd/4916b67），无新增上游变化；本次没有修改生产数据或部署。
