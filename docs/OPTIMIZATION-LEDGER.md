@@ -2294,3 +2294,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - `tools/repo-watch/watch.mjs` 改为无 env 时自动读取 `_credentials` 的 proxy；`run-watch.cmd` 不再硬编码 10809。实测 GitHub+CNB 均成功（errors=0，CNB HEAD `4916b678`）。
 - 2026-11-02T01:20Z 检查：变化 2：SnowLuma **v2.3.4**（`e9faec0e`）、qq-bridge **PR#146**（`b80fa51b`）；影响 QQ 桥，需决策升级/补 verify:adaptation。x-twikit 无新变化。
 - 未改生产数据。
+
+
+## 轮次 168（2026-11-04 · REPO-WATCH）
+
+- 2026-11-04T01:10Z：变化 2，错误 1（CNB 因本机代理 127.0.0.1:7877 未监听失败；MyClash 只剩 helper，代理不可用）。
+- SnowLuma/SnowLuma **v2.4.0**（`e44e4ced`）：QQ 网关上游升级，接入前需核兼容并跑 verify:adaptation；未改生产。
+- yxiy171866-boop/x-twikit-mcp `70e73110`：README 增加 M8ven Trust badge，无功能/接口变化，无需适配。
+- 其余项目无变化；本轮未改生产数据/未部署。
