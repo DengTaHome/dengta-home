@@ -2302,3 +2302,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - SnowLuma/SnowLuma **v2.4.0**（`e44e4ced`）：QQ 网关上游升级，接入前需核兼容并跑 verify:adaptation；未改生产。
 - yxiy171866-boop/x-twikit-mcp `70e73110`：README 增加 M8ven Trust badge，无功能/接口变化，无需适配。
 - 其余项目无变化；本轮未改生产数据/未部署。
+
+
+## 轮次 169（2026-11-05 · REPO-WATCH）
+
+- 2026-11-05T01:38Z：变化 2，错误 1（CNB 仍因本机代理 127.0.0.1:7877 未监听失败）。
+- yxiy171866-boop/x-twikit-mcp `707afeaa`：README 澄清 reply_tweet 的 target 参数用于评论线程，仅文档，无接口变化，无需适配。
+- SnowLuma v2.4.0 无新变化；本轮未改生产数据。
