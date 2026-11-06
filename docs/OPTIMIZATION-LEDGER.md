@@ -2317,3 +2317,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - feed 310/2.13.52，直连 Supabase；APK 36,466,847B，下载 15.4s≈2.3MB/s（旧 rewrite 约1.2MB/s）。
 - App 内更新点击即时反馈/保持“正在下载”/百分比/权限错误提示，解决“点了没反应”。
 - 生产 310 证书 0d634aaf，与用户覆盖链一致；未改其它生产数据。
+
+
+## 轮次 171（2026-11-06 · 各平台垃圾清理）
+
+- 本地 `_audit`：删除旧 APK（保留 2.13.51/309、2.13.52/310）、旧 Goldfish 快照/浏览器 profile/idsig/临时脚本、旧日志/截图为；从约 **4.9GB/863MB 文件** 降到 **422.7MB**（其中 Goldfish round25 3.4GB 的旧 snapshot/node_modules 已删）。
+- Supabase `dengta-updates/apk`：删除旧 `DengTa-2.13.50.apk` 与 41MB `DengTa-latest.apk`，保留 2.13.51/2.13.52（当前 feed 310 正常）。
+- Vercel：删除 **95 个旧 deployment**，保留最近 5 个；生产站/feed 仍 200。
+- GitHub Actions：清理 1 个 cache，0 artifacts；未删除 workflow run/log 历史。
+- 未动 Supabase 业务数据、账号聊天/记忆/动态；未重写 git 历史大文件。
