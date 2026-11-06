@@ -45,3 +45,10 @@
 - **未执行 live publish**：当前线上/用户安装链证书是 `0d634aaf…`，Actions 稳定 keystore 是 `38a03ab2…`；直接发布会生成签名不兼容的 309，违反“不要发布签名不兼容的 APK”。
 - 当前线上仍是本地构建的 **2.13.50/308**（cert 0d634aaf，36,467,003B，SHA 7fbf1469…），可覆盖升级。
 - 若要走 Actions 正式发布：需把 workflow 的 `ANDROID_STABLE_DEBUG_KEYSTORE_BASE64_V2` 及证书校验改为当前 `0d634aaf…`，再 dispatch live；或接受换签后用户卸载重装。需用户决策。
+
+
+## 2026-11-06：Actions 正式发布链切换完成
+
+- secret `ANDROID_STABLE_DEBUG_KEYSTORE_BASE64_V2` 已换成当前 debug keystore（cert `0d634aaf…`）；3 处 workflow/script 证书常量已同步。
+- dry run `42148010527`、live `42148415530`（309）、`42149326312`（310）均 success。
+- 当前 feed 310/2.13.52，APK 直连 Supabase，SHA `638322cc…`，36,466,847B，cert 0d634aaf；下载约 2.3MB/s。

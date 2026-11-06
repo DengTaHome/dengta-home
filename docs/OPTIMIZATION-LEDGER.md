@@ -2309,3 +2309,11 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 2026-11-05T01:38Z：变化 2，错误 1（CNB 仍因本机代理 127.0.0.1:7877 未监听失败）。
 - yxiy171866-boop/x-twikit-mcp `707afeaa`：README 澄清 reply_tweet 的 target 参数用于评论线程，仅文档，无接口变化，无需适配。
 - SnowLuma v2.4.0 无新变化；本轮未改生产数据。
+
+
+## 轮次 170（2026-11-06 · Actions 正式发布链）
+
+- Actions secret/证书校验切换到 `0d634aaf…`；dry run 42148010527 success、live 309 42148415530 success、live 310 42149326312 success。
+- feed 310/2.13.52，直连 Supabase；APK 36,466,847B，下载 15.4s≈2.3MB/s（旧 rewrite 约1.2MB/s）。
+- App 内更新点击即时反馈/保持“正在下载”/百分比/权限错误提示，解决“点了没反应”。
+- 生产 310 证书 0d634aaf，与用户覆盖链一致；未改其它生产数据。
