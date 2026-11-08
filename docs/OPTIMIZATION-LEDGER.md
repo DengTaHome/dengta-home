@@ -2326,3 +2326,14 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - Vercel：删除 **95 个旧 deployment**，保留最近 5 个；生产站/feed 仍 200。
 - GitHub Actions：清理 1 个 cache，0 artifacts；未删除 workflow run/log 历史。
 - 未动 Supabase 业务数据、账号聊天/记忆/动态；未重写 git 历史大文件。
+
+
+## 轮次 172（2026-11-06 · QQ 云接入/AstrBot 正式发布）
+
+- 接手交接文档 `E:/yz/灯塔-QQ-AstrBot-本对话完整交接.md`；按 14+6 文件在发布仓库建分支并开 PR，审查通过。
+- 测试：后端全量 `npm test` 0 fail；前端全量 `npm test` 0 fail；前端 build+CSP 通过。修复两处回归：更新按钮阶段状态、Android 发布测试旧证书常量。
+- 生产迁移 `20261106044003_qq_cloud_connections.sql` 已由用户在 Supabase SQL Editor 执行；验证 `qq_cloud_connections`、`qq_cloud_receipts`、`channel_sync_preferences` 新列、`stable_memory_candidates.qq_available_at` 均 200。
+- Render 设置 `QQ_CLOUD_ENCRYPTION_KEY`（32 字节随机 Base64）与 `QQ_CLOUD_ENABLED=true`。
+- 合并：后端 PR #1 `b1d60630`，前端 PR #1 `f8fa26a`；Render 部署 live `b1d60630`，Vercel 部署 READY `f8fa26a`。
+- 生产验证：`/health` revision 对齐；`GET /api/v2/qq-cloud` 返回 `enabled:true`；QQ 通道偏好新字段、候选列表、AstrBot 人设导出均 200。
+- 未替用户扫码；QQ 云实际绑定需用户在 DengTa → QQ → 绑定与状态扫码完成。
