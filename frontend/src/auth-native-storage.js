@@ -1,10 +1,10 @@
 import { Capacitor } from "@capacitor/core";
 
 /**
- * Android 原生端会话持久化（缺陷 2 修复）。
+ * iOS / Android 原生端会话持久化。
  *
  * 为什么需要它：AuthGate/GoTrueClient 默认用 WebView localStorage 保存登录会话，
- * Android 在系统存储压力下可能回收 WebView 存储，导致用户"莫名其妙掉登录"。
+ * 系统在存储压力下可能回收 WebView 存储，导致用户"莫名其妙掉登录"。
  * @capacitor/preferences 提供原生键值存储，可靠性更高。
  *
  * 用法：把返回值传给 GoTrueClient 的 storage 选项（SupportedStorage，支持 async）。

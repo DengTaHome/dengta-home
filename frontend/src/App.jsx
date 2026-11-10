@@ -8846,7 +8846,11 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                   </button>
                 </div>
               )}
-              {Capacitor.isNativePlatform() ? (
+              {Capacitor.getPlatform() === "ios" ? (
+                <small>
+                  iOS 支持使用期间的本地提醒；锁屏或退出后的新消息推送暂未接通。声音与提醒权限由 iPhone 设置控制。
+                </small>
+              ) : Capacitor.isNativePlatform() ? (
                 <small>
                   Android 为省电可能把后台检查延后；声音、震动和静音模式均由手机系统控制。
                 </small>

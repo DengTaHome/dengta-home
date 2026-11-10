@@ -124,6 +124,7 @@ assert.deepEqual(
     "voice-composer.css",
     "login-experience.css",
     "animation-budget.css",
+    "ios.css",
   ],
   "layout tests must use the same stylesheet order as the application entrypoint",
 );
@@ -153,6 +154,7 @@ assert.deepEqual(
     "voice-composer.css",
     "login-experience.css",
     "animation-budget.css",
+    "ios.css",
   ],
   "the 280px regression must use the complete application stylesheet cascade",
 );

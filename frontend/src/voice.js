@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./api.js";
 import { authSession as defaultAuthSession } from "./auth-session.js";
+import { Capacitor } from "@capacitor/core";
 
 export const VOICE_MAX_DURATION_MS = 60_000;
 
@@ -179,9 +180,18 @@ export function formatVoiceConfidence(value) {
   return confidence === null ? "置信度未知" : `置信度 ${Math.round(confidence * 100)}%`;
 }
 
-export function voiceCaptureErrorMessage(error) {
+export function voiceCaptureErrorMessage(error, {
+  platform = Capacitor.getPlatform(),
+  userAgent = globalThis.navigator?.userAgent || "",
+} = {}) {
   const name = String(error?.name || "");
   if (name === "NotAllowedError" || name === "SecurityError") {
+    if (platform === "ios") {
+      return "麦克风权限没有开启。请在 iPhone 或 iPad 的“设置 → 隐私与安全性 → 麦克风”中允许 DengTa home 使用麦克风，然后返回重试。";
+    }
+    if (/iPhone|iPad|iPod/i.test(userAgent)) {
+      return "麦克风权限没有开启。请在浏览器的当前网站设置中允许麦克风，并确认 iPhone 或 iPad 的系统设置允许浏览器使用麦克风，然后重试。";
+    }
     return "麦克风权限没有开启。请在手机“设置 → 应用 → DengTa home → 权限”中允许麦克风，然后重试。";
   }
   if (name === "NotFoundError" || name === "DevicesNotFoundError") {

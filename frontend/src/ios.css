@@ -1,0 +1,39 @@
+/* WKWebView and Safari: keep text fields readable without focus zoom.
+   Insets and keyboard height remain owned by env(safe-area-*) and mobile-viewport.js. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
+:root[data-native-platform="ios"] {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Also covers native layout previews outside WebKit. */
+:root[data-native-platform="ios"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+:root[data-native-platform="ios"] textarea,
+:root[data-native-platform="ios"] select {
+  font-size: max(16px, 1em) !important;
+}
+
+:root[data-native-platform="ios"] input,
+:root[data-native-platform="ios"] textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* The tablet sidebar uses the desktop grid but still has a status bar/home indicator. */
+@media (min-width: 821px) and (min-height: 501px) {
+  :root[data-native-platform="ios"] .sidebar {
+    padding-top: max(22px, env(safe-area-inset-top));
+    padding-bottom: max(17px, env(safe-area-inset-bottom));
+  }
+
+  :root[data-native-platform="ios"] .topbar {
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+}
