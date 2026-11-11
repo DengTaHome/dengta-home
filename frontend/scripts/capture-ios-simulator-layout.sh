@@ -133,7 +133,9 @@ while IFS=$'\t' read -r ios_slug ios_device_type ios_runtime ios_expected_width 
 
   ios_phase="${ios_slug}:boot"
   ios_run_bounded 180 xcrun simctl boot "$ios_udid"
-  ios_run_bounded 240 xcrun simctl bootstatus "$ios_udid" -b
+  # Fresh iOS 26 runtimes can spend several minutes in CoreLocationMigrator.
+  # Wait for migration to complete; a Booted state alone is not UI readiness.
+  ios_run_bounded 660 xcrun simctl bootstatus "$ios_udid" -b
   xcrun simctl status_bar "$ios_udid" override --time '9:41' --batteryState charged --batteryLevel 100 --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4
   ios_phase="${ios_slug}:install-and-launch"
   ios_run_bounded 90 xcrun simctl install "$ios_udid" "$ios_app_path"

@@ -39,7 +39,7 @@ jobs:
           -derivedDataPath "$RUNNER_TEMP/dengta-ios"
           CODE_SIGNING_ALLOWED=NO build
       - name: Capture native iPhone layout evidence
-        timeout-minutes: 20
+        timeout-minutes: 45
         run: >-
           bash scripts/capture-ios-simulator-layout.sh
           "$RUNNER_TEMP/dengta-ios/Build/Products/Debug-iphonesimulator/App.app"

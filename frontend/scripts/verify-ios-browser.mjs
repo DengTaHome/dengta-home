@@ -135,6 +135,7 @@ async function verifyPhase2() {
     page.on("pageerror", error => errors.push(error.message));
     await installFictionalNetwork(page);
     await installViewportSimulation(page);
+    if (process.env.IOS_TEST_VIEWS !== "memory") {
     await page.goto(`${baseUrl}/test/ios-phase2-preview.html?view=auth`, { waitUntil: "networkidle" });
     await page.getByLabel("邮箱", { exact: true }).waitFor();
     await checkLayout(page, `${name}-configured-login`);
@@ -172,9 +173,14 @@ async function verifyPhase2() {
     await search.fill("记忆");
     await page.evaluate(next => window.__iosViewportSimulation(next), keyboardHeight);
     await settleFrames(page);
+    // A synthetic visualViewport cannot run WebKit's native input-avoidance.
+    // Explicitly scroll the focused field through the real modal scroll area.
+    await search.scrollIntoViewIfNeeded();
     await checkLayout(page, `${name}-settings-simulated-keyboard`);
     const modalBottom = await page.locator(".settings-sheet").evaluate(element => element.getBoundingClientRect().bottom);
     assert.ok(modalBottom <= keyboardHeight + 1, `${name}: settings extends below simulated visible viewport (${modalBottom} > ${keyboardHeight})`);
+    const searchBottom = await search.evaluate(element => element.getBoundingClientRect().bottom);
+    assert.ok(searchBottom <= keyboardHeight + 1, `${name}: settings search cannot scroll above simulated keyboard`);
     await page.evaluate(() => { document.activeElement?.blur(); window.__iosViewportSimulation(); });
     await settleFrames(page);
     if (["iphone15-pro", "iphone-pro-max-landscape"].includes(name)) {
@@ -195,6 +201,7 @@ async function verifyPhase2() {
     await page.locator(".primary-nav button").filter({ hasText: "查看和管理聊天记忆" }).click();
     await page.locator(".memory-page").waitFor();
     await checkLayout(page, `${name}-memory-navigation`);
+    }
     await page.goto(`${baseUrl}/test/ios-phase2-preview.html?view=memory`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "修改", exact: true }).waitFor();
     await checkLayout(page, `${name}-memory`);

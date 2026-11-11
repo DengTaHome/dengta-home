@@ -6,6 +6,7 @@ import AuthGate from "../src/AuthGate.jsx";
 import { authSession, createAuthSessionManager } from "../src/auth-session.js";
 import { settingsSaveScope } from "../src/settings-save-scope.js";
 import LocalMemorySummaries from "../src/LocalMemorySummaries.jsx";
+import { applyThemePreferences, DEFAULT_THEME_PREFERENCES, getCelestialSnapshot } from "../src/dengta-theme.js";
 import "../src/index.css";
 import "../src/cozy-theme.css";
 import "../src/auth.css";
@@ -37,10 +38,13 @@ const anonymousManager = createAuthSessionManager({
 });
 
 const mode = new URLSearchParams(location.search).get("view");
+if (mode === "memory") {
+  applyThemePreferences(DEFAULT_THEME_PREFERENCES, getCelestialSnapshot(new Date("2026-11-01T04:00:00Z"), "day"), document.documentElement);
+}
 export function MemoryFixture() {
   const [items, setItems] = useState([{ id: "20000000-0000-4000-8000-000000000001", summary: "这是一条虚构的长期记忆。周末一起去看海，把沿途的故事写进手记。", created_at: "2026-11-01T10:00:00Z", updated_at: "2026-11-01T10:00:00Z" }]);
   const [drafts, setDrafts] = useState({});
-  return <main className="feature-page memory-page" style={{ height: "var(--app-height)", overflowY: "auto" }}><div className="section-intro"><span className="eyebrow">虚构数据 · 组件布局验收</span><h2>长期记忆</h2></div><LocalMemorySummaries scopeKey={settingsSaveScope(authSession.getSnapshot())} items={items} drafts={drafts} onItemsChange={setItems} onDraftsChange={setDrafts} /></main>;
+  return <div className="app-shell" style={{ display: "block" }}><main className="feature-page memory-page" style={{ height: "var(--app-height)", overflowY: "auto", background: "var(--theme-background)", color: "var(--theme-ink)" }}><div className="section-intro"><span className="eyebrow">虚构数据 · 组件布局验收</span><h2>长期记忆</h2></div><LocalMemorySummaries scopeKey={settingsSaveScope(authSession.getSnapshot())} items={items} drafts={drafts} onItemsChange={setItems} onDraftsChange={setDrafts} /></main></div>;
 }
 
 const root = import.meta.hot?.data.root || createRoot(document.getElementById("root"));

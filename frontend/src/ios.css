@@ -84,7 +84,7 @@
   overflow-y: auto;
 }
 
-:root[data-native-platform="ios"] :is(.sun-glass-status-window-actions > button, .sun-glass-popover-close, .sun-glass-liquid-capsule-toggle, .settings-gear-button, .menu-button, .new-chat-top, .send-button, .session-heading button, .session-actions button, .memory-card-actions button, .memory-summary-toolbar button) {
+:root[data-native-platform="ios"] :is(.sun-glass-status-window-actions > button, .sun-glass-popover-close, .sun-glass-liquid-capsule-toggle, .settings-gear-button, .menu-button, .new-chat-top, .send-button, .session-heading button, .session-actions button, .memory-card-actions button, .memory-summary-toolbar button, .ambient-context-actions > button) {
   min-width: 44px;
   min-height: 44px;
 }
@@ -166,7 +166,7 @@
     overflow-y: auto;
   }
 
-  :is(.sun-glass-status-window-actions > button, .sun-glass-popover-close, .sun-glass-liquid-capsule-toggle, .settings-gear-button, .menu-button, .new-chat-top, .send-button, .session-heading button, .session-actions button, .memory-card-actions button, .memory-summary-toolbar button) {
+  :is(.sun-glass-status-window-actions > button, .sun-glass-popover-close, .sun-glass-liquid-capsule-toggle, .settings-gear-button, .menu-button, .new-chat-top, .send-button, .session-heading button, .session-actions button, .memory-card-actions button, .memory-summary-toolbar button, .ambient-context-actions > button) {
     min-width: 44px;
     min-height: 44px;
   }
