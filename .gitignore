@@ -1,10 +1,12 @@
 node_modules/
+.references/
 dist/
 coverage/
 .cache/
 .vite/
 .gradle/
 /artifacts/
+/frontend/artifacts/
 **/build/
 
 .env

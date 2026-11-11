@@ -5,6 +5,7 @@ import { startBackgroundNotificationIdentitySync } from "./background-notificati
 import { resolveEmailRedirectUrl } from "./auth-redirect.js";
 import WebInstallButton from "./WebInstallButton.jsx";
 import { flushSettingsBeforeAccountExit, releaseSettingsAccountExit, settingsSaveScope } from "./settings-save-scope.js";
+import { installVisualViewportController } from "./mobile-viewport.js";
 
 function browserEmailRedirectUrl() {
   return resolveEmailRedirectUrl({
@@ -523,6 +524,8 @@ export default function AuthGate({
   sessionManager = authSession,
 }) {
   const [snapshot, setSnapshot] = useState(sessionManager.getSnapshot);
+
+  useEffect(() => installVisualViewportController(), []);
 
   useEffect(() => {
     const unsubscribe = sessionManager.subscribe(setSnapshot);

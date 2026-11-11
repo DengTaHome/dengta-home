@@ -26,6 +26,171 @@
   user-select: text;
 }
 
+/* The login form can be taller than a small iPhone. Bound its scroll container
+   to the visible viewport instead of allowing it to grow behind the root clip. */
+:root[data-native-platform="ios"] .auth-page {
+  height: var(--app-height, 100dvh);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-padding-block: 18px max(24px, env(safe-area-inset-bottom));
+}
+
+:root[data-native-platform="ios"] .auth-panel {
+  min-height: var(--app-height, 100dvh);
+  padding-left: max(42px, env(safe-area-inset-left));
+  padding-right: max(42px, env(safe-area-inset-right));
+}
+
+@media (max-width: 820px) {
+  :root[data-native-platform="ios"] .auth-panel {
+    min-height: calc(var(--app-height, 100dvh) * .62);
+    margin-top: calc(var(--app-height, 100dvh) * .38);
+    padding-left: max(18px, env(safe-area-inset-left));
+    padding-right: max(18px, env(safe-area-inset-right));
+  }
+}
+
+:root[data-native-platform="ios"][data-keyboard-open="true"] .auth-panel {
+  min-height: var(--app-height, 100dvh);
+  margin-top: 0;
+  align-content: start;
+  padding-top: max(18px, env(safe-area-inset-top));
+}
+
+/* Fixed overlays otherwise keep the layout viewport height when iOS only
+   shrinks visualViewport, putting the sheet's fields below the keyboard. */
+:root[data-native-platform="ios"] :is(.settings-sheet-backdrop, .dialog-backdrop) {
+  bottom: auto;
+  height: var(--app-height, 100dvh);
+}
+
+:root[data-native-platform="ios"] .settings-sheet-backdrop {
+  padding-left: max(18px, env(safe-area-inset-left));
+  padding-right: max(18px, env(safe-area-inset-right));
+}
+
+:root[data-native-platform="ios"] .settings-sheet {
+  max-height: min(calc(var(--app-height, 100dvh) * .92), 940px, calc(var(--app-height, 100dvh) - max(18px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))));
+}
+
+:root[data-native-platform="ios"] .dialog-backdrop {
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+
+:root[data-native-platform="ios"] .dialog-backdrop > .dialog-card {
+  max-height: calc(var(--app-height, 100dvh) - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom)));
+  overflow-y: auto;
+}
+
+:root[data-native-platform="ios"] :is(.sun-glass-status-window-actions > button, .sun-glass-popover-close, .sun-glass-liquid-capsule-toggle, .settings-gear-button, .menu-button, .new-chat-top, .send-button, .session-heading button, .session-actions button, .memory-card-actions button, .memory-summary-toolbar button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* The existing portrait keyboard mode also needs to cover wide landscape
+   phones: weather/status panels must not push the composer below the keyboard. */
+:root[data-native-platform="ios"][data-keyboard-open="true"] .main-panel.view-chat :is(.chat-presence-stack, .sun-glass-time-deck) {
+  display: none;
+}
+
+:root[data-native-platform="ios"][data-keyboard-open="true"] .main-panel.view-chat .message-list {
+  min-height: 0;
+}
+
+@media (max-width: 820px) {
+  :root[data-native-platform="ios"] .settings-sheet-backdrop {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  :root[data-native-platform="ios"] .settings-sheet {
+    max-height: calc(var(--app-height, 100dvh) - max(10px, env(safe-area-inset-top)));
+  }
+}
+
+/* Safari uses the same scroll fix without requiring the native platform flag. */
+@supports (-webkit-touch-callout: none) {
+  .auth-page {
+    height: var(--app-height, 100dvh);
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scroll-padding-block: 18px max(24px, env(safe-area-inset-bottom));
+  }
+
+  .auth-panel {
+    min-height: var(--app-height, 100dvh);
+    padding-left: max(42px, env(safe-area-inset-left));
+    padding-right: max(42px, env(safe-area-inset-right));
+  }
+
+  @media (max-width: 820px) {
+    .auth-panel {
+      min-height: calc(var(--app-height, 100dvh) * .62);
+      margin-top: calc(var(--app-height, 100dvh) * .38);
+      padding-left: max(18px, env(safe-area-inset-left));
+      padding-right: max(18px, env(safe-area-inset-right));
+    }
+  }
+
+  :root[data-keyboard-open="true"] .auth-panel {
+    min-height: var(--app-height, 100dvh);
+    margin-top: 0;
+    align-content: start;
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+
+  :is(.settings-sheet-backdrop, .dialog-backdrop) {
+    bottom: auto;
+    height: var(--app-height, 100dvh);
+  }
+
+  .settings-sheet-backdrop {
+    padding-left: max(18px, env(safe-area-inset-left));
+    padding-right: max(18px, env(safe-area-inset-right));
+  }
+
+  .settings-sheet {
+    max-height: min(calc(var(--app-height, 100dvh) * .92), 940px, calc(var(--app-height, 100dvh) - max(18px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))));
+  }
+
+  .dialog-backdrop {
+    padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  }
+
+  .dialog-backdrop > .dialog-card {
+    max-height: calc(var(--app-height, 100dvh) - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom)));
+    overflow-y: auto;
+  }
+
+  :is(.sun-glass-status-window-actions > button, .sun-glass-popover-close, .sun-glass-liquid-capsule-toggle, .settings-gear-button, .menu-button, .new-chat-top, .send-button, .session-heading button, .session-actions button, .memory-card-actions button, .memory-summary-toolbar button) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  :root[data-keyboard-open="true"] .main-panel.view-chat :is(.chat-presence-stack, .sun-glass-time-deck) {
+    display: none;
+  }
+
+  :root[data-keyboard-open="true"] .main-panel.view-chat .message-list {
+    min-height: 0;
+  }
+
+  @media (max-width: 820px) {
+    .settings-sheet-backdrop {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    .settings-sheet {
+      max-height: calc(var(--app-height, 100dvh) - max(10px, env(safe-area-inset-top)));
+    }
+  }
+}
+
 /* The tablet sidebar uses the desktop grid but still has a status bar/home indicator. */
 @media (min-width: 821px) and (min-height: 501px) {
   :root[data-native-platform="ios"] .sidebar {
@@ -36,4 +201,48 @@
   :root[data-native-platform="ios"] .topbar {
     padding-top: max(18px, env(safe-area-inset-top));
   }
+}
+
+/* A Pro Max in landscape is wider than the shared 900px phone breakpoint.
+   Keep its navigation in the existing drawer instead of a permanent sidebar. */
+@media (min-width: 901px) and (max-width: 1024px) and (max-height: 500px) {
+  :root[data-native-platform="ios"] .app-shell {
+    display: block;
+  }
+
+  :root[data-native-platform="ios"] .main-panel {
+    height: var(--app-height, 100dvh);
+    padding-bottom: 0;
+  }
+
+  :root[data-native-platform="ios"] .sidebar {
+    position: fixed;
+    z-index: 50;
+    inset: 0 auto 0 0;
+    width: min(86vw, 320px);
+    padding-top: max(22px, env(safe-area-inset-top));
+    padding-bottom: max(17px, env(safe-area-inset-bottom));
+    padding-left: max(17px, env(safe-area-inset-left));
+    overflow-y: auto;
+    transform: translateX(-103%);
+  }
+
+  :root[data-native-platform="ios"] .sidebar.open {
+    transform: translateX(0);
+  }
+
+  :root[data-native-platform="ios"] .sidebar-scrim {
+    position: fixed;
+    z-index: 45;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: rgb(39 29 34 / .42);
+  }
+
+  :root[data-native-platform="ios"] .menu-button {
+    display: grid;
+    place-items: center;
+  }
+
 }

@@ -95,7 +95,8 @@
     "ios:open": "cap open ios",
     "ios:prepare": "node scripts/verify-ios-env.mjs && vite build --mode ios && npm run ios:sync",
     "test:ios": "node --test test/ios-*.test.js test/native-app-runtime.test.js",
-    "ios:assets": "node scripts/generate-ios-assets.mjs"
+    "ios:assets": "node scripts/generate-ios-assets.mjs",
+    "test:ios:layout": "node scripts/verify-ios-browser.mjs"
   },
   "engines": {
     "node": "24.x"
@@ -129,6 +130,7 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "fake-indexeddb": "6.2.5",
     "globals": "^17.7.0",
+    "playwright": "1.62.1",
     "react-test-renderer": "^19.2.7",
     "sharp": "0.35.5",
     "vite": "^8.1.1"
