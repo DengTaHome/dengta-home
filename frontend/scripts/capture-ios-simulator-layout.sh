@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Capture-only native layout evidence. A reviewer must inspect the PNGs.
-# No signing, live login, deployment, Appium, or visual pass/fail assertion.
+# Simulator-only ad-hoc identity for Keychain testing; no device signing/login.
 set -euo pipefail
 
 ios_app_path="${1:-${RUNNER_TEMP:-/tmp}/dengta-ios/Build/Products/Debug-iphonesimulator/App.app}"
@@ -8,12 +8,34 @@ ios_output_path="${2:-artifacts/ios-layout}"
 ios_created_devices=()
 ios_phase="environment"
 ios_probe_temp=""
+ios_ci_signed=false
+
+ios_collect_keychain_receipt() {
+  local ios_receipt_label="$1"
+  local ios_receipt_container
+  ios_receipt_container="$(xcrun simctl get_app_container "$ios_udid" "$ios_bundle_id" data 2>/dev/null)" || return 2
+  [[ -f "$ios_receipt_container/tmp/dengta-ci-keychain-diagnostics.json" ]] || return 2
+  node - "$ios_receipt_container/tmp/dengta-ci-keychain-diagnostics.json" "$ios_output_path/${ios_slug}-${ios_receipt_label}-keychain.json" <<'NODE_RECEIPT'
+const fs = require('node:fs');
+const [input, output] = process.argv.slice(2);
+const data = JSON.parse(fs.readFileSync(input, 'utf8'));
+const allowed = new Set(['bridge-created', 'bridge-keychain-available', 'bridge-keychain-missing', 'bridge-vault-available', 'bridge-vault-missing', 'protected-data-available', 'protected-data-unavailable', 'keychain-read', 'keychain-update', 'keychain-add', 'keychain-delete', 'probe-add', 'probe-read', 'probe-delete', 'probe-roundtrip']);
+if (data.schemaVersion !== 1 || !Array.isArray(data.events) || Object.keys(data).some(key => !['schemaVersion', 'events'].includes(key))) throw new Error('Invalid CI diagnostic schema');
+for (const row of data.events) {
+  if (!allowed.has(row.stage) || Object.keys(row).some(key => !['stage', 'status', 'verified'].includes(key)) ||
+      (row.status !== undefined && !Number.isInteger(row.status)) ||
+      (row.verified !== undefined && (row.stage !== 'probe-roundtrip' || typeof row.verified !== 'boolean'))) throw new Error('Unsafe CI diagnostic fields');
+}
+fs.writeFileSync(output, JSON.stringify(data, null, 2) + '\n');
+if (!data.events.some(row => row.stage === 'probe-delete')) process.exit(2);
+NODE_RECEIPT
+}
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "Native layout capture requires macOS and an installed Xcode iOS Simulator runtime." >&2
   exit 1
 fi
-for ios_command in xcrun xcodebuild node sips plutil; do
+for ios_command in xcrun xcodebuild node sips plutil codesign; do
   if ! command -v "$ios_command" >/dev/null 2>&1; then
     echo "Missing required command: $ios_command" >&2
     exit 1
@@ -47,7 +69,7 @@ fs.writeFileSync(`${output}/manifest.json`, JSON.stringify({
   status: 'capturing',
   capturedAt: new Date().toISOString(),
   evidence: 'Native iOS Simulator screenshots; capture only, requires human visual review.',
-  scope: 'Portrait login UI using fictional CI public auth values. No live login, keyboard automation, landscape rotation, or authenticated screens verified.',
+  scope: 'Portrait login UI and a temporary real Keychain round trip on disposable Simulators. No live account, keyboard automation, landscape rotation or authenticated screens verified. Ad-hoc Simulator identity is not device signing.',
   readiness: 'Bootstatus and app process liveness, then a 6-second prelude settle and up to 60 seconds of native screenshot Vision OCR polling. The login title, email, password and primary action must be visible; loading or auth/storage errors cannot pass. Human layout review is still required.',
   build: { bundleIdentifier, appVersion, buildVersion, supportedPlatforms: JSON.parse(platforms), commit, xcode: fs.readFileSync(`${output}/xcode-version.txt`, 'utf8').trim() },
   devices: [],
@@ -59,6 +81,7 @@ ios_cleanup() {
   trap - EXIT
   set +e
   set +u
+  if [[ -n "${ios_udid:-}" && -n "${ios_slug:-}" ]]; then ios_collect_keychain_receipt runtime >/dev/null 2>&1; fi
   for ios_device in "${ios_created_devices[@]}"; do
     xcrun simctl shutdown "$ios_device" >/dev/null 2>&1
     xcrun simctl delete "$ios_device" >/dev/null 2>&1
@@ -165,8 +188,26 @@ while IFS=$'\t' read -r ios_slug ios_device_type ios_runtime ios_expected_width 
   ios_run_bounded 660 xcrun simctl bootstatus "$ios_udid" -b
   xcrun simctl status_bar "$ios_udid" override --time '9:41' --batteryState charged --batteryLevel 100 --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4
   ios_phase="${ios_slug}:install-and-launch"
+  if [[ "$ios_ci_signed" != true ]]; then
+    # Preserve an actual unsigned baseline before providing the Simulator's
+    # application identity. This isolates signing from the storage policy.
+    ios_run_bounded 90 xcrun simctl install "$ios_udid" "$ios_app_path"
+    xcrun simctl launch --terminate-running-process "$ios_udid" "$ios_bundle_id" --dengta-ci-keychain-diagnostics > "$ios_output_path/${ios_slug}-unsigned-launch.txt"
+    ios_baseline_ready=false
+    for ((ios_attempt = 0; ios_attempt < 40; ios_attempt++)); do
+      if ios_collect_keychain_receipt unsigned; then ios_baseline_ready=true; break; fi
+      sleep 1
+    done
+    if [[ "$ios_baseline_ready" != true ]]; then echo "Unsigned native Keychain diagnostic receipt was not produced." >&2; exit 1; fi
+    xcrun simctl terminate "$ios_udid" "$ios_bundle_id" >/dev/null 2>&1 || true
+    xcrun simctl uninstall "$ios_udid" "$ios_bundle_id"
+    ios_phase="${ios_slug}:sign-simulator-identity"
+    bash "$ios_script_dir/sign-ios-simulator-ci.sh" "$ios_app_path" "$ios_output_path"
+    ios_ci_signed=true
+  fi
+  ios_phase="${ios_slug}:install-and-launch"
   ios_run_bounded 90 xcrun simctl install "$ios_udid" "$ios_app_path"
-  ios_launch_receipt="$(xcrun simctl launch --terminate-running-process "$ios_udid" "$ios_bundle_id")"
+  ios_launch_receipt="$(xcrun simctl launch --terminate-running-process "$ios_udid" "$ios_bundle_id" --dengta-ci-keychain-diagnostics)"
   printf '%s\n' "$ios_launch_receipt" > "$ios_output_path/${ios_slug}-launch.txt"
   ios_pid="${ios_launch_receipt##*: }"
   if [[ ! "$ios_pid" =~ ^[0-9]+$ ]]; then
@@ -216,6 +257,23 @@ while IFS=$'\t' read -r ios_slug ios_device_type ios_runtime ios_expected_width 
     cat "$ios_output_path/${ios_slug}-login-readiness.json" >&2
     exit 1
   fi
+  ios_phase="${ios_slug}:verify-native-keychain"
+  ios_keychain_ready=false
+  for ((ios_attempt = 0; ios_attempt < 15; ios_attempt++)); do
+    if ios_collect_keychain_receipt signed; then ios_keychain_ready=true; break; fi
+    sleep 1
+  done
+  if [[ "$ios_keychain_ready" != true ]]; then echo "Signed native Keychain probe did not complete." >&2; exit 1; fi
+  node - "$ios_output_path/${ios_slug}-signed-keychain.json" <<'NODE_KEYCHAIN_PROBE'
+const events = require(process.argv[2]).events;
+for (const stage of ['bridge-keychain-available', 'bridge-vault-available']) {
+  if (!events.some(row => row.stage === stage)) throw new Error(`Native CI precondition missing: ${stage}`);
+}
+for (const stage of ['probe-add', 'probe-read', 'probe-delete']) {
+  if (!events.some(row => row.stage === stage && row.status === 0)) throw new Error(`Real Simulator Keychain operation failed: ${stage}`);
+}
+if (!events.some(row => row.stage === 'probe-roundtrip' && row.verified === true)) throw new Error('Real Simulator Keychain round trip failed');
+NODE_KEYCHAIN_PROBE
   ios_phase="${ios_slug}:capture-portrait"
   sips -g pixelWidth -g pixelHeight "$ios_output_path/$ios_screenshot" > "$ios_output_path/${ios_slug}-image.txt"
   node - "$ios_output_path" "$ios_slug" "$ios_udid" "$ios_pid" "$ios_screenshot" "$ios_expected_width" "$ios_expected_height" <<'NODE_RECORD'
@@ -228,13 +286,14 @@ const height = Number(info.match(/pixelHeight:\s*(\d+)/)?.[1]);
 if (width !== Number(expectedWidth) || height !== Number(expectedHeight)) throw new Error(`Unexpected portrait screenshot geometry for ${slug}: ${width}x${height}; expected ${expectedWidth}x${expectedHeight}.`);
 const plan = JSON.parse(fs.readFileSync(`${output}/device-plan.json`, 'utf8'));
 const manifest = JSON.parse(fs.readFileSync(`${output}/manifest.json`, 'utf8'));
+manifest.build.signing = JSON.parse(fs.readFileSync(`${output}/simulator-ci-signature.json`, 'utf8'));
 const readiness = JSON.parse(fs.readFileSync(`${output}/${slug}-login-readiness.json`, 'utf8'));
 if (readiness.status !== 'login-ready') throw new Error(`Native login readiness was not verified for ${slug}.`);
-manifest.devices.push({ ...plan.find(device => device.slug === slug), udid, launchPid: Number(pid), orientation: 'portrait', screenshot, screenshotSha256: createHash('sha256').update(fs.readFileSync(`${output}/${screenshot}`)).digest('hex'), capturedWidth: width, capturedHeight: height, readiness, visualReview: 'pending' });
+manifest.devices.push({ ...plan.find(device => device.slug === slug), udid, launchPid: Number(pid), orientation: 'portrait', screenshot, screenshotSha256: createHash('sha256').update(fs.readFileSync(`${output}/${screenshot}`)).digest('hex'), capturedWidth: width, capturedHeight: height, readiness, nativeKeychain: { roundTripValidated: true, receipt: `${slug}-signed-keychain.json` }, visualReview: 'pending' });
 fs.writeFileSync(`${output}/manifest.json`, JSON.stringify(manifest, null, 2) + '\n');
 NODE_RECORD
   xcrun simctl shutdown "$ios_udid"
 done < "$ios_output_path/device-plan.tsv"
 
 ios_phase="complete"
-echo "Captured 3 native portrait screenshots in $ios_output_path. Human visual review is still required."
+  echo "Captured 3 native portrait screenshots in $ios_output_path. Human visual review is still required."

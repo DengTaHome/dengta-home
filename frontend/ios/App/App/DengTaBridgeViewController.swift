@@ -1,4 +1,5 @@
 import Capacitor
+import UIKit
 
 @objc(DengTaBridgeViewController)
 final class DengTaBridgeViewController: CAPBridgeViewController {
@@ -9,5 +10,10 @@ final class DengTaBridgeViewController: CAPBridgeViewController {
         CAPLog.enableLogging = false
         bridge?.registerPluginInstance(DengTaKeychainPlugin())
         bridge?.registerPluginInstance(DengTaAccountVaultPlugin())
+        DengTaCIKeychainDiagnostics.record("bridge-created")
+        DengTaCIKeychainDiagnostics.record(bridge?.plugin(withName: "DengTaKeychain") != nil ? "bridge-keychain-available" : "bridge-keychain-missing")
+        DengTaCIKeychainDiagnostics.record(bridge?.plugin(withName: "DengTaAccountVault") != nil ? "bridge-vault-available" : "bridge-vault-missing")
+        DengTaCIKeychainDiagnostics.record(UIApplication.shared.isProtectedDataAvailable ? "protected-data-available" : "protected-data-unavailable")
+        DengTaCIKeychainDiagnostics.runRoundTripProbe()
     }
 }

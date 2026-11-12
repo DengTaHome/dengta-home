@@ -37,3 +37,23 @@ test("Keychain bridge is registered before WKWebView load and compiled into App"
   }
   assert.ok(project.includes("Security.framework in Frameworks"));
 });
+
+test("runtime CI receipt is Simulator Debug opt-in and cannot serialize private payloads", async () => {
+  const store = await read("ios/App/App/DengTaKeychainStore.swift");
+  const diagnostic = store.slice(store.indexOf("enum DengTaCIKeychainDiagnostics"), store.indexOf("final class DengTaKeychainStore"));
+  assert.match(diagnostic, /#if DEBUG && targetEnvironment\(simulator\)/);
+  assert.match(diagnostic, /arguments\.contains\("--dengta-ci-keychain-diagnostics"\)/);
+  assert.match(diagnostic, /guard enabled && allowedStages\.contains\(stage\)/);
+  assert.match(diagnostic, /\["stage": stage\]/);
+  assert.match(diagnostic, /event\["status"\] = Int\(status\)/);
+  assert.match(diagnostic, /event\["verified"\] = verified/);
+  assert.match(diagnostic, /NSTemporaryDirectory\(\)/);
+  assert.doesNotMatch(diagnostic, /"(?:key|value|token|accountId|error|message)"\s*:/);
+  assert.doesNotMatch(diagnostic, /localizedDescription|String\(describing:|print\(|NSLog/);
+  assert.match(diagnostic, /"home\.dengta\.app\.ci\.keychain-probe"/);
+  assert.match(diagnostic, /kSecAttrAccount as String: UUID\(\)\.uuidString/);
+  assert.match(diagnostic, /kSecAttrAccessibleWhenUnlockedThisDeviceOnly/);
+  assert.match(diagnostic, /kSecAttrSynchronizable as String: false/);
+  assert.match(diagnostic, /defer \{ record\("probe-delete", status: SecItemDelete/);
+  assert.doesNotMatch(diagnostic, /kSecAttrAccessGroup|dengta_home_auth_v1/);
+});
