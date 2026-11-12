@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { apiFetch, apiRequest } from "../src/api.js";
 import { AUTH_STATUS, createAuthSessionManager } from "../src/auth-session.js";
 import { createScopedSettingsSession, settingsSaveScope } from "../src/settings-save-scope.js";
+import { prepareAccountRuntimeData } from "../src/account-cleanup.js";
 import { normalizeVoiceOutput } from "../src/voice-output.js";
 
 const ACCOUNT_A = "11111111-1111-4111-8111-111111111111";
@@ -42,6 +43,8 @@ async function serviceHarness() {
   } };
   const manager = createAuthSessionManager({ supabaseUrl: "https://synthetic.example.test", supabaseAnonKey: "synthetic-public-placeholder", storage, createClientFn: () => client });
   await manager.initialize();
+  await manager.waitForAccountData();
+  prepareAccountRuntimeData(ACCOUNT_A);
   manager.setActiveCompanionId(COMPANION_A);
   const descriptors = Object.fromEntries(["window", "fetch"].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const requests = [];
@@ -88,8 +91,9 @@ async function serviceHarness() {
     switchCompanion() { manager.setActiveCompanionId(COMPANION_B); },
     switchAccount() { session = sessionFor(ACCOUNT_B); authListener("SIGNED_IN", session); manager.setActiveCompanionId(COMPANION_B); },
     signOutCount: () => signOutCount,
-    finish() {
+    async finish() {
       this.dispose();
+      await manager.waitForAccountData();
       manager.destroy();
       for (const [name, descriptor] of Object.entries(descriptors)) {
         if (descriptor) Object.defineProperty(globalThis, name, descriptor);
@@ -129,7 +133,7 @@ for (const route of ["status", "fallback"]) {
         assert.equal(request.signal?.aborted, true);
         assert.equal(h.ui.length, stateCount);
         assert.equal(h.timers.size, 0);
-      } finally { h.finish(); }
+      } finally { await h.finish(); }
     });
   }
 }
@@ -147,7 +151,7 @@ test("current voice 404 fallback preserves scoped context and applies its succes
     await run;
     assert.equal(h.ui.find(change => change.name === "voiceOutput")?.value.model, "synthetic-voice");
     assert.equal(h.manager.getSnapshot().activeCompanionId, COMPANION_A);
-  } finally { h.finish(); }
+  } finally { await h.finish(); }
 });
 
 for (const switchKind of ["companion", "account"]) {
@@ -175,7 +179,7 @@ for (const switchKind of ["companion", "account"]) {
       assert.equal(warmup.signal?.aborted, true);
       assert.equal(h.ui.length, stateCount);
       assert.equal(h.timers.size, 0);
-    } finally { h.finish(); }
+    } finally { await h.finish(); }
   });
 }
 
@@ -192,7 +196,7 @@ test("a disposed health result never starts voice warmup or updates the discarde
     assert.equal(h.requests.length, 1);
     assert.equal(h.ui.length, stateCount);
     assert.equal(h.manager.getSnapshot().activeCompanionId, COMPANION_B);
-  } finally { h.finish(); }
+  } finally { await h.finish(); }
 });
 
 for (const unavailable of ["unmounted", "missing controller", "aborted controller"]) {
@@ -209,6 +213,6 @@ for (const unavailable of ["unmounted", "missing controller", "aborted controlle
       await Promise.all([voice, health]);
       assert.equal(h.requests.length, 0);
       assert.equal(h.ui.length, 0);
-    } finally { h.finish(); }
+    } finally { await h.finish(); }
   });
 }

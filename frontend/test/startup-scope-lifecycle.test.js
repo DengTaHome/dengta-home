@@ -8,6 +8,7 @@ import { AUTH_STATUS, createAuthSessionManager } from "../src/auth-session.js";
 import { chooseChatModel, reconcileModelCatalog } from "../src/chat-models.js";
 import { emptySettings, normalizeSettingsDraft, settingsPayloadFingerprint } from "../src/settings.js";
 import { createScopedSettingsSession, settingsSaveScope } from "../src/settings-save-scope.js";
+import { prepareAccountRuntimeData } from "../src/account-cleanup.js";
 import { createStartupReconnectController, STARTUP_REQUEST_OPTIONS, mergeRecoveredStartupData } from "../src/startup-reconnect.js";
 
 const ACCOUNT_A = "11111111-1111-4111-8111-111111111111";
@@ -57,6 +58,9 @@ async function startupHarness({ initialCompanion = COMPANION_A } = {}) {
     createClientFn: () => client,
   });
   await manager.initialize();
+  // AuthGate prepares each fresh account activation before App can mount.
+  await manager.waitForAccountData();
+  prepareAccountRuntimeData(ACCOUNT_A);
   if (initialCompanion) manager.setActiveCompanionId(initialCompanion);
 
   const requests = [];
@@ -111,7 +115,7 @@ async function startupHarness({ initialCompanion = COMPANION_A } = {}) {
     mergeRecoveredStartupData,
     accountStorageScope: ACCOUNT_A,
     visualPreview: false,
-    localStorage: storage,
+    privateStorage: storage,
     window,
     applyPersonaResetToLocalStorage: () => false,
     normalizeCompanionStatus: value => value,
@@ -145,8 +149,9 @@ async function startupHarness({ initialCompanion = COMPANION_A } = {}) {
     switchCompanion() { manager.setActiveCompanionId(COMPANION_B); },
     switchAccount() { session = sessionFor(ACCOUNT_B); authListener("SIGNED_IN", session); manager.setActiveCompanionId(COMPANION_B); },
     dispose() { if (!disposed) { disposed = true; cleanup(); } },
-    finish() {
+    async finish() {
       this.dispose();
+      await manager.waitForAccountData();
       manager.destroy();
       for (const [name, descriptor] of Object.entries(descriptors)) {
         if (descriptor) Object.defineProperty(globalThis, name, descriptor);
@@ -175,7 +180,7 @@ test("manual replacement aborts the actual bootstrap request and only the fresh 
     assert.equal(settings[0].value.model, "synthetic-model");
     assert.equal(settings[0].value.unified_system_prompt, bootstrapData.settings.unified_system_prompt);
     assert.equal(h.controller.getState().status, "connected");
-  } finally { h.finish(); }
+  } finally { await h.finish(); }
 });
 
 test("an empty successful bootstrap receipt leaves saved settings intact and offers retry", async () => {
@@ -189,7 +194,7 @@ test("an empty successful bootstrap receipt leaves saved settings intact and off
     assert.equal(h.ui.some(value => value.name === "setSettings"), false);
     assert.equal(h.controller.getState().status, "waiting");
     assert.equal(h.controller.getState().lastError.code, "startup_receipt_invalid");
-  } finally { h.finish(); }
+  } finally { await h.finish(); }
 });
 
 test("malformed session records are rejected before applying settings or any local reset", async () => {
@@ -202,7 +207,7 @@ test("malformed session records are rejected before applying settings or any loc
     assert.equal(resets, 0);
     assert.equal(h.ui.some(value => value.name === "setSettings" || value.name === "setMessages"), false);
     assert.equal(h.controller.getState().lastError.code, "startup_receipt_invalid");
-  } finally { h.finish(); }
+  } finally { await h.finish(); }
 });
 
 for (const switchKind of ["companion", "account"]) {
@@ -225,7 +230,7 @@ for (const switchKind of ["companion", "account"]) {
       assert.equal(h.requests.length, 1);
       assert.equal(await h.controller.retryNow("disposed"), null);
       assert.equal([...h.values].some(([key, value]) => key.includes(ACCOUNT_B) && value === COMPANION_A), false);
-    } finally { h.finish(); }
+    } finally { await h.finish(); }
   });
 }
 
@@ -258,7 +263,7 @@ for (const route of ["bootstrap", "models"]) {
         assert.equal(oldRequest.signal?.aborted, true);
         assert.equal(h.ui.length, stateCount);
         assert.equal([...h.values].some(([key, value]) => key.includes(ACCOUNT_B) && value === COMPANION_A), false);
-      } finally { h.finish(); }
+      } finally { await h.finish(); }
     });
     }
   }
@@ -274,7 +279,7 @@ test("cleanup before the startup attempt is dispatched prevents a request in the
     await h.initialRun;
     assert.equal(h.requests.length, 0);
     assert.equal(h.manager.getSnapshot().activeCompanionId, COMPANION_B);
-  } finally { h.finish(); }
+  } finally { await h.finish(); }
 });
 
 test("the current startup scope can discover its first companion normally", async () => {
@@ -290,7 +295,7 @@ test("the current startup scope can discover its first companion normally", asyn
     assert.equal(h.manager.getSnapshot().activeCompanionId, COMPANION_A);
     assert.equal(h.manager.getSnapshot().status, AUTH_STATUS.authenticated);
     assert.equal(h.signOuts.length, 0);
-  } finally { h.finish(); }
+  } finally { await h.finish(); }
 });
 
 test("a current-scope failed bootstrap retries and restores exact synthetic settings", async () => {
@@ -313,7 +318,7 @@ test("a current-scope failed bootstrap retries and restores exact synthetic sett
     assert.equal(h.context.hasLoadedSettingsRef.current, true);
     assert.equal(h.controller.getState().status, "connected");
     assert.equal(h.manager.getSnapshot().activeCompanionId, COMPANION_A);
-  } finally { h.finish(); }
+  } finally { await h.finish(); }
 });
 
 test("stopped reconnect controllers ignore a late successful attempt", async () => {

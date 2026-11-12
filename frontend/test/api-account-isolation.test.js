@@ -186,6 +186,55 @@ test("the initiating caller's abort or timeout cannot cancel a joined reader", a
   }
 });
 
+test("the last cancelled reader aborts its transport and a manual retry starts a fresh read", async () => {
+  const auth = manager(), calls = transport(), ownerAbort = new AbortController(), joinedAbort = new AbortController();
+  const first = apiRequest("/api/v2/bootstrap", { authSession: auth, signal: ownerAbort.signal, retry: false });
+  const firstRejected = assert.rejects(first, { name: "AbortError" });
+  const joined = apiRequest("/api/v2/bootstrap", { authSession: auth, signal: joinedAbort.signal, retry: false });
+  const joinedRejected = assert.rejects(joined, { name: "AbortError" });
+  await flush(); assert.equal(calls.length, 1);
+  ownerAbort.abort(); await firstRejected;
+  assert.equal(calls[0].options.signal.aborted, false, "the joined reader still owns the transport");
+  joinedAbort.abort();
+  assert.equal(calls[0].options.signal.aborted, true, "last reader cancellation must physically abort");
+  // Retry before waiting for the old entry's promise finalizer. It must not
+  // rejoin the abandoned transport, even if the network ignores its abort.
+  const retry = apiRequest("/api/v2/bootstrap", { authSession: auth, retry: false });
+  await flush(); assert.equal(calls.length, 2);
+  await joinedRejected;
+  calls[0].resolve(json({ stale: true }));
+  calls[1].resolve(json({ fresh: true }));
+  assert.deepEqual(await retry, { fresh: true });
+});
+
+test("the final reader's timeout abandons its hung transport instead of poisoning the next retry", async () => {
+  const auth = manager(), calls = transport();
+  const first = apiRequest("/api/v2/bootstrap", { authSession: auth, timeoutMs: 10, retry: false });
+  await assert.rejects(first, { code: "request_timeout" });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.signal.aborted, true);
+  const retry = apiRequest("/api/v2/bootstrap", { authSession: auth, retry: false });
+  await flush(); assert.equal(calls.length, 2);
+  calls[1].resolve(json({ fresh: true }));
+  assert.deepEqual(await retry, { fresh: true });
+});
+
+test("normal header completion does not abort a slow body for the initiating or joined reader", async () => {
+  const auth = manager(), calls = transport();
+  const initiating = apiFetch("/api/v2/bootstrap", { authSession: auth, retry: false });
+  const joined = apiRequest("/api/v2/bootstrap", { authSession: auth, retry: false });
+  await flush(); let body;
+  calls[0].resolve(new Response(new ReadableStream({ start(controller) { body = controller; } }), { headers: { "Content-Type": "application/json" } }));
+  const response = await initiating;
+  assert.equal(calls[0].options.signal.aborted, false);
+  const firstBody = response.json();
+  await flush(); assert.equal(calls[0].options.signal.aborted, false);
+  body.enqueue(new TextEncoder().encode('{"complete":true}')); body.close();
+  assert.deepEqual(await firstBody, { complete: true });
+  assert.deepEqual(await joined, { complete: true });
+  assert.equal(calls[0].options.signal.aborted, false, "normal body completion never cancels readers");
+});
+
 test("a legitimate initial companion response remains readable by both deduplicated consumers", async () => {
   const auth = manager("account-a", ""), calls = transport();
   auth.captureCompanionFromResponse = (response, expected) => {

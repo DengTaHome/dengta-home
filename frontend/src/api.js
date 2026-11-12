@@ -167,7 +167,31 @@ async function waitForSharedGet(task, options) {
   }
 }
 
+async function consumeSharedGet(entry, task, options) {
+  const consumer = {};
+  entry.consumers.add(consumer);
+  const release = (cancelled = false, reason) => {
+    if (!entry.consumers.delete(consumer)) return;
+    options.signal?.removeEventListener("abort", abort);
+    if (cancelled && !entry.settled && entry.consumers.size === 0) {
+      // A manual reconnect must be able to replace an abandoned/hung read.
+      // Drop its entry synchronously, before the next caller tries to join it.
+      entry.discard();
+      entry.controller.abort(reason);
+    }
+  };
+  const abort = () => release(true, options.signal?.reason);
+  if (options.signal?.aborted) abort();
+  else options.signal?.addEventListener("abort", abort, { once: true });
+  // Headers can arrive before the body. Keep the reader's lease until the
+  // shared body finishes, so normal completion never aborts a readable Response.
+  void entry.snapshot.then(() => release(), () => release());
+  try { return await waitForSharedGet(task, options); }
+  catch (error) { release(true, error); throw error; }
+}
+
 async function fetchFromApi(path, options = {}) {
+  if (options.signal?.aborted) throw options.signal.reason || new DOMException("The operation was aborted.", "AbortError");
   const manager = options.authSession || defaultAuthSession;
   const scope = { manager, identity: readRequestScope(manager), initialLoading: manager?.getSnapshot?.()?.status === "loading" };
   const method = String(options.method || "GET").toUpperCase();
@@ -178,24 +202,28 @@ async function fetchFromApi(path, options = {}) {
   if (!pending) { pending = new Map(); inflightGets.set(manager, pending); }
   const existing = pending.get(dedupeKey);
   if (existing) {
-    const snapshot = await waitForSharedGet(existing.snapshot, options);
+    const snapshot = await consumeSharedGet(existing, existing.snapshot, options);
     assertRequestScope(existing.scope);
     return { response: new Response(snapshot.body, { status: snapshot.status, statusText: snapshot.statusText, headers: snapshot.headers }), scope: existing.scope };
   }
 
   // The transport belongs to the shared entry. A consumer's cancellation or
   // deadline must not cancel another consumer waiting for this same read.
-  const task = performFetchFromApi(path, { ...options, signal: undefined, timeoutMs: 0 }, scope);
-  const entry = { scope, snapshot: null };
+  const controller = new AbortController();
+  const entry = {
+    scope, snapshot: null, controller, consumers: new Set(), settled: false,
+    discard() { if (pending.get(dedupeKey) === entry) pending.delete(dedupeKey); },
+  };
+  const task = performFetchFromApi(path, { ...options, signal: controller.signal, timeoutMs: 0 }, scope);
   entry.snapshot = task.then(async response => {
-    const body = await guardedResponse(response.clone(), scope).text();
+    const body = await guardedResponse(response.clone(), scope, controller.signal).text();
     return { body: [204, 205, 304].includes(response.status) ? null : body, status: response.status, statusText: response.statusText, headers: [...response.headers] };
-  }).finally(() => { if (pending.get(dedupeKey) === entry) pending.delete(dedupeKey); });
+  }).finally(() => { entry.settled = true; entry.discard(); });
   // The original caller consumes its own Response; a snapshot failure still has
   // an observer even when no caller joined, and cannot remove a newer entry.
   void entry.snapshot.catch(() => {});
   pending.set(dedupeKey, entry);
-  return { response: await waitForSharedGet(task, options), scope };
+  return { response: await consumeSharedGet(entry, task, options), scope };
 }
 
 async function performFetchFromApi(path, options, scope) {

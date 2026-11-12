@@ -58,7 +58,8 @@ const vite = await createServer({ root: fileURLToPath(new URL("..", import.meta.
 const { default: WorkspaceManager } = await vite.ssrLoadModule("/src/WorkspaceManager.jsx");
 ({ authSession: manager } = await vite.ssrLoadModule("/src/auth-session.js"));
 const cache = await vite.ssrLoadModule("/src/workspace-cache.js");
-await manager.initialize(); manager.setActiveCompanionId(CA);
+const { prepareAccountRuntimeData } = await vite.ssrLoadModule("/src/account-cleanup.js");
+await manager.initialize(); prepareAccountRuntimeData(A); manager.setActiveCompanionId(CA);
 const tick = async () => { for (let index = 0; index < 8; index++) await new Promise(setImmediate); };
 const textOf = node => typeof node === "string" ? node : node.children.map(textOf).join("");
 const button = text => tree.root.findAllByType("button").find(node => textOf(node).includes(text));
@@ -85,6 +86,9 @@ afterEach(async () => {
   if (tree) await act(async () => { tree.unmount(); await tick(); }); tree = null;
   requests.length = 0; timers.clear(); listeners.clear(); downloads.length = 0; confirmations = []; confirmAnswer = true; promptAnswer = "new.txt"; clipboard = "虚构粘贴内容"; signOuts.length = 0; navigator.clipboard.readText = async () => clipboard; leaveGuard = null; guardRegistrations = 0; guardCleanups = 0;
   sdkSession = sessionFor(A); authListener("SIGNED_IN", sdkSession); manager.setActiveCompanionId(CA);
+  // The component fixture bypasses AuthGate, so reproduce its activation
+  // barrier before mounting the next test's account after a real logout/switch.
+  await manager.waitForAccountData(); prepareAccountRuntimeData(A);
   await cache.workspaceCacheClear(A); await cache.workspaceCacheClear(B);
 });
 after(async () => {
