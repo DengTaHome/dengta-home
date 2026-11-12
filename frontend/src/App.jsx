@@ -99,7 +99,7 @@ import AchievementNotice from "./AchievementNotice.jsx";
 import FunLabsFeedback from "./FunLabsFeedback.jsx";
 import { emptyFunLabsState, refreshFunLabsSections, removeFunDate, FUN_LABS_ERROR_FEEDBACK } from "./fun-labs-refresh.js";
 import { validateAchievementReceipt, achievementFailure, withAchievementDeadline, ACHIEVEMENT_ERROR_FEEDBACK } from "./achievement-action.js";
-import { recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, recordOperationFailure as recordScopedOperationFailure } from "./operation-diagnostics.js";
 import { ACHIEVEMENT_ACTIONS, freshAchievements, guideStorageKey } from "./achievement-guide.js";
 import { appendActivityDraft } from "./chat-activities.js";
 import { accountCacheStorage } from "./account-cache-vault.js";
@@ -1067,6 +1067,13 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   const [settingsSaveError, setSettingsSaveError] = useState("");
   const [settingsSaveReceipt, setSettingsSaveReceipt] = useState(null);
   const privateMediaScope = JSON.stringify([accountStorageScope, companionScope]);
+  const operationFailureScope = useMemo(
+    () => captureOperationFailureScope(privateMediaScope), [privateMediaScope],
+  );
+  const recordOperationFailure = useCallback((scope, endpoint, error, now) => {
+    if (scope !== privateMediaScope) return null;
+    return recordScopedOperationFailure(operationFailureScope, endpoint, error, now);
+  }, [privateMediaScope, operationFailureScope]);
   // 用 ref 保存作用域：三个启动刷新回调因此保持稳定引用，
   // 否则伴侣 ID 被发现时 useCallback 身份变化 → 启动 effect 清理重跑 → bootstrap 发两轮。
   const privateMediaScopeRef = useRef(privateMediaScope);
@@ -3225,7 +3232,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, historyRetryRevision, requestSessionHistory, isHistoryScopeCurrent, privateMediaScope, hydrateSessionChatHistory]);
+  }, [activeSessionId, historyRetryRevision, requestSessionHistory, isHistoryScopeCurrent, privateMediaScope, hydrateSessionChatHistory, recordOperationFailure]);
 
   const getMomentsRequestScope = useCallback(() => {
     const controller = settingsScopeControllerRef.current;

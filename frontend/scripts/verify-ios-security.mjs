@@ -10,8 +10,10 @@ const files = [
   "auth-account-lifecycle.test.js", "auth-refresh-scope.test.js", "auth-email-callback.test.js",
   "account-cache-vault.test.js", "account-runtime-isolation.test.js",
   "voice-account-isolation.test.js", "workspace-cache-lifecycle.test.js",
-  "ios-private-cache-helpers.test.js", "ios-peripheral-storage.test.js", "ios-app-storage-epoch.test.js",
+  "ios-private-cache-helpers.test.js", "ios-peripheral-storage.test.js", "ios-app-storage-epoch.test.js", "ios-app-diagnostics-epoch.test.js",
   "api-account-isolation.test.js", "account-data-gate.component.test.js", "settings-save-scope.test.js",
+  "nonreact-diagnostic-epoch.test.js",
+  "ios-component-diagnostics.test.js",
   "ios-keychain-native.test.js", "ios-account-vault-native.test.js", "native-app-runtime.test.js",
   "auth-session.test.js", "auth-gate.test.js",
 ];
