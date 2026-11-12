@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { createChatDrafts } from "./chat-draft.js";
 
-export function useChatDraft(account, companion, session) {
-  const drafts = useMemo(() => createChatDrafts(account, companion), [account, companion]);
+export function useChatDraft(account, companion, session, storage) {
+  const drafts = useMemo(() => createChatDrafts(account, companion, storage), [account, companion, storage]);
   const store = drafts.get(session);
   const value = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   useEffect(() => {

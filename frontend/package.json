@@ -96,7 +96,8 @@
     "ios:prepare": "node scripts/verify-ios-env.mjs && vite build --mode ios && npm run ios:sync",
     "test:ios": "node --test test/ios-*.test.js test/native-app-runtime.test.js",
     "ios:assets": "node scripts/generate-ios-assets.mjs",
-    "test:ios:layout": "node scripts/verify-ios-browser.mjs"
+    "test:ios:layout": "node scripts/verify-ios-browser.mjs",
+    "test:ios:security": "node scripts/verify-ios-security.mjs"
   },
   "engines": {
     "node": "24.x"

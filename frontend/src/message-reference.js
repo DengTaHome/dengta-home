@@ -1,3 +1,5 @@
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
+
 export const MESSAGE_REFERENCE_FIELD = "message_reference";
 export const MESSAGE_REFERENCE_TEXT_LIMIT = 600;
 export const MESSAGE_REFERENCE_CACHE_KEY = "dengta_message_references_v1";
@@ -145,8 +147,9 @@ function cacheEntryKey(sessionId, messageId) {
   return session && message ? `${session}\u001f${message}` : "";
 }
 
-function readReferenceCache(storage = globalThis.localStorage) {
+function readReferenceCache(storage) {
   try {
+    storage = resolveAccountCacheStorage(storage);
     const parsed = JSON.parse(
       storage?.getItem(MESSAGE_REFERENCE_CACHE_KEY) || "{}",
     );
@@ -158,8 +161,9 @@ function readReferenceCache(storage = globalThis.localStorage) {
   }
 }
 
-function writeReferenceCache(cache, storage = globalThis.localStorage) {
+function writeReferenceCache(cache, storage) {
   try {
+    storage = resolveAccountCacheStorage(storage);
     const entries = Object.entries(cache)
       .filter(([, item]) => normalizeMessageReference(item?.reference))
       .sort(
@@ -184,7 +188,7 @@ export function storeMessageReferenceForMessage(
   sessionId,
   messageId,
   reference,
-  storage = globalThis.localStorage,
+  storage,
 ) {
   const key = cacheEntryKey(sessionId, messageId);
   const normalized = normalizeMessageReference(reference);
@@ -198,7 +202,7 @@ export function storeMessageReferenceForMessage(
 export function applyStoredMessageReferences(
   messages,
   sessionId,
-  storage = globalThis.localStorage,
+  storage,
 ) {
   const cache = readReferenceCache(storage);
   return Array.from(messages || []).map((message) => {
@@ -212,7 +216,7 @@ export function applyStoredMessageReferences(
 
 export function clearStoredMessageReferencesForSession(
   sessionId,
-  storage = globalThis.localStorage,
+  storage,
 ) {
   const prefix = `${cleanText(sessionId, MESSAGE_REFERENCE_ID_LIMIT)}\u001f`;
   if (prefix === "\u001f") return;

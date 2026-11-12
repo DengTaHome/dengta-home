@@ -1,13 +1,18 @@
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
+
 export function chatDraftKey(account, companion, session) {
   if (!String(account || "").trim() || !String(companion || "").trim()) return null;
   return `dengta_chat_draft_v2:${JSON.stringify([account, companion, session || null])}`;
 }
 
-function localStorageOrNull() {
-  try { return globalThis.localStorage; } catch { return null; }
+function draftAccount(key) {
+  const prefix = "dengta_chat_draft_v2:";
+  if (!String(key || "").startsWith(prefix)) return "";
+  try { const scope = JSON.parse(key.slice(prefix.length)); return Array.isArray(scope) ? scope[0] : ""; } catch { return ""; }
 }
 
-export function createChatDraft(key, storage = localStorageOrNull()) {
+export function createChatDraft(key, storage) {
+  try { storage = resolveAccountCacheStorage(storage, draftAccount(key)); } catch { storage = null; }
   let value = "", timer = null, dirty = false;
   const listeners = new Set();
   try { if (key) value = storage?.getItem(key) || ""; } catch { /* In-memory draft still works. */ }
@@ -41,7 +46,8 @@ export function createChatDraft(key, storage = localStorageOrNull()) {
   };
 }
 
-export function createChatDrafts(account, companion, storage = localStorageOrNull()) {
+export function createChatDrafts(account, companion, storage) {
+  try { storage = resolveAccountCacheStorage(storage, account); } catch { storage = null; }
   const stores = new Map();
   const get = (session) => {
     const id = session || null;

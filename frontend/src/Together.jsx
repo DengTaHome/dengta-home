@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { formatMediaTime, resolveCoWatchPage } from "./co-watch";
 import { API_BASE_URL } from "./api.js";
+import { Capacitor } from "@capacitor/core";
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
 import { mediaPlaybackFeedback } from "./media-playback-errors.js";
 import { detectPlannedCastProviders } from "./receiver-playback.js";
 import {
@@ -34,10 +36,10 @@ function webPageStorageKey(accountScope, companionScope) {
   return "dengta_together_web_page_v2:" + JSON.stringify([accountScope, companionScope]);
 }
 
-function readStoredWebPage(accountScope, companionScope) {
+function readStoredWebPage(accountScope, companionScope, storage) {
   if (!accountScope || !companionScope) return null;
   try {
-    const raw = globalThis.sessionStorage?.getItem(webPageStorageKey(accountScope, companionScope));
+    const raw = storage?.getItem(webPageStorageKey(accountScope, companionScope));
     const parsed = raw ? JSON.parse(raw) : null;
     return parsed && parsed.page_url ? parsed : null;
   } catch {
@@ -45,16 +47,16 @@ function readStoredWebPage(accountScope, companionScope) {
   }
 }
 
-function writeStoredWebPage(accountScope, companionScope, page) {
+function writeStoredWebPage(accountScope, companionScope, page, storage) {
   if (!accountScope || !companionScope) return;
   try {
     if (page?.page_url) {
-      globalThis.sessionStorage?.setItem(
+      storage?.setItem(
         webPageStorageKey(accountScope, companionScope),
         JSON.stringify(page),
       );
     } else {
-      globalThis.sessionStorage?.removeItem(webPageStorageKey(accountScope, companionScope));
+      storage?.removeItem(webPageStorageKey(accountScope, companionScope));
     }
   } catch {
     // 存储不可用时仅影响切换页面后的恢复。
@@ -86,6 +88,7 @@ export default function Together({
   aiName = "伴侣",
   accountScope = "",
   companionScope = "",
+  privateSessionStorage,
   watchRequest = null,
   session,
   receipt,
@@ -116,8 +119,11 @@ export default function Together({
   musicRequest = null,
   danmaku = [],
 }) {
+  const sessionStorage = useMemo(() => Capacitor.getPlatform() === "ios"
+    ? resolveAccountCacheStorage(privateSessionStorage, accountScope)
+    : privateSessionStorage ?? globalThis.sessionStorage, [privateSessionStorage, accountScope]);
   const [restoredDirectMedia] = useState(() =>
-    readDirectMediaSession(globalThis.sessionStorage, accountScope, companionScope),
+    readDirectMediaSession(sessionStorage, accountScope, companionScope),
   );
   const [mode, setMode] = useState(() =>
     viewKind === "music"
@@ -126,7 +132,7 @@ export default function Together({
       ? "external"
       : session?.sourceApp === WEB_PAGE_SOURCE_APP
       ? "web"
-      : readStoredWebPage(accountScope, companionScope)?.page_url
+      : readStoredWebPage(accountScope, companionScope, sessionStorage)?.page_url
       ? "web"
       : session?.sourceApp === DIRECT_MEDIA_SOURCE_APP || restoredDirectMedia?.url
       ? "direct"
@@ -186,9 +192,9 @@ export default function Together({
     message: "视频链接只用于本场直链播放与已配对的浏览器接收端，不会在投屏界面公开显示。",
   });
   const [webUrlInput, setWebUrlInput] = useState(() =>
-    readStoredWebPage(accountScope, companionScope)?.page_url || "",
+    readStoredWebPage(accountScope, companionScope, sessionStorage)?.page_url || "",
   );
-  const [webPage, setWebPage] = useState(() => readStoredWebPage(accountScope, companionScope));
+  const [webPage, setWebPage] = useState(() => readStoredWebPage(accountScope, companionScope, sessionStorage));
   const loadedWebInputRef = useRef(webUrlInput);
   const [webFeedback, setWebFeedback] = useState({
     status: "idle",
@@ -355,7 +361,7 @@ export default function Together({
 
   const persistDirectPlayback = (positionSeconds, durationSeconds) => {
     if (!directMediaUrl) return;
-    storeDirectMediaSession(globalThis.sessionStorage, accountScope, {
+    storeDirectMediaSession(sessionStorage, accountScope, {
       url: directMediaUrl,
       title,
       positionSeconds,
@@ -402,7 +408,7 @@ export default function Together({
       lastPlaybackSecondRef.current = -1;
     }
     setDirectMediaUrl(validation.url);
-    storeDirectMediaSession(globalThis.sessionStorage, accountScope, {
+    storeDirectMediaSession(sessionStorage, accountScope, {
       url: validation.url,
       title,
       positionSeconds: changed ? 0 : directPositionSeconds,
@@ -490,7 +496,7 @@ export default function Together({
     await runMediaOperation(() => onStopDirect?.({
       title, sessionId: session?.id, accountScope, companionScope, mediaPositionSeconds: positionSeconds,
     }), setDirectFeedback, "暂时无法结束视频直链共看，可以稍后重试。", () => {
-      clearDirectMediaSession(globalThis.sessionStorage, accountScope, companionScope);
+      clearDirectMediaSession(sessionStorage, accountScope, companionScope);
       setDirectMediaUrl("");
       setDirectUrlInput(current => current === directUrlInput ? "" : current);
       setDirectPositionSeconds(0); setDirectDurationSeconds(0);
@@ -515,7 +521,7 @@ export default function Together({
       if (!page?.embed_url) throw new Error("没有拿到可用的内嵌地址。");
       loadedWebInputRef.current = input.trim();
       setWebPage(page);
-      writeStoredWebPage(accountScope, companionScope, page);
+      writeStoredWebPage(accountScope, companionScope, page, sessionStorage);
       if (page.title) setTitle(page.title);
       setWebFeedback({ status: "success", message: page.message || "网页已解析，可以开始一起看了。" });
     } catch (error) {
@@ -592,7 +598,7 @@ export default function Together({
     await runMediaOperation(() => onStopDirect?.({
       title, sessionId: session?.id, accountScope, companionScope, mediaPositionSeconds: 0,
     }), setWebFeedback, "暂时无法结束网页一起看。", () => {
-      writeStoredWebPage(accountScope, companionScope, null);
+      writeStoredWebPage(accountScope, companionScope, null, sessionStorage);
       setWebPage(null);
       setWebUrlInput(current => current === webUrlInput ? "" : current);
     });

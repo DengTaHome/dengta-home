@@ -1,3 +1,11 @@
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
+
+function ownerForScope(scope) {
+  const value = String(scope || "").trim();
+  if (!value.startsWith("[")) return value;
+  try { const parts = JSON.parse(value); return Array.isArray(parts) ? String(parts[0] || "") : ""; } catch { return ""; }
+}
+
 export function accountStorageKey(baseKey, accountScope = "") {
   const scope = String(accountScope || "").trim();
   return scope ? `${baseKey}:${scope}` : baseKey;
@@ -9,6 +17,7 @@ export function readAccountStorage(
   accountScope = "",
   { migrateLegacy = false } = {},
 ) {
+  storage = resolveAccountCacheStorage(storage, ownerForScope(accountScope));
   const key = accountStorageKey(baseKey, accountScope);
   const stored = storage?.getItem(key);
   if (stored !== null && stored !== undefined) return stored;
@@ -27,6 +36,7 @@ export function writeAccountStorage(
   accountScope,
   value,
 ) {
+  storage = resolveAccountCacheStorage(storage, ownerForScope(accountScope));
   const key = accountStorageKey(baseKey, accountScope);
   if (value === null || value === undefined) storage?.removeItem(key);
   else storage?.setItem(key, String(value));

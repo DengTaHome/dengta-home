@@ -1,3 +1,5 @@
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
+
 export const CHAT_MODEL_STORAGE_KEY = "dengta_chat_model_v1";
 export const CHAT_SESSION_MODELS_STORAGE_KEY =
   "dengta_chat_session_models_v1";
@@ -51,10 +53,11 @@ export function normalizeModelsResponse(value, fallbackModel = "") {
 }
 
 export function readStoredChatModel(
-  storage = globalThis.localStorage,
+  storage,
   accountScope = "",
 ) {
   try {
+    storage = resolveAccountCacheStorage(storage, accountScope);
     return cleanText(
       readAccountStorage(storage, CHAT_MODEL_STORAGE_KEY, accountScope, {
         migrateLegacy: true,
@@ -67,12 +70,13 @@ export function readStoredChatModel(
 
 export function storeChatModel(
   value,
-  storage = globalThis.localStorage,
+  storage,
   accountScope = "",
 ) {
   const model = cleanText(value);
   const storageKey = accountStorageKey(CHAT_MODEL_STORAGE_KEY, accountScope);
   try {
+    storage = resolveAccountCacheStorage(storage, accountScope);
     if (model) storage?.setItem(storageKey, model);
     else storage?.removeItem(storageKey);
   } catch {
@@ -81,8 +85,9 @@ export function storeChatModel(
   return model;
 }
 
-function readStoredSessionModels(storage = globalThis.localStorage) {
+function readStoredSessionModels(storage) {
   try {
+    storage = resolveAccountCacheStorage(storage);
     const parsed = JSON.parse(
       storage?.getItem(CHAT_SESSION_MODELS_STORAGE_KEY) || "{}",
     );
@@ -101,7 +106,7 @@ function readStoredSessionModels(storage = globalThis.localStorage) {
 
 export function readStoredSessionChatModel(
   sessionId,
-  storage = globalThis.localStorage,
+  storage,
 ) {
   const key = cleanText(sessionId);
   if (!key) return "";
@@ -118,13 +123,14 @@ export function readServerSessionChatModel(sessions, sessionId) {
 export function storeSessionChatModel(
   sessionId,
   value,
-  storage = globalThis.localStorage,
+  storage,
 ) {
   const key = cleanText(sessionId);
   const model = cleanText(value);
   if (!key) return model;
 
   try {
+    storage = resolveAccountCacheStorage(storage);
     const stored = readStoredSessionModels(storage);
     if (model) stored[key] = model;
     else delete stored[key];
@@ -141,11 +147,13 @@ export function storeSessionChatModel(
 
 export function migrateLegacyChatModelToSession(
   sessionId,
-  storage = globalThis.localStorage,
+  storage,
   accountScope = "",
 ) {
   const key = cleanText(sessionId);
   if (!key) return "";
+  try { storage = resolveAccountCacheStorage(storage, accountScope); }
+  catch { return ""; }
 
   const storedSessionModel = readStoredSessionChatModel(key, storage);
   const legacyModel = readStoredChatModel(storage, accountScope);

@@ -1,6 +1,43 @@
 import { API_BASE_URL } from "./api.js";
 import { authSession as defaultAuthSession } from "./auth-session.js";
 import { Capacitor } from "@capacitor/core";
+import { captureAccountRuntimeEpoch, isAccountRuntimeCurrent, normalizeRuntimeAccountId, registerAccountRuntimeCleanup } from "./account-cleanup.js";
+
+const activeVoiceTurnRequests = new Set();
+const activeSpeechRequests = new Set();
+let speechGeneration = 0;
+
+function voiceScope(auth) {
+  const scope = auth?.getRequestScope?.();
+  const snapshot = auth?.getSnapshot?.();
+  return {
+    accountId: normalizeRuntimeAccountId(scope?.accountId ?? snapshot?.user?.id ?? ""),
+    companionId: scope?.companionId ?? snapshot?.activeCompanionId ?? "",
+    revision: scope?.revision ?? null,
+  };
+}
+function captureVoiceScope(auth) {
+  const identity = voiceScope(auth);
+  return { auth, identity, ticket: identity.accountId ? captureAccountRuntimeEpoch(identity.accountId) : null };
+}
+function voiceScopeCurrent(scope) {
+  const current = voiceScope(scope.auth);
+  return (!scope.ticket || isAccountRuntimeCurrent(scope.ticket)) &&
+    current.accountId === scope.identity.accountId && current.companionId === scope.identity.companionId && current.revision === scope.identity.revision;
+}
+function voiceCancelled() {
+  return Object.assign(new Error("账号或页面已切换，本次语音已取消。"), { name: "AbortError", code: "voice_scope_changed" });
+}
+function assertVoiceScope(scope) { if (!voiceScopeCurrent(scope)) throw voiceCancelled(); }
+
+export function clearAccountVoiceRuntime(accountId) {
+  const account = normalizeRuntimeAccountId(accountId);
+  for (const request of activeVoiceTurnRequests) if (request.accountId === account) request.abort();
+  for (const request of activeSpeechRequests) if (request.accountId === account) request.controller.abort();
+  // Account transitions await cleanup before mounting the next account.
+  void stopVoiceSpeech();
+}
+registerAccountRuntimeCleanup(clearAccountVoiceRuntime);
 
 export const VOICE_MAX_DURATION_MS = 60_000;
 
@@ -302,6 +339,7 @@ export function createVoiceTurnRequest(
   }
 
   const xhr = new XMLHttpRequestImpl();
+  const scope = captureVoiceScope(authSession);
   const safeTimeoutMs = Math.min(
     VOICE_TURN_TIMEOUT_MS,
     Math.max(5_000, Number(timeoutMs) || VOICE_TURN_TIMEOUT_MS),
@@ -313,7 +351,7 @@ export function createVoiceTurnRequest(
   const promise = new Promise((resolve, reject) => {
     rejectRequestOnce = reject;
     function finishUpload() {
-      if (uploadReported) return;
+      if (uploadReported || !voiceScopeCurrent(scope)) return;
       uploadReported = true;
       onUploadComplete?.();
     }
@@ -329,6 +367,7 @@ export function createVoiceTurnRequest(
       "load",
       () => {
         if (settled) return;
+        if (!voiceScopeCurrent(scope)) { fail(voiceCancelled()); return; }
         settled = true;
         finishUpload();
         const data = parsedResponse(xhr);
@@ -339,7 +378,7 @@ export function createVoiceTurnRequest(
                 return xhr.getResponseHeader?.(name) || "";
               },
             },
-          });
+          }, scope.identity);
           resolve(data);
           return;
         }
@@ -379,6 +418,7 @@ export function createVoiceTurnRequest(
     Promise.resolve(authSession?.getRequestContext?.() || {})
       .then((authContext) => {
         if (settled) return;
+        assertVoiceScope(scope);
         xhr.open("POST", `${API_BASE_URL}/voice/turn`, true);
         xhr.timeout = safeTimeoutMs;
         xhr.responseType = "json";
@@ -398,14 +438,15 @@ export function createVoiceTurnRequest(
       })
       .catch((error) =>
         fail(
-          new Error("无法读取登录状态，请重新登录后再发送语音。", {
+          error?.name === "AbortError" ? error : new Error("无法读取登录状态，请重新登录后再发送语音。", {
             cause: error,
           }),
         ),
       );
   });
 
-  return {
+  const handle = {
+    accountId: scope.identity.accountId,
     promise,
     abort() {
       // 必须在 send 之前也生效：token 刷新期间点取消时，xhr 还是 UNSENT，
@@ -423,6 +464,9 @@ export function createVoiceTurnRequest(
       }
     },
   };
+  activeVoiceTurnRequests.add(handle);
+  promise.then(() => activeVoiceTurnRequests.delete(handle), () => activeVoiceTurnRequests.delete(handle));
+  return handle;
 }
 
 let activeAudioPlayback = null;
@@ -457,10 +501,19 @@ export async function requestExpressiveSpeech(
   }
 
   const controller = new AbortController();
+  const scope = captureVoiceScope(authSession);
+  const generation = speechGeneration;
+  const request = { accountId: scope.identity.accountId, controller };
+  activeSpeechRequests.add(request);
+  const assertCurrent = () => {
+    if (generation !== speechGeneration || controller.signal.aborted) throw voiceCancelled();
+    assertVoiceScope(scope);
+  };
   const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   try {
     let response;
     const authContext = await authSession?.getRequestContext?.();
+    assertCurrent();
     try {
       response = await fetchImpl(`${API_BASE_URL}/voice/speech`, {
         method: "POST",
@@ -489,6 +542,8 @@ export async function requestExpressiveSpeech(
       throw new Error("暂时无法连接自然语音服务。", { cause: error });
     }
 
+    assertCurrent();
+
     if (!response.ok) {
       let payload = {};
       try {
@@ -496,6 +551,7 @@ export async function requestExpressiveSpeech(
       } catch {
         // 非 JSON 错误响应统一按状态码处理。
       }
+      assertCurrent();
       if (
         response.status === 401 &&
         ["invalid_session", "authentication_required"].includes(payload.code)
@@ -509,6 +565,7 @@ export async function requestExpressiveSpeech(
     }
 
     const blob = await response.blob();
+    assertCurrent();
     if (!(blob instanceof Blob) || blob.size === 0) {
       throw new Error("自然语音服务没有返回可播放的声音。");
     }
@@ -518,6 +575,7 @@ export async function requestExpressiveSpeech(
       emotion: response.headers?.get?.("X-DengTa-Voice-Emotion") || "",
     };
   } finally {
+    activeSpeechRequests.delete(request);
     globalThis.clearTimeout(timer);
   }
 }
@@ -575,6 +633,10 @@ export async function speakVoiceText(
     messageId = "",
     sessionId = "",
     speechToken = "",
+    authSession = defaultAuthSession,
+    requestSpeech = requestExpressiveSpeech,
+    AudioImpl = globalThis.Audio,
+    URLImpl = globalThis.URL,
   } = {},
 ) {
   const normalizedMode = normalizeVoicePlaybackMode(mode);
@@ -583,11 +645,16 @@ export async function speakVoiceText(
     return { engine: "none" };
   }
 
-  const speech = await requestExpressiveSpeech(messageId, {
+  const generation = speechGeneration;
+  const scope = captureVoiceScope(authSession);
+  const speech = await requestSpeech(messageId, {
     sessionId,
     speechToken,
+    authSession,
   });
-  const playback = await playAudioBlob(speech.blob);
+  if (generation !== speechGeneration) throw voiceCancelled();
+  assertVoiceScope(scope);
+  const playback = await playAudioBlob(speech.blob, { AudioImpl, URLImpl });
   return {
     ...playback,
     provider: speech.provider,
@@ -596,6 +663,8 @@ export async function speakVoiceText(
 }
 
 export async function stopVoiceSpeech() {
+  speechGeneration += 1;
+  for (const request of activeSpeechRequests) request.controller.abort();
   activeAudioPlayback?.stop?.();
   activeAudioPlayback = null;
 }

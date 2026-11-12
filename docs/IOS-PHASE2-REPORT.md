@@ -60,9 +60,21 @@
 
 脚本先检查模拟器平台、等待启动、安装并核对应用进程，再等待开场动画结束。它明确属于**截图采集**，不自动宣称布局正确，仍需检查实际 PNG。
 
-本阶段第一次原生运行：[iOS simulator build #2](https://github.com/DengTaHome/dengta-home/actions/runs/42984273332)。Xcode 26.6 编译、iOS 专项测试成功；截图未成功：iOS 26.5 / SE 第三代首次启动仍在 `CoreLocationMigrator` 数据迁移时触发原先 240 秒超时，尚未安装/启动 App，不能据此判断 App 闪退。已将完整启动等待调至 660 秒并保留失败门禁，准备重跑；不会绕过迁移状态或跳过目标设备。原生截图结果在实际完成并人工查看后补记。
+前次原生运行 [#2](https://github.com/DengTaHome/dengta-home/actions/runs/42984273332) 的 Xcode 26.6 编译、iOS 专项测试成功，但 iOS 26.5 / SE 第三代首次启动在 `CoreLocationMigrator` 数据迁移期间触发原先 240 秒超时；当时尚未安装/启动 App，不能据此判断 App 闪退。随后将完整启动等待调至 660 秒，保留失败门禁，没有跳过目标设备或绕过迁移状态。
 
-CI 中使用虚构公开配置，只能检查登录界面与原生容器，不能证明真实账号、聊天、记忆持久化或模型服务可用。实际原生键盘、横屏自动交互、完整账号流程与图像 Diff 将在第四阶段完成。
+补跑 [#3：42985728913](https://github.com/DengTaHome/dengta-home/actions/runs/42985728913) **成功**：Xcode 编译、iOS 专项测试、三个设备启动与截图、产物上传全部通过。运行对应源分支提交 `b09a65d50b78c24235ceba2e10638df24f8a808d`；CI 实际构建的是 PR 合并提交 `5d7f7a8fecf919b546d9c72d21baafa547a1bf81`。使用 Xcode 26.6、iOS 26.5（23F77），产物平台为 `iPhoneSimulator`。
+
+已下载并逐张查看 [原始截图产物](https://github.com/DengTaHome/dengta-home/actions/runs/42985728913/artifacts/13840402981)，核对三张 PNG 的尺寸及 SHA256 与 manifest 一致。便于直接查看的 [截图预览与来源记录](screenshots/ios-phase2/README.md) 已保留在代码库中。
+
+| 设备 | 原始截图尺寸 | 本次画面检查 |
+| --- | --- | --- |
+| [iPhone SE 第三代](screenshots/ios-phase2/iphone-se-3-login-preview.png) | 750×1334 | 登录卡片、邮箱/密码框、主按钮正常显示；辅助入口在首屏下方，需要滚动 |
+| [iPhone 15 Pro](screenshots/ios-phase2/iphone-15-pro-login-preview.png) | 1179×2556 | 登录控件和辅助入口正常显示，避开顶部灵动岛区域；底部隐私提示末尾超出首屏 |
+| [iPhone 15 Pro Max](screenshots/ios-phase2/iphone-15-pro-max-login-preview.png) | 1290×2796 | 登录控件、辅助入口与底部隐私提示均可见，顶部灵动岛区域未遮挡控件 |
+
+三张图均未出现空白页面或可见的应用崩溃画面。较小屏幕下，登录容器设计为内部滚动；**原生截图只记录初始位置，尚未自动验证原生滚动能到达下方入口**。已有浏览器滚动可达性结果不能替代这一项原生交互验证。
+
+CI 中使用虚构公开配置，只能检查登录界面与原生容器，不能证明真实账号、聊天、记忆持久化或模型服务可用。以上是构建、启动和截图证据，**不等于第四阶段的 UI 自动交互测试或基准图 Diff 已通过**。实际原生滚动、键盘、横屏自动交互、完整账号流程与图像 Diff 仍待第四阶段验证。
 
 ## 复现本地尺寸检查
 
@@ -86,4 +98,4 @@ IOS_TEST_OUTPUT=../artifacts/ios-phase2/final npm run test:ios:layout
 
 本阶段只完成屏幕、键盘、触控及对应验证。没有生成真机 IPA、没有签名，没有将 UserDefaults 迁移到 Keychain，也未宣称多账号私密数据已达到最终隔离标准。
 
-第二阶段交付后等待用户确认，再进入第三阶段 Keychain 与账号隔离；保留用户选择的全能签，最后处理签名。
+用户已确认进入第三阶段 Keychain 与账号隔离，相关改造另行记录；本报告的原生补验不扩大为第三阶段安全验收结论。保留用户选择的全能签，最后处理签名。

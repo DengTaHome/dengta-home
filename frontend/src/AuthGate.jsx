@@ -6,6 +6,12 @@ import { resolveEmailRedirectUrl } from "./auth-redirect.js";
 import WebInstallButton from "./WebInstallButton.jsx";
 import { flushSettingsBeforeAccountExit, releaseSettingsAccountExit, settingsSaveScope } from "./settings-save-scope.js";
 import { installVisualViewportController } from "./mobile-viewport.js";
+import { prepareAccountCache } from "./account-cache-vault.js";
+import { clearAccountLegacyData, prepareAccountRuntimeData } from "./account-cleanup.js";
+
+async function clearNativeAccountLegacyData(accountId) {
+  if (Capacitor.getPlatform() === "ios") await clearAccountLegacyData(accountId);
+}
 
 function browserEmailRedirectUrl() {
   return resolveEmailRedirectUrl({
@@ -60,6 +66,52 @@ function LoadingScreen() {
       <span>恢复登录与伴侣空间...</span>
     </main>
   );
+}
+
+// Mount business components only after the previous account is gone and this
+// account's protected cache is ready. A stale preparation can never mount App.
+export function AccountDataGate({
+  accountId,
+  sessionManager,
+  children,
+  prepareCache = prepareAccountCache,
+  prepareRuntime = prepareAccountRuntimeData,
+  clearLegacy = clearNativeAccountLegacyData,
+}) {
+  const [state, setState] = useState("loading");
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    const revision = sessionManager.getAccountDataRevision?.();
+    const currentActivation = () => active && (revision === undefined || sessionManager.getAccountDataRevision?.() === revision);
+    Promise.resolve().then(async () => {
+      await sessionManager.waitForAccountData?.({ retry: true });
+      if (!currentActivation()) return;
+      await clearLegacy(accountId);
+      if (!currentActivation()) return;
+      await prepareCache(accountId);
+      if (!currentActivation()) return;
+      sessionManager.hydrateAccountPreferences?.(accountId, revision);
+      const current = sessionManager.getSnapshot();
+      if (current.status !== AUTH_STATUS.authenticated || current.user?.id !== accountId) return;
+      prepareRuntime(accountId);
+      setState("ready");
+    }).catch(() => { if (currentActivation()) setState("error"); });
+    return () => { active = false; };
+  }, [accountId, sessionManager, prepareCache, prepareRuntime, clearLegacy, attempt]);
+
+  if (state === "error") return (
+    <main className="auth-page">
+      <section className="auth-message-panel" role="alert">
+        <h1>暂时无法打开你的私密空间</h1>
+        <p>请先解锁 iPhone，再点重试。本机安全存储准备完成后，才能进入聊天。</p>
+        <button type="button" onClick={() => { setState("loading"); setAttempt(value => value + 1); }}>重试</button>
+      </section>
+    </main>
+  );
+  if (state !== "ready") return <LoadingScreen />;
+  return typeof children === "function" ? children() : children;
 }
 
 function PasswordInput({
@@ -568,7 +620,9 @@ export default function AuthGate({
   const accountControl = (
     <AccountMenu sessionManager={sessionManager} snapshot={snapshot} />
   );
-  return typeof children === "function"
-    ? children({ accountControl, snapshot })
-    : children;
+  return (
+    <AccountDataGate key={`${snapshot.user.id}:${sessionManager.getAccountDataRevision?.() ?? 0}`} accountId={snapshot.user.id} sessionManager={sessionManager}>
+      {() => typeof children === "function" ? children({ accountControl, snapshot }) : children}
+    </AccountDataGate>
+  );
 }

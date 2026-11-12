@@ -1,3 +1,5 @@
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
+
 /**
  * 聊天历史的本地缓存：让「上次的对话」在首屏立刻出现，再让网络结果覆盖它。
  *
@@ -29,10 +31,9 @@ function storageKey(accountScope) {
   return `dengta.chat-cache.v${CHAT_CACHE_VERSION}:${account}`;
 }
 
-function safeStorage(storage) {
-  if (storage) return storage;
+function safeStorage(storage, accountScope) {
   try {
-    return globalThis.localStorage || null;
+    return resolveAccountCacheStorage(storage, accountScope) || null;
   } catch {
     return null;
   }
@@ -124,7 +125,7 @@ function markFailure(stage, reason) {
 
 export function writeChatHistoryCache({ accountScope, companionScope, sessionId, messages, storage, now = Date.now() }) {
   try {
-    const target = safeStorage(storage);
+    const target = safeStorage(storage, accountScope);
     const key = storageKey(accountScope);
     if (!target || !key) return markFailure("scope", "no storage or scope");
     if (!sessionId || !Array.isArray(messages)) return markFailure("input", `sessionId=${Boolean(sessionId)} isArray=${Array.isArray(messages)}`);
@@ -157,7 +158,7 @@ export function writeChatHistoryCache({ accountScope, companionScope, sessionId,
 }
 
 export function readChatHistoryCache({ accountScope, companionScope, storage, now = Date.now() }) {
-  const target = safeStorage(storage);
+  const target = safeStorage(storage, accountScope);
   const key = storageKey(accountScope);
   if (!target || !key) return null;
   let raw;
@@ -189,7 +190,7 @@ export function readChatHistoryCache({ accountScope, companionScope, storage, no
 }
 
 export function clearChatHistoryCache({ accountScope, storage }) {
-  const target = safeStorage(storage);
+  const target = safeStorage(storage, accountScope);
   const key = storageKey(accountScope);
   if (!target || !key) return false;
   try {

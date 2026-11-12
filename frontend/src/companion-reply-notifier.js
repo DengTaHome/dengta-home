@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { resolveAccountCacheStorage, accountIdFromRuntimeScope } from "./account-cache-vault.js";
 
 // 伴侣后台回复通知：App 在后台（用户正在别的应用里）时，
 // 新完成的 AI 回复会立即弹通知栏提醒（复用已有的主动消息通知渠道，自带震动与提示音）。
@@ -32,10 +33,11 @@ function readList(storage, key) {
 }
 
 export function readCompanionReplyBaseline(
-  storage = globalThis.localStorage,
+  storage,
   scope = "",
 ) {
   try {
+    storage = resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(scope));
     const parsed = JSON.parse(
       storage.getItem(scopedKey(BASELINE_KEY, scope)) || "null",
     );
@@ -55,7 +57,7 @@ export async function maybeNotifyNewCompanionReplies(
     sessionId = "",
     scope = "",
     hidden = true,
-    storage = globalThis.localStorage,
+    storage,
     capacitor = Capacitor,
     plugin = LocalNotifications,
     now = () => new Date(),

@@ -1,6 +1,7 @@
 import { isPrivateMediaAssetId } from "./private-media.js";
 import { createScopedSettingsSession, settingsSaveScope } from "./settings-save-scope.js";
 import { createChatClientMessageId } from "./chat-idempotency.js";
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
 
 export async function requestStickerImport(request, path, options = {}, timeoutMs = 45000) {
   const controller = new AbortController();
@@ -43,7 +44,7 @@ export function bilibiliStickerId(value) {
 export function stickerImportRequest(scope, bvid, storage, uuid = createChatClientMessageId) {
   const key = `dengta-sticker-import:${scope}`;
   let stored;
-  try { storage ??= globalThis.localStorage; stored = JSON.parse(storage?.getItem(key) || "null"); } catch { /* Storage can be disabled. */ }
+  try { storage = resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(scope)); stored = JSON.parse(storage?.getItem(key) || "null"); } catch { storage = undefined; /* Unavailable vaults keep this receipt in memory. */ }
   if (stored?.bvid === bvid && isPrivateMediaAssetId(stored.client_request_id)) return stored;
   const request = { bvid, client_request_id: uuid() };
   try { storage?.setItem(key, JSON.stringify(request)); } catch { /* The view also keeps the receipt. */ }

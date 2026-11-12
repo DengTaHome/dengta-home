@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
 import { apiRequest } from "./api.js";
 import { authSession } from "./auth-session.js";
 import { createScopedSettingsSession, settingsSaveScope } from "./settings-save-scope.js";
@@ -51,6 +52,7 @@ export default function StickerImportSettings({ onRefresh, request = apiRequest,
 }
 
 function StickerImportView({ scope, onRefresh, request, session }) {
+  const privateStorage = useMemo(() => resolveAccountCacheStorage(undefined, accountIdFromRuntimeScope(scope)), [scope]);
   const [preferences, setPreferences] = useState(null);
   const [busy, setBusy] = useState("load");
   const [error, setError] = useState("");
@@ -91,7 +93,7 @@ function StickerImportView({ scope, onRefresh, request, session }) {
     const bvid = bilibiliStickerId(video);
     if (!bvid) { setError(stickerImportError({ code: "sticker_import_request_invalid" })); return; }
     void perform("import", async (client, current) => {
-      if (pendingReceipt.current?.bvid !== bvid) pendingReceipt.current = stickerImportRequest(scope, bvid);
+      if (pendingReceipt.current?.bvid !== bvid) pendingReceipt.current = stickerImportRequest(scope, bvid, privateStorage);
       const receipt = validateStickerImportReceipt(await client(`${BASE}/bilibili`, { method: "POST", body: JSON.stringify(pendingReceipt.current) }));
       if (!current()) return;
       setResult(receipt);

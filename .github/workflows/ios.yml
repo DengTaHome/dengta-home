@@ -29,9 +29,17 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: xcodebuild -version
+      - name: Test native Keychain policy and failure handling
+        run: bash scripts/test-ios-keychain-native.sh
+      - name: Test native per-account encryption and isolation
+        run: bash scripts/test-ios-account-vault-native.sh
       - run: npm ci
       - run: npm run ios:prepare
       - run: npm run test:ios
+      - name: Verify account lifecycle and private cache isolation
+        env:
+          IOS_SECURITY_OUTPUT: artifacts/ios-security
+        run: npm run test:ios:security
       - name: Build unsigned simulator app
         run: >-
           xcodebuild -project ios/App/App.xcodeproj -scheme App
@@ -50,5 +58,13 @@ jobs:
         with:
           name: ios-native-layout-${{ github.run_id }}
           path: frontend/artifacts/ios-layout/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload account security test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-account-security-${{ github.run_id }}
+          path: frontend/artifacts/ios-security/
           if-no-files-found: error
           retention-days: 14

@@ -1,3 +1,5 @@
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
+
 export const GUIDE_STEPS = [
   { id: "hello", title: "先聊一句", action: "去聊天", text: "在底部输入框写一句你想说的话，再点发送。等伴侣回复，就完成了一次对话。不知道说什么，可以先试试“你好，今天想和你认识一下”。" },
   { id: "connect", title: "需要时再接入", action: "看看连接设置", text: "如果已经能聊天，这步可以跳过。如果提示尚未接入，打开连接设置，选择你使用的模型服务，按页面填写服务提供的地址和密钥。密钥是服务给你的访问凭证，不要发进聊天。" },
@@ -9,9 +11,14 @@ export function guideStorageKey(account, companion) {
   return account && companion ? `dengta_guide_v2:${JSON.stringify([account, companion])}` : null;
 }
 
-export function readGuidePreferences(key) {
+export function guidePreferencesStorage(key, storage) {
+  const scope = String(key || "").startsWith("dengta_guide_v2:") ? key.slice("dengta_guide_v2:".length) : "";
+  return resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(scope));
+}
+
+export function readGuidePreferences(key, storage) {
   try {
-    const raw = key ? JSON.parse(globalThis.localStorage?.getItem(key) || "{}") : {};
+    const raw = key ? JSON.parse(guidePreferencesStorage(key, storage)?.getItem(key) || "{}") : {};
     return {
       collapsed: raw.collapsed !== false,
       step: GUIDE_STEPS.some(item => item.id === raw.step) ? raw.step : "hello",
@@ -20,8 +27,8 @@ export function readGuidePreferences(key) {
   } catch { return { collapsed: true, step: "hello", visited: [] }; }
 }
 
-export function saveGuidePreferences(key, value) {
-  try { if (key) globalThis.localStorage?.setItem(key, JSON.stringify(value)); } catch { /* Private browsing can keep progress in memory. */ }
+export function saveGuidePreferences(key, value, storage) {
+  try { if (key) guidePreferencesStorage(key, storage)?.setItem(key, JSON.stringify(value)); } catch { /* Private browsing can keep progress in memory. */ }
 }
 
 export const ACHIEVEMENT_ACTIONS = {

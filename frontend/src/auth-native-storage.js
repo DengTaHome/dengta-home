@@ -1,17 +1,17 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+import { createIosAuthStorage } from "./auth-keychain-storage.js";
+
+const DengTaKeychain = registerPlugin("DengTaKeychain");
+const loadPreferences = async () => (await import("@capacitor/preferences")).Preferences;
 
 /**
- * iOS / Android 原生端会话持久化。
- *
- * 为什么需要它：AuthGate/GoTrueClient 默认用 WebView localStorage 保存登录会话，
- * 系统在存储压力下可能回收 WebView 存储，导致用户"莫名其妙掉登录"。
- * @capacitor/preferences 提供原生键值存储，可靠性更高。
- *
- * 用法：把返回值传给 GoTrueClient 的 storage 选项（SupportedStorage，支持 async）。
+ * GoTrue async SupportedStorage. iOS credentials use device-only Keychain and
+ * fail closed. Android retains its existing Preferences behavior; Web uses its
+ * supplied storage. Preferences on iOS is read only for one-time migration.
  */
 
-async function preferencesAdapter() {
-  const { Preferences } = await import("@capacitor/preferences");
+async function preferencesAdapter(preferencesLoader = loadPreferences) {
+  const Preferences = await preferencesLoader();
   return {
     async getItem(key) {
       const { value } = await Preferences.get({ key });
@@ -28,10 +28,22 @@ async function preferencesAdapter() {
 
 export async function resolveAuthStorage({
   storage = globalThis.localStorage,
+  capacitor = Capacitor,
+  keychain = DengTaKeychain,
+  preferencesLoader = loadPreferences,
 } = {}) {
-  if (Capacitor.isNativePlatform()) {
+  if (capacitor.isNativePlatform() && capacitor.getPlatform() === "ios") {
+    let legacyPreferences;
+    try { legacyPreferences = await preferencesLoader(); } catch { /* Migration fails closed. */ }
+    return createIosAuthStorage({
+      keychain: capacitor.isPluginAvailable("DengTaKeychain") ? keychain : undefined,
+      legacyPreferences,
+      legacyStorage: storage,
+    });
+  }
+  if (capacitor.isNativePlatform()) {
     try {
-      const adapter = await preferencesAdapter();
+      const adapter = await preferencesAdapter(preferencesLoader);
       // 探测一次写入，确认原生存储可用
       const probeKey = "dengta_auth_storage_probe_v1";
       await adapter.setItem(probeKey, "1");

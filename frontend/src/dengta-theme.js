@@ -5,6 +5,7 @@ import {
   phaseProgress,
 } from "./solar-cycle.js";
 import { readAccountStorage, writeAccountStorage } from "./account-storage.js";
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
 
 export const DENGTA_THEME_STORAGE_KEY = "dengta.ui-theme.v2";
 export const DENGTA_FONT_MODE_STORAGE_KEY = "dengta.font-mode.v1";
@@ -114,7 +115,7 @@ export function normalizeThemePreferences(value = {}) {
 }
 
 export function readThemePreferences(
-  storage = globalThis.localStorage,
+  storage,
   accountScope = "",
 ) {
   try {
@@ -147,11 +148,12 @@ export function readThemePreferences(
 
 export function writeThemePreferences(
   preferences,
-  storage = globalThis.localStorage,
+  storage,
   accountScope = "",
 ) {
   const normalized = normalizeThemePreferences(preferences);
   try {
+    storage = resolveAccountCacheStorage(storage, accountScope);
     writeAccountStorage(
       storage,
       DENGTA_THEME_STORAGE_KEY,
@@ -514,9 +516,10 @@ export function applyThemePreferences(preferences, snapshot, root) {
   );
 }
 
-export function useDengTaTheme(coordinates = null, accountScope = "") {
+export function useDengTaTheme(coordinates = null, accountScope = "", suppliedStorage) {
+  const storage = useMemo(() => resolveAccountCacheStorage(suppliedStorage, accountScope), [suppliedStorage, accountScope]);
   const [preferences, setPreferences] = useState(() =>
-    readThemePreferences(globalThis.localStorage, accountScope),
+    readThemePreferences(storage, accountScope),
   );
   const [clock, setClock] = useState(() => new Date());
   const [previewMinute, setPreviewMinute] = useState(null);
@@ -549,11 +552,11 @@ export function useDengTaTheme(coordinates = null, accountScope = "") {
   useEffect(() => {
     const normalized = writeThemePreferences(
       preferences,
-      globalThis.localStorage,
+      storage,
       accountScope,
     );
     applyThemePreferences(normalized, snapshot, document.documentElement);
-  }, [accountScope, preferences, snapshot]);
+  }, [accountScope, preferences, snapshot, storage]);
 
   function updateTheme(patch) {
     setPreferences((current) =>

@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "./api";
 import { authSession } from "./auth-session.js";
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
 import { createScopedSettingsSession, settingsSaveScope } from "./settings-save-scope.js";
 import { assertDuelNarration, awaitDuelResponse, duelFailureFeedback } from "./duel-request.js";
-import { recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, recordOperationFailure } from "./operation-diagnostics.js";
 import {
   DUEL_SKILLS,
   beginDuelRound,
@@ -21,10 +22,10 @@ function duelStorageKey(accountScope = "", companionScope = "") {
   return scope && companionScope ? `${STORAGE_KEY}:${JSON.stringify([scope, companionScope])}` : null;
 }
 
-function readStoredDuel(names, storageKey) {
+function readStoredDuel(names, storageKey, storage) {
   let stored;
   try {
-    stored = storageKey ? localStorage.getItem(storageKey) : null;
+    stored = storageKey ? storage?.getItem(storageKey) : null;
   } catch {
     return { duel: createDuelState(names), problem: "duel_archive_read_failed" };
   }
@@ -89,8 +90,10 @@ function DuelSession({
   conversationId,
   accountScope = "",
   companionScope = "",
+  privateStorage,
 }) {
   const storageKey = duelStorageKey(accountScope, companionScope);
+  const storage = useMemo(() => resolveAccountCacheStorage(privateStorage, accountScope), [privateStorage, accountScope]);
   const names = useMemo(
     () => ({
       playerName: String(userName || "你").trim() || "你",
@@ -98,7 +101,7 @@ function DuelSession({
     }),
     [aiName, userName],
   );
-  const [initialArchive] = useState(() => readStoredDuel(names, storageKey));
+  const [initialArchive] = useState(() => readStoredDuel(names, storageKey, storage));
   const [duel, setDuel] = useState(initialArchive.duel);
   const [isNarrating, setIsNarrating] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -126,7 +129,7 @@ function DuelSession({
     if (!storageKey || isNarrating || archiveRef.current.problem || archiveRef.current.savedDuel === duel ||
       settingsSaveScope(authSession.getSnapshot()) !== scope) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify(duel));
+      storage?.setItem(storageKey, JSON.stringify(duel));
       archiveRef.current.savedDuel = duel;
     } catch {
       archiveRef.current.problem = "duel_archive_write_failed";
@@ -136,7 +139,7 @@ function DuelSession({
           settingsSaveScope(authSession.getSnapshot()) === scope) setStorageProblem("duel_archive_write_failed");
       });
     }
-  }, [storageKey, scope, duel, isNarrating]);
+  }, [storageKey, scope, duel, isNarrating, storage]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "auto" });
@@ -145,7 +148,7 @@ function DuelSession({
   function rereadArchive() {
     if (!storageKey || !lifecycleRef.current || requestRef.current || isNarrating ||
       settingsSaveScope(authSession.getSnapshot()) !== scope) return;
-    const archive = readStoredDuel(names, storageKey);
+    const archive = readStoredDuel(names, storageKey, storage);
     archiveRef.current = archive;
     setStorageProblem(archive.problem);
     if (archive.problem) return;
@@ -182,7 +185,7 @@ function DuelSession({
       settingsSaveScope(authSession.getSnapshot()) !== scope) return;
     if (!skillAvailability(duel.player, skill).available) return;
     const controller = new AbortController();
-    const request = { controller, lifecycle: lifecycleRef.current, pending: null, timedOut: false };
+    const request = { controller, lifecycle: lifecycleRef.current, pending: null, timedOut: false, diagnosticScope: captureOperationFailureScope(scope) };
     requestRef.current = request;
     request.timeout = window.setTimeout(() => { request.timedOut = true; controller.abort(); }, 90_000);
     const isCurrent = () => requestRef.current === request && lifecycleRef.current === request.lifecycle &&
@@ -237,7 +240,7 @@ function DuelSession({
       setRetrySkill(skill);
       const feedback = duelFailureFeedback(request.timedOut ? { code: "duel_request_timeout" } : error);
       if (["duel_response_invalid", "duel_narration_missing", "duel_request_timeout"].includes(feedback.code)) {
-        recordOperationFailure(scope, "/api/v2/intimate-duel/narrate", {
+        recordOperationFailure(request.diagnosticScope, "/api/v2/intimate-duel/narrate", {
           code: feedback.code, status: feedback.status, error_log_id: feedback.logId,
         });
       }
