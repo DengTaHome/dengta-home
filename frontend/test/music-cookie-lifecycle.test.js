@@ -58,7 +58,7 @@ const vite = await createServer({ root: fileURLToPath(new URL("..", import.meta.
     if (normalized.endsWith("/src/api.js")) return "export const apiRequest=(...args)=>globalThis.__cookieLifecycle.request(...args);export const apiFetch=apiRequest;";
     if (normalized.endsWith("/src/auth-session.js")) return "export const authSession=globalThis.__cookieLifecycle.auth;";
     if (normalized.endsWith("/src/browser-launcher.js")) return "export const browserLauncherAvailable=()=>globalThis.__cookieLifecycle.available();export const openBuiltInBrowser=(...args)=>globalThis.__cookieLifecycle.browser(...args);export const readBrowserCookie=(...args)=>globalThis.__cookieLifecycle.readCookie(...args);";
-    if (id === "\0virtual:cookie-native") return "export const Capacitor={isNativePlatform:()=>true};export const registerPlugin=()=>({open:(...args)=>globalThis.__cookieLifecycle.native(...args)});";
+    if (id === "\0virtual:cookie-native") return "export const Capacitor={isNativePlatform:()=>true,getPlatform:()=>\"android\",isPluginAvailable:name=>name===\"NeteasePlayback\"};export const registerPlugin=()=>({open:(...args)=>globalThis.__cookieLifecycle.native(...args)});";
   },
 }] });
 const nodeText = node => typeof node === "string" ? node : (node?.children || []).map(nodeText).join("");

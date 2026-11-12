@@ -1,3 +1,5 @@
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
+
 export const INNER_MONOLOGUE_STORAGE_KEY =
   "dengta_visible_inner_monologues_v1";
 export const VISIBLE_MONOLOGUE_SOURCE =
@@ -74,11 +76,12 @@ function normalizeRecord(value) {
 }
 
 export function readInnerMonologues(
-  storage = globalThis.localStorage,
+  storage,
   accountScope = "",
 ) {
-  if (!storage) return {};
   try {
+    storage = resolveAccountCacheStorage(storage, accountScope);
+    if (!storage) return {};
     const source = JSON.parse(
       storage.getItem(storageKey(accountScope)) || "{}",
     );
@@ -101,7 +104,7 @@ export function readInnerMonologues(
 
 export function storeInnerMonologue(
   { messageId, text, createdAt = new Date().toISOString(), source, generated_with_reply, state },
-  storage = globalThis.localStorage,
+  storage,
   accountScope = "",
   onStorageFailure,
 ) {
@@ -115,6 +118,7 @@ export function storeInnerMonologue(
     [...Object.entries(current), [id, record]].slice(-MAX_RECORDS),
   );
   try {
+    storage = resolveAccountCacheStorage(storage, accountScope);
     const serialized = JSON.stringify(next);
     storage.setItem(storageKey(accountScope), serialized);
     if (storage.getItem(storageKey(accountScope)) !== serialized) onStorageFailure?.();
@@ -130,12 +134,13 @@ export function innerMonologueForMessage(records, messageId) {
   return normalizeRecord(value);
 }
 
-export function removeStoredInnerMonologue(messageId, storage = globalThis.localStorage, accountScope = "") {
+export function removeStoredInnerMonologue(messageId, storage, accountScope = "") {
   const current = readInnerMonologues(storage, accountScope);
   const id = String(messageId || "");
   if (!Object.hasOwn(current, id)) return;
   delete current[id];
   try {
+    storage = resolveAccountCacheStorage(storage, accountScope);
     storage?.setItem(storageKey(accountScope), JSON.stringify(current));
   } catch {
     // In-memory state is cleared independently when storage is unavailable.

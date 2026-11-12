@@ -83,3 +83,75 @@ test("transient zero or invalid viewport heights do not collapse either keyboard
     assert.equal(f.writes.length, initial); stop();
   }
 });
+
+test("login and chat share one controller without losing keyboard state during navigation", () => {
+  const f = fixture();
+  const stopGate = installVisualViewportController(f);
+  const listeners = f.listeners.size;
+  f.documentObject.activeElement = editable;
+  f.viewport.height = 500;
+  f.fire("viewport", "resize"); f.flush();
+  const writes = f.writes.length;
+  const stopChat = installVisualViewportController(f);
+  assert.equal(f.listeners.size, listeners, "a second consumer must not add resize listeners");
+  assert.equal(f.writes.length, writes, "mounting chat must not reset the keyboard baseline");
+  stopChat(); stopChat();
+  assert.equal(f.root.dataset.keyboardOpen, "true");
+  assert.equal(f.listeners.size, listeners, "logout keeps the gate's controller alive");
+  f.documentObject.activeElement = null;
+  f.viewport.height = 844;
+  f.fire("viewport", "resize"); f.flush();
+  assert.equal(f.root.dataset.keyboardOpen, "false");
+  assert.equal(f.writes.at(-1)[1], "844px");
+  stopGate();
+  assert.equal(f.listeners.size, 0);
+  assert.equal(f.root.dataset.keyboardOpen, undefined);
+});
+
+test("controller remount releases queued frames and starts with the new device dimensions", () => {
+  const f = fixture();
+  const stop = installVisualViewportController(f);
+  f.fire("viewport", "resize");
+  stop();
+  assert.equal(f.frames.size, 0);
+  f.windowObject.innerHeight = 430; f.viewport.height = 430;
+  f.windowObject.innerWidth = 932; f.viewport.width = 932;
+  const release = installVisualViewportController(f);
+  assert.equal(f.writes.at(-1)[1], "430px");
+  release();
+});
+
+test("viewport installation is safe during non-DOM component rendering", () => {
+  assert.doesNotThrow(() => installVisualViewportController({ windowObject: undefined, documentObject: undefined })());
+});
+
+test("rotating with the keyboard open adopts the landscape baseline and restores its full height", () => {
+  for (const legacy of [false, true]) {
+    const f = fixture();
+    if (legacy) delete f.windowObject.visualViewport;
+    const stop = installVisualViewportController(f);
+    f.documentObject.activeElement = editable;
+    if (legacy) f.windowObject.innerHeight = 500;
+    else f.viewport.height = 500;
+    f.fire(legacy ? "window" : "viewport", "resize"); f.flush();
+    assert.equal(f.root.dataset.keyboardOpen, "true");
+
+    f.windowObject.innerWidth = 932;
+    f.windowObject.innerHeight = 430;
+    f.viewport.width = 932; f.viewport.height = 230;
+    f.fire("window", "orientationchange"); f.flush();
+    if (legacy) {
+      f.windowObject.innerHeight = 230;
+      f.fire("window", "resize"); f.flush();
+    }
+    assert.equal(f.root.dataset.keyboardOpen, "true");
+    assert.equal(f.writes.at(-1)[1], "230px");
+
+    f.documentObject.activeElement = null;
+    f.windowObject.innerHeight = 430; f.viewport.height = 430;
+    f.fire("window", "resize"); f.flush();
+    assert.equal(f.root.dataset.keyboardOpen, "false");
+    assert.equal(f.writes.at(-1)[1], "430px");
+    stop();
+  }
+});

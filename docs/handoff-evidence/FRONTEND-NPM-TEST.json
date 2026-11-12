@@ -1,0 +1,13 @@
+{
+  "command": "npm test",
+  "exitCode": 0,
+  "includes": "entire frontend pretest and test chains",
+  "logPath": "/tmp/dengta-frontend-full-regression-final-after-diagnostics.log",
+  "generatedAt": "2026-11-12T06:25:35.840199+00:00",
+  "head": "600b797e78129887a071d5ec384b8bebc1b88893",
+  "logSha256": "3938809af9e3ec33cd6fcf3c554fc4f0d2e7402f2953953dacf3899cb5ce932c",
+  "reportedNodeTestSummaries": 70,
+  "summedReportedCases": 1615,
+  "summedReportedFailures": 0,
+  "countNote": "Summed file summaries are not a deduplicated product coverage metric; additional assertion-only scripts also ran."
+}

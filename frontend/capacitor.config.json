@@ -10,5 +10,12 @@
   "android": {
     "allowMixedContent": false,
     "backgroundColor": "#f7f2ed"
+  },
+  "ios": {
+    "loggingBehavior": "none",
+    "contentInset": "never",
+    "backgroundColor": "#f7f2ed",
+    "preferredContentMode": "mobile",
+    "allowsLinkPreview": false
   }
 }

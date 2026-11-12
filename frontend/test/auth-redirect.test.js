@@ -93,8 +93,20 @@ assert.equal(
     location: { origin: "https://localhost", pathname: "/" },
     configuredUrl: "https://accounts.example/app/",
   }),
+  "dengta://auth",
+  "native registration must reopen the app even when a web redirect is configured",
+);
+
+assert.equal(
+  resolveEmailRedirectUrl({ nativePlatform: true, configuredUrl: "http://localhost:5173" }),
+  "dengta://auth",
+  "copying the example web environment must not break iOS email confirmation",
+);
+
+assert.equal(
+  resolveEmailRedirectUrl({ nativePlatform: false, configuredUrl: "https://accounts.example/app/" }),
   "https://accounts.example/app/",
-  "a build-time public redirect overrides the official native fallback",
+  "web deployments retain their configured redirect",
 );
 
 assert.equal(

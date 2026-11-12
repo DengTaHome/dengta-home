@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, afterEach } from "node:test";
 import { IDBFactory } from "fake-indexeddb";
-import { cachedWorkspaceEntries, workspaceCacheRead, workspaceCacheList, workspaceCacheWrite, workspaceCacheClear } from "../src/workspace-cache.js";
+import { cachedWorkspaceEntries, workspaceCacheRead, workspaceCacheList, workspaceCacheWrite, workspaceCacheClear, workspaceCacheClearLegacy } from "../src/workspace-cache.js";
 
 const original = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
 const tick = () => new Promise(resolve => setTimeout(resolve, 20));
@@ -45,6 +45,21 @@ test("successful cache writes and clears preserve other account and exact empty 
   factory(); await workspaceCacheWrite("fixture-a", "note.txt", "  原文\r\n🌱  "); await workspaceCacheWrite("fixture-b", "note.txt", "");
   assert.equal((await workspaceCacheRead("fixture-a", "note.txt")).content, "  原文\r\n🌱  "); await workspaceCacheClear("fixture-a");
   assert.deepEqual(await workspaceCacheList("fixture-a"), []); assert.equal((await workspaceCacheRead("fixture-b", "note.txt")).content, "");
+});
+test("iOS legacy cleanup removes unowned v1 plaintext and only the outgoing account's v2 rows", async () => {
+  factory();
+  const db = await open(1, value => value.createObjectStore("files", { keyPath: "path" }));
+  await new Promise(resolve => { const tx = db.transaction("files", "readwrite"); tx.objectStore("files").put({ path: "legacy.txt", content: "fictional-unowned-private-cache" }); tx.oncomplete = resolve; });
+  db.close();
+  await workspaceCacheWrite("fixture-a", "a.txt", "fictional-a");
+  await workspaceCacheWrite("fixture-b", "b.txt", "fictional-b");
+  await workspaceCacheClearLegacy("fixture-a", { clearUnowned: true });
+  assert.deepEqual(await workspaceCacheList("fixture-a"), []);
+  assert.equal((await workspaceCacheRead("fixture-b", "b.txt")).content, "fictional-b");
+  const check = await open(2);
+  const remaining = await new Promise(resolve => { const request = check.transaction("files").objectStore("files").getAll(); request.onsuccess = () => resolve(request.result); });
+  check.close();
+  assert.deepEqual(remaining, []);
 });
 test("corrupt content remains untouched but cannot masquerade as a readable cached text file", async () => {
   factory(); await workspaceCacheWrite("fixture-a", "note.txt", "valid"); const db = await open(2);

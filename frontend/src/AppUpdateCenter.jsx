@@ -37,7 +37,8 @@ export default function AppUpdateCenter({ canPrompt = true }) {
   useSettingsSheetNavigation({ isOpen: visible || preferencesOpen, scopeKey: preferencesOpen ? "app-update-preferences" : "app-update", panelRef, onClose: closePanel });
 
   const check = useCallback(async (manual = false) => {
-    if (Capacitor.getPlatform() !== "android") {
+    const platform = Capacitor.getPlatform();
+    if (platform !== "android" && platform !== "ios") {
       if (manual) setFeedback("网页版会自动加载已发布的版本；APK 更新提醒在安卓应用中提供。");
       return;
     }
@@ -46,20 +47,25 @@ export default function AppUpdateCenter({ canPrompt = true }) {
     const controller = new AbortController();
     pending.current = controller;
     const current = () => mounted.current && pending.current === controller && !controller.signal.aborted;
-    if (manual) setFeedback("正在检查灯塔新版本…");
+    if (manual) setFeedback(platform === "ios" ? "正在读取 iOS 应用版本…" : "正在检查灯塔新版本…");
     try {
       const info = await App.getInfo();
       if (!current()) return;
+      setInstalled(info.version);
+      if (platform === "ios") {
+        lastCheck.current = Date.now();
+        if (manual) setFeedback(`当前 iOS 版本 ${info.version}（${info.build}）。请通过安装本应用时使用的 TestFlight、App Store 或开发者提供的安装渠道更新。`);
+        return;
+      }
       const next = await fetchAppUpdate(info.build, { signal: controller.signal });
       if (!current()) return;
       lastCheck.current = Date.now();
-      setInstalled(info.version);
       const offered = next && (manual || shouldRemindUpdate(next));
       setRelease(offered ? next : null);
       setManualPrompt(Boolean(offered && manual));
       if (manual) setFeedback(next ? "发现新版本，请查看更新说明。" : "当前没有比已安装版本更新的已发布版本。");
     } catch (error) {
-      if (current() && manual) setFeedback(`检查更新失败，请稍后重试。错误码：${error?.code === "app_update_manifest_invalid" ? error.code : "app_update_unavailable"}`);
+      if (current() && manual) setFeedback(platform === "ios" ? "暂时无法读取 iOS 应用版本，请稍后重试。" : `检查更新失败，请稍后重试。错误码：${error?.code === "app_update_manifest_invalid" ? error.code : "app_update_unavailable"}`);
     } finally { if (pending.current === controller) pending.current = null; }
   }, []);
 
@@ -84,6 +90,8 @@ export default function AppUpdateCenter({ canPrompt = true }) {
       };
       resumed();
       void App.addListener("appStateChange", ({ isActive }) => { if (isActive) resumed(); }).then(value => { if (disposed) void value.remove(); else handle = value; }).catch(() => {});
+    } else if (Capacitor.getPlatform() === "ios") {
+      void App.getInfo().then(info => { if (!disposed) setInstalled(info.version); }).catch(() => {});
     }
     return () => {
       mounted.current = false;
@@ -99,7 +107,7 @@ export default function AppUpdateCenter({ canPrompt = true }) {
   }, [check]);
 
   async function download() {
-    if (downloadPending.current || !release) return;
+    if (Capacitor.getPlatform() !== "android" || downloadPending.current || !release) return;
     downloadPending.current = true;
     setOpening(true);
     try { await AppUpdates.openDownload({ url: release.apk_url }); }
@@ -107,7 +115,7 @@ export default function AppUpdateCenter({ canPrompt = true }) {
     finally { downloadPending.current = false; if (mounted.current) setOpening(false); }
   }
   async function allowNotifications() {
-    if (notificationPending.current) return;
+    if (Capacitor.getPlatform() !== "android" || notificationPending.current) return;
     notificationPending.current = true;
     preferenceRevision.current++;
     setNotificationSaving(true);
@@ -124,6 +132,7 @@ export default function AppUpdateCenter({ canPrompt = true }) {
     finally { notificationPending.current = false; if (mounted.current) setNotificationSaving(false); }
   }
   async function toggleNotifications() {
+    if (Capacitor.getPlatform() !== "android") return;
     if (!notificationsEnabled || notificationPermission !== "granted") return allowNotifications();
     if (notificationPending.current) return;
     notificationPending.current = true;
@@ -139,9 +148,14 @@ export default function AppUpdateCenter({ canPrompt = true }) {
     {feedback && <div className="app-update-feedback" role="status"><span>{feedback}</span><button type="button" aria-label="关闭更新提示" onClick={() => setFeedback("")}>×</button></div>}
     {preferencesOpen && <div className="app-update-backdrop" onClick={closePanel}><section ref={panelRef} className="app-update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-preferences-title" tabIndex={-1} onClick={event => event.stopPropagation()}>
       <h2 id="update-preferences-title">版本更新提醒</h2>
-      <p>打开灯塔及返回应用时自动检查更新。后台检查由手机系统调度，通常约 30 分钟或更久，无法保证即时送达。</p>
-      <p>只读取公开版本信息，不发送聊天内容或账号凭据。</p>
-      {Capacitor.getPlatform() === "android" ? <button type="button" className="app-update-preference-toggle" disabled={notificationSaving} onClick={() => void toggleNotifications()}>{notificationSaving ? "正在保存…" : notificationsEnabled && notificationPermission === "granted" ? "关闭后台更新通知" : "开启后台更新通知"}</button> : <p>后台更新通知在安卓应用中提供。</p>}
+      {Capacitor.getPlatform() === "ios" ? <>
+        <p>{installed ? `当前 iOS 版本：${installed}。` : "iOS 版本信息可在应用安装渠道中查看。"}</p>
+        <p>请通过安装本应用时使用的 TestFlight、App Store 或开发者提供的安装渠道更新。更新提醒由相应安装渠道管理。</p>
+      </> : <>
+        <p>{Capacitor.getPlatform() === "android" ? "打开灯塔及返回应用时自动检查更新。后台检查由手机系统调度，通常约 30 分钟或更久，无法保证即时送达。" : "网页版会自动加载已发布的版本。"}</p>
+        <p>只读取公开版本信息，不发送聊天内容或账号凭据。</p>
+        {Capacitor.getPlatform() === "android" ? <button type="button" className="app-update-preference-toggle" disabled={notificationSaving} onClick={() => void toggleNotifications()}>{notificationSaving ? "正在保存…" : notificationsEnabled && notificationPermission === "granted" ? "关闭后台更新通知" : "开启后台更新通知"}</button> : <p>后台更新通知在安卓应用中提供。</p>}
+      </>}
       <div className="app-update-actions"><button type="button" onClick={closePanel}>完成</button></div>
     </section></div>}
     {visible && !preferencesOpen && <div className="app-update-backdrop" onClick={dismiss}>

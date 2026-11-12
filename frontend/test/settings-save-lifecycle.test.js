@@ -71,6 +71,7 @@ function harness() {
     TextEncoder,
     navigator: { onLine: true },
     localStorage: {},
+    privateStorage: {},
     cancelled: false,
     accountStorageScope: "account-a",
     companionScope: "companion-a",

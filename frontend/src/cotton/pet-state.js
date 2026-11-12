@@ -1,7 +1,10 @@
+import { resolveAccountCacheStorage, accountIdFromRuntimeScope } from "../account-cache-vault.js";
+
 const STAT_KEYS = ['mood', 'intimacy', 'satiety', 'water', 'energy', 'cleanliness'];
+const owner = key => accountIdFromRuntimeScope(String(key || "").slice("dengta_cotton_v1:".length));
 
 export function petLocalStorage() {
-  try { return globalThis.localStorage; } catch { return null; }
+  try { return resolveAccountCacheStorage(); } catch { return null; }
 }
 
 export function petStorageKey(account, companion) {
@@ -12,6 +15,7 @@ export function petStorageKey(account, companion) {
 export function readPetState(storage, key) {
   if (!key) return {};
   try {
+    storage = resolveAccountCacheStorage(storage, owner(key));
     const value = JSON.parse(storage?.getItem(key));
     if (value?.schema !== 1) return {};
     const stats = {};
@@ -26,6 +30,7 @@ export function readPetState(storage, key) {
 export function savePetState(storage, key, stats, quiet) {
   if (!key) return false;
   try {
+    storage = resolveAccountCacheStorage(storage, owner(key));
     const safe = {};
     for (const name of STAT_KEYS) if (Number.isFinite(stats[name])) safe[name] = Math.min(100, Math.max(0, stats[name]));
     const serialized = JSON.stringify({ schema: 1, stats: safe, quiet: quiet === true });

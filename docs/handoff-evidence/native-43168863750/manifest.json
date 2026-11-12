@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "status": "capture-failed",
+  "capturedAt": "2026-11-12T06:35:21.460Z",
+  "evidence": "Native iOS Simulator screenshots; capture only, requires human visual review.",
+  "scope": "Portrait login UI using fictional CI public auth values. No live login, keyboard automation, landscape rotation, or authenticated screens verified.",
+  "readiness": "Bootstatus and app process liveness, then a 6-second prelude settle and up to 60 seconds of native screenshot Vision OCR polling. The login title, email, password and primary action must be visible; loading or auth/storage errors cannot pass. Human layout review is still required.",
+  "build": {
+    "bundleIdentifier": "home.dengta.app",
+    "appVersion": "2.10.74",
+    "buildVersion": "1",
+    "supportedPlatforms": [
+      "iPhoneSimulator"
+    ],
+    "commit": "d17f685f8347f2c0c37e5d5e6da80fb5cad518bd",
+    "xcode": "Xcode 26.6\nBuild version 17F113"
+  },
+  "devices": [],
+  "completedAt": "2026-11-12T06:43:59.407Z",
+  "exitCode": 1,
+  "failedPhase": "iphone-se-3:wait-for-login-screen"
+}

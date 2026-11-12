@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMemoryUiRequest } from "./memory-ui-feedback.js";
 import { formatMemorySummaryDate, memorySummaryFailure, memorySummaryListReceipt, memorySummaryPatchReceipt, readMemorySummaryDelete, readMemorySummaryJson } from "./memory-summary-feedback.js";
-import { recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, recordOperationFailure } from "./operation-diagnostics.js";
 import "./memory-summary-list.css";
 
 const PATH = "/api/v2/memories";
 
 export default function LocalMemorySummaries({ scopeKey, items = [], drafts = {}, onItemsChange, onDraftsChange, onNotice }) {
+  const diagnosticScope = useMemo(() => captureOperationFailureScope(scopeKey), [scopeKey]);
   const { request, isCurrent } = useMemoryUiRequest(scopeKey);
   const [reading, setReading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -21,10 +22,10 @@ export default function LocalMemorySummaries({ scopeKey, items = [], drafts = {}
 
   const showFailure = useCallback((error, endpoint, mutation = false) => {
     const detail = memorySummaryFailure(error, mutation);
-    recordOperationFailure(scopeKey, endpoint, error);
+    recordOperationFailure(diagnosticScope, endpoint, error);
     setFeedback({ ...detail, error: true });
     onNotice?.(detail.message);
-  }, [scopeKey, onNotice]);
+  }, [diagnosticScope, onNotice]);
 
   const refresh = useCallback(async () => {
     if (!isCurrent()) return;

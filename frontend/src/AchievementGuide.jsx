@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { achievementFailure, validateAchievementReceipt } from "./achievement-action.js";
-import { GUIDE_STEPS, readGuidePreferences, saveGuidePreferences } from "./achievement-guide.js";
+import { GUIDE_STEPS, guidePreferencesStorage, readGuidePreferences, saveGuidePreferences } from "./achievement-guide.js";
 import "./achievement-guide.css";
 
-export default function AchievementGuide({ storageKey, achievements = [], loading = false, startExpanded = false, onOpenHandled, onAction, onClaim }) {
-  const [preferences, setPreferences] = useState(() => ({ ...readGuidePreferences(storageKey), ...(startExpanded ? { collapsed: false } : {}) }));
+export default function AchievementGuide({ storageKey, privateStorage, achievements = [], loading = false, startExpanded = false, onOpenHandled, onAction, onClaim }) {
+  const storage = useMemo(() => { try { return guidePreferencesStorage(storageKey, privateStorage); } catch { return null; } }, [storageKey, privateStorage]);
+  const [preferences, setPreferences] = useState(() => ({ ...readGuidePreferences(storageKey, storage), ...(startExpanded ? { collapsed: false } : {}) }));
   const [claim, setClaim] = useState("idle");
   const [claimError, setClaimError] = useState("");
   const pendingClaim = useRef(false), mounted = useRef(true);
@@ -17,7 +18,7 @@ export default function AchievementGuide({ storageKey, achievements = [], loadin
   function update(patch) {
     const next = { ...preferences, ...patch };
     setPreferences(next);
-    saveGuidePreferences(storageKey, next);
+    saveGuidePreferences(storageKey, next, storage);
   }
   function next() {
     const index = GUIDE_STEPS.findIndex(item => item.id === current.id);

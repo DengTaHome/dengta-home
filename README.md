@@ -11,6 +11,7 @@ An AI companion app for adults, built around continuous conversation, personal c
 - [网页体验](https://www.dengtahome.com/)
 - [Android 最新测试版及更新说明](https://github.com/DengTaHome/dengta-home/releases/latest)
 - [项目简介](docs/PROJECT-INTRODUCTION.md) · [自行部署](docs/DEPLOYMENT.md)
+- [iOS 源码构建与验收](docs/IOS.md) · [项目架构与适配依据](docs/PROJECT-UNDERSTANDING.md)
 
 Android 下载版连接灯塔的现有服务；公开源码采用自托管配置，部分装饰标识使用独立绘制资源，需要填写自己的服务地址。此版本是测试发布，真机与生产全流程仍需验收。请先阅读 Release 中的签名、升级和验证说明。
 
@@ -48,7 +49,7 @@ DengTa Home 将聊天、记忆、动态状态、日记、语音和可选的设�
 
 ```mermaid
 flowchart LR
-    Client[Web / PWA / Android] --> API[Node.js / Express]
+    Client[Web / PWA / Android / iOS] --> API[Node.js / Express]
     API --> Data[Supabase Auth / PostgreSQL / Storage]
     API --> Models[Account configured model providers]
     API --> Optional[Optional voice / memory / MCP services]
@@ -56,7 +57,7 @@ flowchart LR
 
 | 目录 | 内容 |
 | --- | --- |
-| `frontend/` | React、Vite、PWA 与 Capacitor Android 客户端 |
+| `frontend/` | React、Vite、PWA 与 Capacitor Android / iOS 客户端 |
 | `backend/` | Express API、模型调用、记忆、外部服务与后台任务 |
 | `backend/supabase/` | 数据库 SQL 与迁移 |
 | `docs/` | 项目、部署和资源说明 |
@@ -136,6 +137,18 @@ gradlew.bat assembleDebug
 ```
 
 调试构建用于开发测试。正式分发前需要核对发布签名、升级兼容性、真机安装、权限和发布资产。下载来源与验收状态以各版本 Release 说明为准。
+
+### 5. 构建 iOS
+
+已提供 iPhone / iPad 的 Capacitor 原生工程，要求 macOS、Xcode 26+、iOS 15+。在 `frontend/` 中复制 `.env.ios.example` 为 `.env.ios.local`，填入自己的 HTTPS 后端和 Supabase 公共配置，再执行：
+
+```bash
+npm ci
+npm run ios:prepare
+npm run ios:open
+```
+
+在 Xcode 中选择自己的签名 Team 和目标设备后运行。邮件回跳需在 Supabase 允许 `dengta://auth`；Android 专有设备能力不自动适用于 iOS。当前交付为源码工程，未提供已签名 IPA；构建、能力范围与真机验收见 [iOS 说明](docs/IOS.md)。
 
 ## 验证与部署
 

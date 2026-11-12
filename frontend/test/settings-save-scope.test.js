@@ -71,7 +71,7 @@ test("a request context with a different companion is rejected even if the local
   await assert.rejects(h.scoped.getRequestContext(), { code: "settings_scope_changed" });
 });
 
-test("scoped diagnostics retain their original account and companion after the current scope changes", async () => {
+test("a settings response arriving after an account switch is cancelled without exposing its body or writing diagnostics", async () => {
   const h = sessionHarness();
   const fetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch");
   const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
@@ -93,11 +93,10 @@ test("scoped diagnostics retain their original account and companion after the c
     assert.equal(original.activeCompanionId, "companion-a");
     await assert.rejects(apiRequest("/api/v2/settings", {
       method: "PUT", body: "{}", retry: false, authSession: h.scoped, signal: h.controller.signal,
-    }), { status: 500 });
+    }), { code: "settings_scope_changed" });
     assert.equal(h.scoped.getSnapshot().user?.id, "account-a");
     assert.equal(h.scoped.getSnapshot().activeCompanionId, "companion-a");
-    assert.equal(readOperationFailures(originalScope).length, 1, "the real apiRequest records metadata under the originating settings scope");
-    assert.equal(readOperationFailures(originalScope)[0].code, "DT-SETTINGS");
+    assert.equal(readOperationFailures(originalScope).length, 0, "cancelled settings responses do not resurrect account diagnostics");
     assert.equal(readOperationFailures(nextScope).length, 0);
     assert.equal(h.calls.capture, 0);
   } finally {
@@ -108,6 +107,27 @@ test("scoped diagnostics retain their original account and companion after the c
     if (windowDescriptor) Object.defineProperty(globalThis, "window", windowDescriptor);
     else delete globalThis.window;
   }
+});
+
+test("settings captured before A-B-A cannot use A's new login or mutate its companion", async () => {
+  let revision = 4;
+  const snapshot = { user: { id: "settings-account-a" }, activeCompanionId: "settings-companion-a" };
+  let contexts = 0, captures = 0, invalidations = 0;
+  const manager = {
+    getSnapshot: () => snapshot,
+    getRequestScope: () => ({ accountId: snapshot.user.id, companionId: snapshot.activeCompanionId, revision }),
+    async getRequestContext() { contexts++; return { accountId: snapshot.user.id, companionId: snapshot.activeCompanionId, scopeRevision: revision }; },
+    captureCompanionFromResponse() { captures++; },
+    invalidateSession() { invalidations++; },
+  };
+  const old = createScopedSettingsSession(manager, settingsSaveScope(snapshot));
+  revision += 2; // Both snapshot strings are identical after a complete logout/relogin.
+  await assert.rejects(old.getRequestContext(), { code: "settings_scope_changed" });
+  assert.throws(() => old.getRequestScope(), { code: "settings_scope_changed" });
+  old.captureCompanionFromResponse({}); await old.invalidateSession();
+  assert.deepEqual([contexts, captures, invalidations], [0, 0, 0]);
+  const fresh = createScopedSettingsSession(manager, settingsSaveScope(snapshot));
+  assert.equal((await fresh.getRequestContext()).scopeRevision, revision);
 });
 
 test("empty and null companion contexts normalize to the same unselected scope", async () => {

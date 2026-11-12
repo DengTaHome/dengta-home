@@ -1,4 +1,5 @@
 import { accountStorageKey } from "./account-storage.js";
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
 
 export const MAX_MUSIC_MOMENTS = 200;
 export const MAX_MUSIC_MOMENT_NOTE = 240;
@@ -47,10 +48,18 @@ export function parseMusicMomentTime(value) {
   return Number.isFinite(seconds) && seconds <= 86_400 ? seconds : null;
 }
 export function createMusicMomentsStore(scope, suppliedStorage) {
+  // Capture both the owner and its storage lease before an async UI action can
+  // outlive the account/companion that created this store.
+  scope = Object.freeze({ accountScope: scope?.accountScope, companionScope: scope?.companionScope });
   const key = scopeKey(scope);
+  let capturedStorage;
+  try {
+    capturedStorage = resolveAccountCacheStorage(suppliedStorage || undefined, accountIdFromRuntimeScope(scope.accountScope));
+    if (!capturedStorage) capturedStorage = globalThis.window?.localStorage;
+  } catch { /* Preserve the existing read/write error contract below. */ }
   const getStorage = () => {
     try {
-      const storage = suppliedStorage || globalThis.localStorage || globalThis.window?.localStorage;
+      const storage = capturedStorage;
       if (!storage?.getItem || !storage?.setItem) throw new Error();
       return storage;
     } catch { throw musicMomentError("music_moment_storage_unavailable"); }

@@ -1,3 +1,27 @@
+const viewportControllers = new WeakMap();
+
+// AuthGate and the loaded app share one controller. Keeping the gate's lease
+// alive also covers login, password recovery and logout without a resize gap.
+export function installVisualViewportController({ windowObject = globalThis.window, documentObject = globalThis.document } = {}) {
+  if (!windowObject || !documentObject?.documentElement) return () => {};
+  let entry = viewportControllers.get(documentObject);
+  if (!entry) {
+    entry = { references: 0, stop: createVisualViewportController({ windowObject, documentObject }) };
+    viewportControllers.set(documentObject, entry);
+  }
+  entry.references++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--entry.references === 0) {
+      entry.stop();
+      viewportControllers.delete(documentObject);
+      documentObject.documentElement.style.removeProperty?.("--app-height");
+    }
+  };
+}
+
 function editableElementIsFocused(documentObject) {
   const activeElement = documentObject.activeElement;
   return Boolean(
@@ -8,7 +32,7 @@ function editableElementIsFocused(documentObject) {
   );
 }
 
-export function installVisualViewportController({ windowObject = globalThis.window, documentObject = globalThis.document } = {}) {
+function createVisualViewportController({ windowObject, documentObject }) {
   const viewport = windowObject.visualViewport;
   if (!viewport) return installInnerHeightViewportFallback({ windowObject, documentObject });
   const root = documentObject.documentElement;

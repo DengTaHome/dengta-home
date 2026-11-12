@@ -79,7 +79,9 @@ const vite = await createServer({
 });
 const { default: Nursery } = await vite.ssrLoadModule("/src/Nursery.jsx");
 ({ authSession: manager } = await vite.ssrLoadModule("/src/auth-session.js"));
+const { prepareAccountRuntimeData } = await vite.ssrLoadModule("/src/account-cleanup.js");
 await manager.initialize();
+prepareAccountRuntimeData(ACCOUNT_A);
 manager.setActiveCompanionId(COMPANION_A);
 const tick = async () => { for (let index = 0; index < 45; index++) await Promise.resolve(); };
 const body = () => JSON.stringify(tree?.toJSON());
@@ -122,7 +124,13 @@ function switchAccount() { sdkSession = sessionFor(ACCOUNT_B); authListener("SIG
 afterEach(async () => {
   await unmount();
   requests.length = 0; notices.length = 0; timers.clear(); signOutCalls = [];
-  sdkSession = sessionFor(ACCOUNT_A); authListener("SIGNED_IN", sdkSession); manager.setActiveCompanionId(COMPANION_A);
+  sdkSession = sessionFor(ACCOUNT_A);
+  await manager.waitForAccountData({ retry: true }); await manager.initialize();
+  authListener("SIGNED_IN", sdkSession);
+  // AuthGate normally waits for the previous account's erase before activating
+  // this account. This component-only fixture must follow the same boundary.
+  await manager.waitForAccountData(); prepareAccountRuntimeData(ACCOUNT_A);
+  manager.setActiveCompanionId(COMPANION_A);
   document.visibilityState = "visible";
 });
 after(async () => {
@@ -305,6 +313,7 @@ test("a scoped React key remount discards old drafts and starts only the new acc
   await mountWithChild(); await editSpeech("原账号的虚构草稿");
   await act(async () => { button("安抚").props.onClick(); await tick(); }); const oldWrite = mutations()[0];
   switchAccount();
+  await manager.waitForAccountData(); prepareAccountRuntimeData(ACCOUNT_B);
   await act(async () => { tree.update(React.createElement(Nursery, { key: `${ACCOUNT_B}:${COMPANION_B}`, onNotice: message => notices.push(message) })); await tick(); });
   assert.doesNotMatch(body(), /原账号的虚构草稿|虚构小朋友/); assert.equal(oldWrite.options.signal?.aborted, true);
   await runTimers("timeout", 0); const currentRead = reads()[1];
