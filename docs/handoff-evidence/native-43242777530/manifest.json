@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "status": "capture-failed",
+  "capturedAt": "2026-11-12T14:59:26.212Z",
+  "evidence": "Native iOS Simulator screenshots; capture only, requires human visual review.",
+  "scope": "Portrait login UI and a temporary real Keychain round trip on disposable Simulators. No live account, keyboard automation, landscape rotation or authenticated screens verified. Ad-hoc Simulator identity is not device signing.",
+  "readiness": "Bootstatus and app process liveness, then a 6-second prelude settle and up to 60 seconds of native screenshot Vision OCR polling. The login title, email, password and primary action must be visible; loading or auth/storage errors cannot pass. Human layout review is still required.",
+  "build": {
+    "bundleIdentifier": "home.dengta.app",
+    "appVersion": "2.10.74",
+    "buildVersion": "1",
+    "supportedPlatforms": [
+      "iPhoneSimulator"
+    ],
+    "commit": "8ee11bb16090c943124c6298014544aca905d1cf",
+    "xcode": "Xcode 26.6\nBuild version 17F113"
+  },
+  "devices": [],
+  "completedAt": "2026-11-12T15:01:08.739Z",
+  "exitCode": 1,
+  "failedPhase": "iphone-se-3:install-and-launch"
+}

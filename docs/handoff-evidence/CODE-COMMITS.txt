@@ -1,0 +1,9 @@
+70b407d2fad356934a85ab8ff28a4527db2b79da Verify real Simulator Keychain access with an isolated ad-hoc identity
+6e50a0e41de1d7031d9602b86dd43fbebbdf4264 Fix native Preferences loading and require visible login readiness
+600b797e78129887a071d5ec384b8bebc1b88893 Bind UI diagnostics to each account activation
+94e4c0e86b8154bd9f6d7c971e84e1ae658814e7 Cancel abandoned shared reads and verify account activation regressions
+0e8368eb312bd3a4293f63c7ce11a022c81573aa Verify protected vault paths through filesystem aliases
+4a101727765b490bbfa3fc7199c1d3093ce0be04 Add iOS Keychain, encrypted account vault and session isolation checks
+b09a65d50b78c24235ceba2e10638df24f8a808d Complete iOS layout checks and allow first-boot simulator migration
+3f1b5f03765cbc4d01d10de46b4c9469194c5312 Fix iOS viewport layouts and capture native simulator evidence
+3401fb1ea7ad971df93015f9096af8539cfd9802 Add Capacitor iOS app with native compatibility and build guidance
