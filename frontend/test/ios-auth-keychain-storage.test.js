@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createIosAuthStorage, IOS_AUTH_STORAGE_KEYS } from "../src/auth-keychain-storage.js";
 import { resolveAuthStorage } from "../src/auth-native-storage.js";
+import { createAuthSessionManager } from "../src/auth-session.js";
 
 const KEY = IOS_AUTH_STORAGE_KEYS[0];
 const deferred = () => {
@@ -203,4 +204,70 @@ test("Android retains Preferences storage and its existing fallback", async () =
   const storage = await resolveAuthStorage({ storage: f.options.legacyStorage, capacitor: android, preferencesLoader: async () => preferences });
   await storage.setItem(KEY, "fictional-android-session"); assert.equal(await storage.getItem(KEY), "fictional-android-session");
   assert.equal(await resolveAuthStorage({ storage: f.options.legacyStorage, capacitor: android, preferencesLoader: async () => { throw new Error("fictional-unavailable"); } }), f.options.legacyStorage);
+});
+
+async function beforeDeadline(operation) {
+  let timer;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Native auth initialization remained pending")), 1000); }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
+
+function installPreferencesWebStorage(t, storage) {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: storage } });
+  t.after(() => {
+    if (descriptor) Object.defineProperty(globalThis, "window", descriptor);
+    else delete globalThis.window;
+  });
+}
+
+const nativeIos = {
+  isNativePlatform: () => true, getPlatform: () => "ios", isPluginAvailable: () => true,
+};
+
+test("the production loader resolves the real Capacitor Preferences proxy without assimilating its synthetic then method", async t => {
+  const f = fixture(); installPreferencesWebStorage(t, f.options.legacyStorage);
+  const { Preferences } = await import("@capacitor/preferences");
+  assert.equal(typeof Preferences.then, "function", "exercise the actual proxy's thenable trap, not a plain mock");
+  f.local.set(`CapacitorStorage.${KEY}`, "fictional-native-migration");
+  const storage = await beforeDeadline(resolveAuthStorage({
+    storage: f.options.legacyStorage, capacitor: nativeIos, keychain: f.options.keychain,
+  }));
+  assert.equal(await storage.getItem(KEY), "fictional-native-migration");
+  assert.equal(f.local.has(`CapacitorStorage.${KEY}`), false);
+  assert.equal(f.local.has(KEY), false);
+  assert.ok(f.calls.some(call => call.startsWith("secure:get:")), "migration actually reaches Keychain after loading Preferences");
+});
+
+test("the production Preferences loader also resolves Android storage without taking its plaintext fallback", async t => {
+  const f = fixture(); installPreferencesWebStorage(t, f.options.legacyStorage);
+  const storage = await beforeDeadline(resolveAuthStorage({
+    storage: f.options.legacyStorage,
+    capacitor: { isNativePlatform: () => true, getPlatform: () => "android" },
+  }));
+  assert.notEqual(storage, f.options.legacyStorage);
+  await storage.setItem(KEY, "fictional-android-native");
+  assert.equal(f.local.get(`CapacitorStorage.${KEY}`), "fictional-android-native");
+  assert.equal(f.local.has(KEY), false);
+});
+
+test("the real GoTrue client reaches anonymous through the production native Preferences loader and secure adapter", async t => {
+  const f = fixture(); installPreferencesWebStorage(t, f.options.legacyStorage);
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; throw new Error("Anonymous initialization must not contact a server"); };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const manager = createAuthSessionManager({
+    supabaseUrl: "https://fictional.example.test", supabaseAnonKey: "fictional-public-placeholder",
+    storage: f.options.legacyStorage,
+    resolveStorageFn: () => resolveAuthStorage({ storage: f.options.legacyStorage, capacitor: nativeIos, keychain: f.options.keychain }),
+  });
+  assert.equal((await beforeDeadline(manager.initialize())).status, "anonymous");
+  assert.equal(requests, 0);
+  assert.ok(f.calls.some(call => call.startsWith("secure:get:")));
+  await manager.signOut();
 });

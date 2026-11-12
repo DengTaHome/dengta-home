@@ -7,6 +7,7 @@ ios_app_path="${1:-${RUNNER_TEMP:-/tmp}/dengta-ios/Build/Products/Debug-iphonesi
 ios_output_path="${2:-artifacts/ios-layout}"
 ios_created_devices=()
 ios_phase="environment"
+ios_probe_temp=""
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "Native layout capture requires macOS and an installed Xcode iOS Simulator runtime." >&2
@@ -46,8 +47,8 @@ fs.writeFileSync(`${output}/manifest.json`, JSON.stringify({
   status: 'capturing',
   capturedAt: new Date().toISOString(),
   evidence: 'Native iOS Simulator screenshots; capture only, requires human visual review.',
-  scope: 'Portrait login/configuration UI using fictional CI public auth values. No live login, keyboard automation, landscape rotation, or authenticated screens verified.',
-  readiness: 'Simulator bootstatus, application launch PID and launchctl process liveness, followed by a 6-second UI settle covering the 3180ms launch prelude and initial WKWebView rendering. This does not assert an interactive screen is ready.',
+  scope: 'Portrait login UI using fictional CI public auth values. No live login, keyboard automation, landscape rotation, or authenticated screens verified.',
+  readiness: 'Bootstatus and app process liveness, then a 6-second prelude settle and up to 60 seconds of native screenshot Vision OCR polling. The login title, email, password and primary action must be visible; loading or auth/storage errors cannot pass. Human layout review is still required.',
   build: { bundleIdentifier, appVersion, buildVersion, supportedPlatforms: JSON.parse(platforms), commit, xcode: fs.readFileSync(`${output}/xcode-version.txt`, 'utf8').trim() },
   devices: [],
 }, null, 2) + '\n');
@@ -62,6 +63,7 @@ ios_cleanup() {
     xcrun simctl shutdown "$ios_device" >/dev/null 2>&1
     xcrun simctl delete "$ios_device" >/dev/null 2>&1
   done
+  if [[ -n "$ios_probe_temp" ]]; then rm -rf "$ios_probe_temp"; fi
   node - "$ios_output_path/manifest.json" "$ios_exit_code" "$ios_phase" <<'NODE_COMPLETE'
 const fs = require('node:fs');
 const [file, exitCode, phase] = process.argv.slice(2);
@@ -88,6 +90,31 @@ if (result.error) console.error(`${command}: ${result.error.code || 'command_fai
 process.exit(result.status ?? 1);
 NODE_TIMEOUT
 }
+
+ios_phase="compile-and-verify-login-readiness-probe"
+ios_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ios_repo_dir="$(cd "$ios_script_dir/../.." && pwd)"
+ios_probe_temp="$(mktemp -d "${TMPDIR:-/tmp}/dengta-login-probe.XXXXXX")"
+ios_probe_bin="$ios_probe_temp/native-login-readiness"
+xcrun --sdk macosx swiftc -swift-version 5 "$ios_script_dir/native-ios-login-readiness.swift" -o "$ios_probe_bin"
+ios_run_bounded 15 "$ios_probe_bin" --test-classification > "$ios_output_path/login-probe-classification.json"
+# Exercise the actual OCR against known native screenshots, not only strings.
+ios_run_bounded 15 "$ios_probe_bin" "$ios_repo_dir/docs/screenshots/ios-phase2/iphone-15-pro-login-preview.png" > "$ios_output_path/login-probe-positive-fixture.json"
+if ios_run_bounded 15 "$ios_probe_bin" "$ios_script_dir/../test/fixtures/ios-native-login-loading.png" > "$ios_output_path/login-probe-loading-fixture.json"; then
+  echo "Login readiness incorrectly accepted the known loading screenshot." >&2
+  exit 1
+else
+  ios_fixture_exit=$?
+  if [[ "$ios_fixture_exit" -ne 2 ]]; then
+    echo "Login readiness loading fixture failed to run." >&2
+    exit 1
+  fi
+fi
+node - "$ios_output_path/login-probe-loading-fixture.json" <<'NODE_LOADING_FIXTURE'
+const fs = require('node:fs');
+const receipt = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (receipt.status !== 'loading') throw new Error('Vision OCR must positively recognize the known loading screen.');
+NODE_LOADING_FIXTURE
 
 ios_phase="select-device-types-and-runtime"
 xcrun simctl list --json > "$ios_output_path/simulator-catalog.json"
@@ -159,12 +186,37 @@ while IFS=$'\t' read -r ios_slug ios_device_type ios_runtime ios_expected_width 
     echo "Launched app PID was not alive in the Simulator launch services for $ios_slug." >&2
     exit 1
   fi
-  # Covers DengTaPrelude's 3180ms intro plus initial WKWebView rendering.
-  # A fixed settle is not an assertion that an interactive screen is ready.
+  # Covers the intro; actual readiness below is checked from the screen.
   sleep 6
-  ios_phase="${ios_slug}:capture-portrait"
+  ios_phase="${ios_slug}:wait-for-login-screen"
   ios_screenshot="${ios_slug}-portrait.png"
-  xcrun simctl io "$ios_udid" screenshot --type=png "$ios_output_path/$ios_screenshot"
+  ios_ready=false
+  ios_probe_deadline=$((SECONDS + 60))
+  while ((SECONDS <= ios_probe_deadline)); do
+    rm -f "$ios_output_path/$ios_screenshot"
+    xcrun simctl io "$ios_udid" screenshot --type=png "$ios_output_path/$ios_screenshot" > "$ios_output_path/${ios_slug}-capture.log" 2>&1
+    ios_probe_budget=$((ios_probe_deadline - SECONDS))
+    if ((ios_probe_budget <= 0)); then break; fi
+    if ((ios_probe_budget > 15)); then ios_probe_budget=15; fi
+    if ios_run_bounded "$ios_probe_budget" "$ios_probe_bin" "$ios_output_path/$ios_screenshot" > "$ios_output_path/${ios_slug}-login-readiness.json"; then
+      ios_ready=true
+      break
+    else
+      ios_probe_exit=$?
+      if [[ "$ios_probe_exit" -ne 2 ]]; then
+        echo "Native login readiness failed for $ios_slug." >&2
+        cat "$ios_output_path/${ios_slug}-login-readiness.json" >&2
+        exit 1
+      fi
+    fi
+    sleep 2
+  done
+  if [[ "$ios_ready" != true ]]; then
+    echo "Native login screen was not ready within 60 seconds for $ios_slug." >&2
+    cat "$ios_output_path/${ios_slug}-login-readiness.json" >&2
+    exit 1
+  fi
+  ios_phase="${ios_slug}:capture-portrait"
   sips -g pixelWidth -g pixelHeight "$ios_output_path/$ios_screenshot" > "$ios_output_path/${ios_slug}-image.txt"
   node - "$ios_output_path" "$ios_slug" "$ios_udid" "$ios_pid" "$ios_screenshot" "$ios_expected_width" "$ios_expected_height" <<'NODE_RECORD'
 const fs = require('node:fs');
@@ -176,7 +228,9 @@ const height = Number(info.match(/pixelHeight:\s*(\d+)/)?.[1]);
 if (width !== Number(expectedWidth) || height !== Number(expectedHeight)) throw new Error(`Unexpected portrait screenshot geometry for ${slug}: ${width}x${height}; expected ${expectedWidth}x${expectedHeight}.`);
 const plan = JSON.parse(fs.readFileSync(`${output}/device-plan.json`, 'utf8'));
 const manifest = JSON.parse(fs.readFileSync(`${output}/manifest.json`, 'utf8'));
-manifest.devices.push({ ...plan.find(device => device.slug === slug), udid, launchPid: Number(pid), orientation: 'portrait', screenshot, screenshotSha256: createHash('sha256').update(fs.readFileSync(`${output}/${screenshot}`)).digest('hex'), capturedWidth: width, capturedHeight: height, visualReview: 'pending' });
+const readiness = JSON.parse(fs.readFileSync(`${output}/${slug}-login-readiness.json`, 'utf8'));
+if (readiness.status !== 'login-ready') throw new Error(`Native login readiness was not verified for ${slug}.`);
+manifest.devices.push({ ...plan.find(device => device.slug === slug), udid, launchPid: Number(pid), orientation: 'portrait', screenshot, screenshotSha256: createHash('sha256').update(fs.readFileSync(`${output}/${screenshot}`)).digest('hex'), capturedWidth: width, capturedHeight: height, readiness, visualReview: 'pending' });
 fs.writeFileSync(`${output}/manifest.json`, JSON.stringify(manifest, null, 2) + '\n');
 NODE_RECORD
   xcrun simctl shutdown "$ios_udid"

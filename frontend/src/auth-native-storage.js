@@ -2,7 +2,18 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { createIosAuthStorage } from "./auth-keychain-storage.js";
 
 const DengTaKeychain = registerPlugin("DengTaKeychain");
-const loadPreferences = async () => (await import("@capacitor/preferences")).Preferences;
+const loadPreferences = async () => {
+  const { Preferences } = await import("@capacitor/preferences");
+  // Capacitor proxies synthesize every property, including `then`. Returning
+  // one from an async function invokes that nonexistent plugin method during
+  // Promise resolution and leaves native auth initialization pending forever.
+  // Only return a plain, non-thenable adapter; do not weaken secure migration.
+  return {
+    get: options => Preferences.get(options),
+    set: options => Preferences.set(options),
+    remove: options => Preferences.remove(options),
+  };
+};
 
 /**
  * GoTrue async SupportedStorage. iOS credentials use device-only Keychain and
