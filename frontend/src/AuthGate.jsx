@@ -106,7 +106,7 @@ export function AccountDataGate({
       <section className="auth-message-panel" role="alert">
         <h1>暂时无法打开你的私密空间</h1>
         <p>请先解锁 iPhone，再点重试。本机安全存储准备完成后，才能进入聊天。</p>
-        <button type="button" onClick={() => { setState("loading"); setAttempt(value => value + 1); }}>重试</button>
+        <button type="button" className="auth-primary-button" onClick={() => { setState("loading"); setAttempt(value => value + 1); }}>重试</button>
       </section>
     </main>
   );

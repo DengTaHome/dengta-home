@@ -62,9 +62,23 @@ let files = FileManager.default
 let temporary = files.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
 try files.createDirectory(at: temporary, withIntermediateDirectories: true)
 defer { try? files.removeItem(at: temporary) }
+// macOS may enumerate /var-backed URLs through their /private/var spelling.
+// Deliberately exercise an alias as well: protection must cover the same actual
+// filesystem items regardless of how their URLs were constructed/enumerated.
+func canonicalPath(_ url: URL) -> String {
+    var path = url.standardizedFileURL.resolvingSymlinksInPath().path
+    while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
+    return path
+}
+let storageRoot = temporary.appendingPathComponent("container", isDirectory: true)
+let storageAlias = temporary.appendingPathComponent("container-alias", isDirectory: true)
+try files.createDirectory(at: storageRoot, withIntermediateDirectories: true)
+try files.createSymbolicLink(at: storageAlias, withDestinationURL: storageRoot)
+require(storageAlias.path != storageRoot.path, "Fixture must exercise different URL spellings")
+require(canonicalPath(storageAlias) == canonicalPath(storageRoot), "Fixture alias must resolve to the actual container")
 let security = FakeSecurity()
 var protectedPaths = Set<String>()
-let store = AccountVaultStore(root: temporary, keychain: security.calls, protect: { _ = protectedPaths.insert($0.path) }, writeAtomic: { data, url in try data.write(to: url, options: [.atomic]) })
+let store = AccountVaultStore(root: storageAlias, keychain: security.calls, protect: { _ = protectedPaths.insert(canonicalPath($0)) }, writeAtomic: { data, url in try data.write(to: url, options: [.atomic]) })
 let accountA = "11111111-1111-4111-8111-111111111111"
 let accountB = "22222222-2222-4222-8222-222222222222"
 let payloadA = "{\"draft\":\"fictional-private-draft\"}"
@@ -84,17 +98,21 @@ try store.write(accountId: accountB, value: payloadB)
 require(try store.read(accountId: accountA.uppercased()) == payloadA, "Normalized account must read its own payload")
 require(try store.read(accountId: accountB) == payloadB, "Another account must have independent payload")
 require(security.items.count == 2, "Each account needs an independent encryption key")
-let root = temporary.appendingPathComponent("DengTaAccounts", isDirectory: true)
+let root = storageRoot.appendingPathComponent("DengTaAccounts", isDirectory: true)
 let directories = try files.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
 require(directories.count == 2, "Per-account directories required")
+var expectedProtectedPaths = Set([canonicalPath(root)])
 for directory in directories {
     require(directory.lastPathComponent.count == 64, "Directory must be hashed")
     let file = directory.appendingPathComponent("cache.json")
     let data = try Data(contentsOf: file)
     let text = String(decoding: data, as: UTF8.self)
     require(!text.contains("fictional-private-draft") && !text.contains("another-fictional-draft"), "Plaintext must never reach disk")
-    require(protectedPaths.contains(file.path) && protectedPaths.contains(directory.path) && protectedPaths.contains(root.path), "Root, account directory and cache must all request protection")
+    expectedProtectedPaths.insert(canonicalPath(directory))
+    expectedProtectedPaths.insert(canonicalPath(file))
 }
+require(expectedProtectedPaths.count == 5, "Fixture must identify root, two account directories and two cache files")
+require(protectedPaths == expectedProtectedPaths, "Exactly the actual root, both account directories and both caches must request protection")
 
 security.locked = true
 mustThrow({ _ = try store.read(accountId: accountA) }, "Locked device must reject reading an existing cache")
