@@ -2337,3 +2337,12 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 合并：后端 PR #1 `b1d60630`，前端 PR #1 `f8fa26a`；Render 部署 live `b1d60630`，Vercel 部署 READY `f8fa26a`。
 - 生产验证：`/health` revision 对齐；`GET /api/v2/qq-cloud` 返回 `enabled:true`；QQ 通道偏好新字段、候选列表、AstrBot 人设导出均 200。
 - 未替用户扫码；QQ 云实际绑定需用户在 DengTa → QQ → 绑定与状态扫码完成。
+
+
+## 轮次 173（2026-11-12 · REPO-WATCH）
+
+- 2026-11-12T01:10Z 检查：变化 5、错误 2。
+- **qq-bridge 上游 SUNSET**：SnowLuma 停止公开服务，qq-bridge 2026-11-11 停止维护、预计 2026-11-18 前后归档；现有部署可继续跑到 QQ/DSH 升级不兼容为止，但不再有新安装/兼容/安全更新。方向：本地 QQ 栈不再新部署，优先使用已上线的 DengTa 云 QQ（2.13.52 后端 `b1d60630`）。
+- **x-twikit-mcp v1.2.5**（`99011f3a`）：推文 URL 自动解析、GraphQL core user 提取、搜索时间线回退、长推文全文，涉及 X MCP；若启用 X 需要更新本地 MCP 并补工具回归，未改生产。
+- SnowLuma 仓库当前 API `not-found`（可能已私有/删除）；CNB 仍因本机代理 127.0.0.1:7877 不可用报错。
+- 其余无变化；本轮未改生产数据。
