@@ -2346,3 +2346,10 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - **x-twikit-mcp v1.2.5**（`99011f3a`）：推文 URL 自动解析、GraphQL core user 提取、搜索时间线回退、长推文全文，涉及 X MCP；若启用 X 需要更新本地 MCP 并补工具回归，未改生产。
 - SnowLuma 仓库当前 API `not-found`（可能已私有/删除）；CNB 仍因本机代理 127.0.0.1:7877 不可用报错。
 - 其余无变化；本轮未改生产数据。
+
+
+## 轮次 174（2026-11-19 · REPO-WATCH）
+
+- 2026-11-19T01:10Z：变化 0、错误 2（SnowLuma not-found、CNB 代理不可用）。
+- qq-bridge 出现归档前最后提交 `12e66d2c`（PR #186，release **v0.2.2-final**）；项目已停止维护，现有本地 QQ 栈可继续运行但不再升级，云 QQ 是后续方向。
+- x-twikit 仍为 11-13 的 `ec842b1d`；其余无变化，未改生产数据。
