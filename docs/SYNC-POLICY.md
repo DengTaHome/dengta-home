@@ -1,37 +1,68 @@
 # DengTa 全平台同步与备份规则
 
-> 目的：本地工作区不是唯一副本。任何一次代码、文档、iOS/Android 工程、配置模板或交接更新，都必须同步到 GitHub 和腾讯 CNB，避免工作区丢失后无法恢复。
+> 生效日期：2026-11-22  
+> 目的：本地工作区不是唯一副本。任何一次代码、文档、iOS/Android 工程、配置模板或交接更新，都必须同步到 GitHub 和腾讯 CNB；否则视为未完成。
 
-## 1. 权威源
+## 1. 当前权威账号与平台
 
-| 内容 | GitHub 源 | CNB 镜像/快照 |
+| 平台 | 权威位置 | 负责人/账号 |
 |---|---|---|
-| 前端/Android/iOS 工程 | `DengTaHome/dengta-home-frontend` | `cnb.cool/dengtahome/dengtahome` 的 `frontend-main` / `main` |
-| 后端 | `DengTaHome/dengta-home-backend` | `cnb.cool/dengtahome/dengtahome` 的 `backend-main` / `main` |
-| 文档/交接/审计摘要 | `DengTaHome/dengta-home` | `cnb.cool/dengtahome/dengtahome` 的 `docs-main` / `main` |
-| iOS 导入工作区 | 前端仓库的 `feat/ios-*` 分支 | `cnb.cool/dengtahome/dengtahome` 的 `ios-import-*` / `main` 快照 |
+| GitHub | `tnineninet` 组织 | `Jessica-tce`（Owner，`2458077782sans@gmail.com`） |
+| GitHub 前端 | `tnineninet/dengta-home-frontend` | 公开仓库，Vercel Hobby 已连接 |
+| GitHub 后端 | `tnineninet/dengta-home-backend` | 私有 |
+| GitHub 文档 | `tnineninet/dengta-home` | 私有 |
+| GitHub 源码快照 | `tnineninet/dengta-workspace-snapshot` | 私有 Release |
+| GitHub 加密凭据库 | `tnineninet/dengta-private-vault` | 私有，仅密文 |
+| Vercel | 项目 `dengta-home`，Git 连接 `tnineninet/dengta-home-frontend` | 邮箱 `2458077782sans@gmail.com` |
+| Render | 服务 `dengta-home-backend`，repo `tnineninet/dengta-home-backend` | 邮箱 `2458077782sans@gmail.com` |
+| Supabase | `buyaocaowo555-collab's Org` | `2458077782sans@gmail.com` Owner |
+| CNB | `cnb.cool/DengTaArchive2026/dengta-workspace` | 微信账号 `cnb.ds3fm5MOAPA` |
+| DNS/CDN | Cloudflare | 暂不可登录，未完成 |
 
-## 2. 每次更新的固定流程
+旧账号 `DengTaHome`、旧 Gmail `buyaocaowo555@gmail.com`、旧 CNB 账号 `cnb.covlGfKahIA` 不再作为主账号；不要向它们上传新内容。
 
-1. 在本地/分支完成修改。
-2. 运行相关测试、构建和最小回归；保留日志。
-3. 提交到 GitHub 分支并开 PR；不得直接覆盖 `main`。
-4. 合并后同步 CNB：
-   - 前端：更新 `frontend-main`
-   - 后端：更新 `backend-main`
-   - iOS：更新 `ios-import-*` 或 `main` 快照
-   - 文档：更新 `docs-main`/`main`
-5. 更新 `SYNC-MANIFEST.json`（文件数、字节数、源 commit、时间）。
-6. 刷新本地 bundle/zip 备份。
-7. 在本次交接文档或 `OPTIMIZATION-LEDGER.md` 写明同步结果：GitHub commit、CNB 分支/commit、备份路径。
+## 2. 每次更新的强制流程
+
+任何更新，必须依次完成：
+
+1. 在对应本地仓库完成修改，并通过测试/构建。
+2. 提交到 GitHub 对应仓库，并 push 到 `tnineninet` 组织。
+3. 运行一键同步脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\GZdeepseek\dengta-home\tools\sync-all-platforms.ps1
+```
+
+4. 脚本会：
+   - 检查 frontend/backend/docs/iOS worktree 是否有未推送提交；
+   - 刷新完整 CNB 工作区快照；
+   - 更新 `SYNC-MANIFEST.json`；
+   - 推送 CNB `main`；
+   - 输出 GitHub/CNB 的 commit 和文件数。
+5. 验证结果：
+
+```powershell
+git -C D:\GZdeepseek\_incoming\cnb-workspace-20261122 ls-remote origin refs/heads/main
+git -C D:\GZdeepseek\_refs\frontend-gh ls-remote origin refs/heads/main
+```
+
+6. 在 `docs/SYNC-LEDGER.md` 追加一行记录：
+   - 日期
+   - 更新内容
+   - GitHub commit
+   - CNB commit
+   - 本地备份路径
+
+**没有同时更新 GitHub 和 CNB 的更新，不算完成。**
 
 ## 3. 必须同步
 
 - `frontend/` 源码（含 `src/`、`android/`、`ios/`、`public/` 源资源、测试、脚本、配置模板）
 - `backend/` 源码（含 `routes/`、`services/`、`supabase/`、测试、脚本）
-- `docs/` 交接/架构/发布/迁移文档
-- 构建与发布脚本（不含密钥）
+- `docs/` 交接、架构、发布、迁移文档
+- `tools/` 构建与发布脚本（不含密钥）
 - `.env.example`、`config.example.json` 等模板
+- iOS 工作区源码和 Xcode 工程文件（不含 `Pods/`、`DerivedData/`）
 
 ## 4. 绝不同步
 
@@ -43,27 +74,57 @@
 - APK/IPA/xcarchive/构建产物（除非用户明确要求归档）
 - `_audit/` 原始隐私证据
 
-## 5. CNB 分支约定
+密钥只允许放在：
 
-- `main`：最新整合工作区快照（frontend + frontend-ios + backend + docs + tools）
-- `frontend-main`：生产前端镜像
-- `backend-main`：生产后端镜像
-- `ios-import-*`：iOS 工作分支/快照
-- `opensource-main`：开源发布镜像（保留，不覆盖产品主线）
-- 旧分支/旧快照先打 tag 或下载 bundle 备份，再清理。
+- 本机 `D:\GZdeepseek\_credentials\`
+- GitHub 私有加密库 `tnineninet/dengta-private-vault`
+- 对应平台的 Secrets/环境变量
 
-## 6. 恢复顺序
+## 5. CNB 仓库约定
 
-1. 从 CNB `main` 或对应分支 clone。
-2. 从 GitHub 对应仓库拉最新 main。
-3. 对比 `SYNC-MANIFEST.json` 的 commit/文件数。
-4. 恢复 `.env`/凭据（由用户提供，绝不在 CNB）。
-5. 运行构建/测试，再继续开发。
+- CNB 只作为**完整源码快照和灾备**，不承载线上运行。
+- 路径：`https://cnb.cool/DengTaArchive2026/dengta-workspace`
+- 默认分支：`main`
+- 快照内容：`frontend/`、`frontend-ios/`、`backend/`、`docs/`、`tools/`
+- 不再向旧仓库 `cnb.cool/dengtahome/dengtahome` 写入。
+- 旧仓库保留只读，不再作为备份目标。
 
-## 7. 账号迁移期间
+## 6. Vercel / Render 部署规则
 
-- 旧 Google 账号 `tnineninet@gmail.com` 的 OAuth 授权到期前，必须把
-  GitHub / Vercel / Render / Supabase / CNB 的所有权或管理员身份迁移到
-  `naiyouhaochi520@gmail.com`，并轮换 token。
-- Cloudflare 当前无法登录，作为唯一未完成项记录；DNS 迁移/恢复另行处理。
-- 迁移完成后，本文件仍需保留，作为长期同步纪律。
+- Vercel 只从 `tnineninet/dengta-home-frontend` 的 `main` 自动部署。
+- Render 只从 `tnineninet/dengta-home-backend` 的 `main` 自动部署。
+- 变更仓库归属、可见性或 Git 集成后，必须重新检查：
+  - Vercel：Project → Settings → Git
+  - Render：Service → Settings → Build & Deploy → Repository
+- Vercel 前端仓库目前为 public；如改回 private，Hobby 套餐会再次拒绝组织私有仓库。
+
+## 7. 本地备份规则
+
+每次重要更新后刷新：
+
+```text
+D:\GZdeepseek\backup\workspace-snapshot-<日期>\
+```
+
+至少包含：
+
+- frontend/backend/docs/iOS 的 Git bundle
+- 未提交 patch
+- 源码 ZIP
+- `manifest.json`（SHA-256）
+
+本地备份不能替代 GitHub/CNB；三者必须同时存在。
+
+## 8. 恢复顺序
+
+1. 从 GitHub `tnineninet` 对应仓库 clone。
+2. 从 CNB `DengTaArchive2026/dengta-workspace` clone 完整快照。
+3. 对比 `SYNC-MANIFEST.json` 的 commit、文件数、字节数。
+4. 从本机/加密库恢复 `.env` 和凭据。
+5. 运行构建和最小回归后继续开发。
+
+## 9. 账号迁移遗留项
+
+- Cloudflare 仍无法登录；DNS 迁移/恢复另行处理，未完成前不要改 DNS。
+- 旧 CNB 空仓库可在确认新仓库稳定后删除。
+- CNB all-scope 令牌仅限过渡期使用，稳定后换成只限 `DengTaArchive2026/dengta-workspace` 的 `repo-code:rw` 令牌。
