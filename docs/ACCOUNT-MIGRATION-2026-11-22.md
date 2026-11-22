@@ -49,3 +49,13 @@
 - 旧 Google 账号的 OAuth 授权到期前完成上述迁移；不要只依赖旧账号的浏览器会话。
 - 迁移期间保留旧账号访问，直到新账号全部验证通过。
 - Cloudflare 未恢复前，不要改 DNS/域名注册信息，避免双重故障。
+
+
+## 2026-11-22 新邮箱切换记录
+
+- 原定 `naiyouhaochi520@gmail.com` 已不可用，目标改为 `2458077782sans@gmail.com`。
+- Render workspace 邮箱已成功改为新邮箱，并通过 Render API 验证。
+- Vercel 已加入新邮箱但未验证；验证后设为主邮箱并移除 `tnineninet@gmail.com`。
+- Supabase 已邀请新邮箱为 Owner。
+- GitHub：给新邮箱发组织 Owner 邀请返回“already a part of this organization”；给 `DengTaHome` 账号添加该邮箱也失败（422）。这通常表示该邮箱已绑定到组织内另一个 GitHub 账号（可能是 `Jessica-tce`）。不要重复点击；用新邮箱走 GitHub 密码重置/登录，确认对应账号后再决定是否转移仓库。
+- CNB 仍只支持微信登录；当前微信账号无仓库写权限，暂不能上传快照。
