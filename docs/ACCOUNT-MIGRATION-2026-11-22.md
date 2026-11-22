@@ -1,9 +1,11 @@
 # Google 账号封禁后的迁移记录（2026-11-22）
 
+> 2026-11-22 更新：原定新账号 `naiyouhaochi520@gmail.com` 已不可用，迁移目标改为 `2458077782sans@gmail.com`。
+
 ## 已知影响
 
 - 旧 Google 账号：`tnineninet@gmail.com`（已封禁，不能作为唯一恢复入口）
-- 新 Google 账号：`naiyouhaochi520@gmail.com`（当前已登录，Google 服务可能需要设备/手机验证）
+- 新 Google 账号：`2458077782sans@gmail.com`（当前已登录，Google 服务可能需要设备/手机验证）
 - 新账号密码由用户持有，不写入本文档、仓库或聊天。
 
 ## 当前平台身份（审计时）
@@ -13,7 +15,7 @@
 | GitHub | 账号 `DengTaHome`；已验证 `buyaocaowo555@gmail.com`；`tnineninet@gmail.com` 为主邮箱但未验证；组织 `tnineninet` 有 `DengTaHome` 与 `Jessica-tce` 两位 Owner | 新 Gmail 加入组织并给 Owner；旧 Gmail 降级/移除 | 进行中 |
 | Vercel | `tnineninet@gmail.com`，team `buyaocaowo555-9312s-projects`，GitHub 登录 | 新 Gmail 加入账号/团队并给 Owner | 待操作；Hobby 团队邀请成员需 Pro |
 | Render | owner/workspace `dengta`，邮箱 `tnineninet@gmail.com`，GitHub 登录；Hobby，团队邀请需 Pro | 改工作区邮箱为新 Gmail；保持 GitHub 登录可用 | 待操作 |
-| Supabase | Organization `buyaocaowo555-collab's Org`，Owner `tnineninet@gmail.com` 与 `buyaocaowo555@gmail.com` | 邀请 `naiyouhaochi520@gmail.com` 为 Owner | 待操作 |
+| Supabase | Organization `buyaocaowo555-collab's Org`，Owner `tnineninet@gmail.com` 与 `buyaocaowo555@gmail.com` | 邀请 `2458077782sans@gmail.com` 为 Owner | 待操作 |
 | CNB | 微信登录账号 `cnb.covlGfKahIA`，仓库 `dengtahome/dengtahome` | 继续使用当前 CNB 账号；同步最新源码；新 Google/GitHub 账号作为备份入口 | 进行中 |
 | Cloudflare | `dengtahome.com` NS 在 Cloudflare；账号无法登录 | 恢复账号或转移 DNS | 阻塞，需用户人工处理 |
 | Google 账号 | 新账号已登录；旧账号封禁 | 新 Gmail 作为长期恢复邮箱 | 进行中 |
@@ -32,9 +34,9 @@
 ## 2026-11-22 执行记录
 
 - 已在浏览器中登录 CNB、Vercel、Render、Supabase、GitHub、新 Google 账号。
-- GitHub：已向 `naiyouhaochi520@gmail.com` 发出组织 `tnineninet` 的 **Owner** 邀请；当前显示 `login: null`，说明该邮箱还没有对应 GitHub 账号，需要新账号注册后接受邀请。当前 GitHub 账号 `DengTaHome` 的已验证邮箱是 `buyaocaowo555@gmail.com`；`tnineninet@gmail.com` 仍为主邮箱但未验证。
-- Supabase：已向 `naiyouhaochi520@gmail.com` 发出 Organization **Owner** 邀请，页面显示 INVITED，需要新账号接受。
-- Vercel：尝试添加 `naiyouhaochi520@gmail.com`，页面要求输入 Vercel 6 位 2FA 验证码；尚未完成。Hobby 团队限制邀请成员，建议优先完成邮箱验证并设为主邮箱。
+- GitHub：已向 `2458077782sans@gmail.com` 发出组织 `tnineninet` 的 **Owner** 邀请；当前显示 `login: null`，说明该邮箱还没有对应 GitHub 账号，需要新账号注册后接受邀请。当前 GitHub 账号 `DengTaHome` 的已验证邮箱是 `buyaocaowo555@gmail.com`；`tnineninet@gmail.com` 仍为主邮箱但未验证。
+- Supabase：已向 `2458077782sans@gmail.com` 发出 Organization **Owner** 邀请，页面显示 INVITED，需要新账号接受。
+- Vercel：尝试添加 `2458077782sans@gmail.com`，页面要求输入 Vercel 6 位 2FA 验证码；尚未完成。Hobby 团队限制邀请成员，建议优先完成邮箱验证并设为主邮箱。
 - Render：Hobby 工作区限制邀请成员；工作区邮箱仍为 `tnineninet@gmail.com`，需在 Settings → General → Email 修改或升级 Pro。
 - CNB：当前登录账号 `cnb.covlGfKahIA` 对 `dengtahome/dengtahome` 没有仓库写权限；使用新建访问令牌 push 返回 `Repository Not Found`。需要改用拥有 `dengtahome` 组织权限的账号（GitHub 登录）或先把当前账号加入仓库。
 - Cloudflare：无法登录，DNS 迁移暂缓。
