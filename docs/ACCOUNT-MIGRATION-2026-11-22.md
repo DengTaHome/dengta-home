@@ -29,6 +29,18 @@
 7. 轮换 GitHub PAT、Vercel/Render/Supabase/CNB token；更新 `_credentials`；删除旧 token。
 8. 验证：从新账号登录 GitHub/Vercel/Render/Supabase/CNB，确认能访问项目；从 CNB clone 验证源码完整。
 
+## 2026-11-22 执行记录
+
+- 已在浏览器中登录 CNB、Vercel、Render、Supabase、GitHub、新 Google 账号。
+- GitHub：已向 `naiyouhaochi520@gmail.com` 发出组织 `tnineninet` 的 **Owner** 邀请；当前显示 `login: null`，说明该邮箱还没有对应 GitHub 账号，需要新账号注册后接受邀请。当前 GitHub 账号 `DengTaHome` 的已验证邮箱是 `buyaocaowo555@gmail.com`；`tnineninet@gmail.com` 仍为主邮箱但未验证。
+- Supabase：已向 `naiyouhaochi520@gmail.com` 发出 Organization **Owner** 邀请，页面显示 INVITED，需要新账号接受。
+- Vercel：尝试添加 `naiyouhaochi520@gmail.com`，页面要求输入 Vercel 6 位 2FA 验证码；尚未完成。Hobby 团队限制邀请成员，建议优先完成邮箱验证并设为主邮箱。
+- Render：Hobby 工作区限制邀请成员；工作区邮箱仍为 `tnineninet@gmail.com`，需在 Settings → General → Email 修改或升级 Pro。
+- CNB：当前登录账号 `cnb.covlGfKahIA` 对 `dengtahome/dengtahome` 没有仓库写权限；使用新建访问令牌 push 返回 `Repository Not Found`。需要改用拥有 `dengtahome` 组织权限的账号（GitHub 登录）或先把当前账号加入仓库。
+- Cloudflare：无法登录，DNS 迁移暂缓。
+- 本地备份：`D:\GZdeepseek\backup\workspace-snapshot-20261122\`（完整源码 ZIP + 各仓库 bundle + 未提交 patch + manifest）。
+- CNB 工作区快照已生成：`D:\GZdeepseek\_incoming\cnb-workspace-20261122\`（3060 文件，约 95MB，待有权限的 CNB 账号推送）。
+
 ## 迁移期间安全规则
 
 - 不在聊天、日志、仓库中写密码/token。
