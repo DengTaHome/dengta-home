@@ -2353,3 +2353,26 @@ cd ../frontend && node --test test/voice-output.test.js && node node_modules/vit
 - 2026-11-19T01:10Z：变化 0、错误 2（SnowLuma not-found、CNB 代理不可用）。
 - qq-bridge 出现归档前最后提交 `12e66d2c`（PR #186，release **v0.2.2-final**）；项目已停止维护，现有本地 QQ 栈可继续运行但不再升级，云 QQ 是后续方向。
 - x-twikit 仍为 11-13 的 `ec842b1d`；其余无变化，未改生产数据。
+
+
+## 轮次 175（2026-11-23T20:39:05+08:00）· REPO-WATCH + 发布链路
+
+### 发现
+- 读取 `docs/REPO-WATCH.md` 并重新运行 `tools/repo-watch/watch.mjs`：外部依赖项目无新增 commit/release；`SnowLuma/SnowLuma` 仍为 not-found，CNB 已改为 `DengTaArchive2026/dengta-workspace`（私有，使用本机令牌只读追踪）。
+- 本轮变化仅来自 DengTa 自身：前端发布工作流和 PWA 健康检查；仓库追踪列表已从旧的 `DengTaHome/*` 更新为 `tnineninet/*`。
+
+### 改动
+- `frontend/.github/workflows/android-apk.yml`：发布 manifest 提交不再触发 APK 构建，避免递归发布；修正 YAML 条件引号。
+- `frontend/.github/workflows/publish-android-apk.yml`：Android 构建成功后自动发布 release APK、更新 `public/updates/android.json` / `download.json`、触发网站部署；旧 Vercel deploy hook 改为可选，依赖 Git 集成。
+- `frontend/scripts/deployment-health.mjs`：新增 manifest、service worker、PWA 图标检查。
+- `dengta-home/docs/SYNC-POLICY.md`：新增网页安装 + 软件内更新包的发布完成标准。
+- `dengta-home/tools/repo-watch/*`：切到新 GitHub org/CNB 快照，CNB 使用本机令牌只读检查。
+
+### 验证
+- `node --check scripts/deployment-health.mjs` 通过；工作流用 PyYAML 解析通过。
+- 线上 `deployment-health`：manifest 200、sw.js 200、PWA manifestOk/swOk 均 true；feed 2.13.52/310，APK 200、size 36,466,847、后端 200。
+- CNB 快照 `2fecd20`，3514 文件，已推送；GitHub workflow/docs 已更新。
+- GitHub Actions 仍为 `startup_failure`，疑似 Actions 账单/额度；网页部署仍由 Vercel 完成。
+
+### 需要用户决策
+- 修复 GitHub Actions Billing 后，自动 APK 发布会生效；在此之前软件内更新包不会自动产出。
