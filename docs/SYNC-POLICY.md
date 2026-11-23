@@ -123,7 +123,47 @@ D:\GZdeepseek\backup\workspace-snapshot-<日期>\
 4. 从本机/加密库恢复 `.env` 和凭据。
 5. 运行构建和最小回归后继续开发。
 
-## 9. 账号迁移遗留项
+## 9. 网页安装与软件内更新包
+
+DengTa 的一次“更新完成”必须同时满足网页安装和软件内更新两条链路：
+
+### 网页安装（PWA）
+
+- 前端推送到 `tnineninet/dengta-home-frontend` 的 `main`，触发 Vercel 自动部署。
+- 部署必须包含：
+  - `/manifest.webmanifest`
+  - `/sw.js`
+  - 192x192 和 512x512 图标
+- `scripts/deployment-health.mjs` 会检查 manifest、service worker、站点资源和 APK feed；任何一项失败都视为发布失败。
+
+### 软件内安装更新包（Android）
+
+- `Build Android APK` 在 frontend 相关路径更新并通过测试后运行。
+- 成功后，`Publish Android APK` 自动：
+  1. 构建 release APK；
+  2. 上传到 Supabase `dengta-updates`；
+  3. 更新 `public/updates/android.json` 和 `public/updates/download.json`；
+  4. 提交并推送 main；
+  5. 触发/等待 Vercel 网站部署；
+  6. 校验线上 feed 的 `version_code` 和 APK SHA-256。
+- `public/updates/android.json` 的 `version_code` 必须递增，`apk_url`、`sha256`、`size_bytes` 必须和实际上传的 APK 一致。
+- 旧 APK 保留最近 3 个版本，避免 storage 无限增长。
+
+### 发布完成判定
+
+以下全部通过才算一次更新完成：
+
+```text
+网页 manifest + service worker 可用
+线上 /updates/android.json 指向新 version_code
+APK 可下载且 HTTP 200
+APK size 与 sha256 和 feed 一致
+GitHub + CNB + 本地备份均已更新
+```
+
+如果 GitHub Actions 因账单/额度无法启动，不能把这次更新标记为完成；需要先修复 Billing，或在本地执行等价的 APK 构建、上传、manifest 提交和线上校验。
+
+## 10. 账号迁移遗留项
 
 - Cloudflare 仍无法登录；DNS 迁移/恢复另行处理，未完成前不要改 DNS。
 - 旧 CNB 空仓库可在确认新仓库稳定后删除。
