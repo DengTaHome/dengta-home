@@ -29,6 +29,19 @@ function token() {
     }
 }
 const TOKEN = token();
+const CNB_TOKEN = (() => {
+    if (process.env.CNB_TOKEN) return process.env.CNB_TOKEN.trim();
+    try {
+        const candidates = [
+            path.join("D:\\GZdeepseek", "_credentials", "cnb-newaccount-all-token-20261122.txt"),
+            path.join("D:\\GZdeepseek", "_credentials", "cnb-access-token-20261122.txt"),
+        ];
+        for (const file of candidates) {
+            if (fs.existsSync(file)) return fs.readFileSync(file, "utf8").trim();
+        }
+    } catch { /* unauthenticated public fallback */ }
+    return "";
+})();
 
 function credentialProxy() {
     try {
@@ -146,23 +159,26 @@ for (const repo of config.repos) {
 }
 
 
-// CNB 镜像仓库：只做 HEAD 追踪（GitHub Actions 额度恢复后再同步）。
+// CNB 完整工作区快照：只做 HEAD 追踪（由 tools/sync-all-platforms.ps1 推送）。
 for (const repo of (config.cnbRepos || [])) {
     try {
+        const branch = String(config.cnbBranch || "main");
         const gitBin = process.env.GIT_BIN || (fs.existsSync("D:\\GZdeepseek\\_tools\\git\\cmd\\git.exe") ? "D:\\GZdeepseek\\_tools\\git\\cmd\\git.exe" : "git");
-        const args = ["ls-remote", `https://cnb.cool/${repo}.git`, "refs/heads/frontend-main"];
-        const proxy = configuredProxy();
-        if (proxy) args.unshift("-c", `http.proxy=${proxy}`, "-c", `https.proxy=${proxy}`);
+        const args = ["-c", "http.proxy=", "-c", "https.proxy="];
+        if (CNB_TOKEN) {
+            args.push("-c", `http.extraheader=Authorization: Basic ${Buffer.from(`cnb:${CNB_TOKEN}`).toString("base64")}`);
+        }
+        args.push("ls-remote", `https://cnb.cool/${repo}.git`, `refs/heads/${branch}`);
         const output = execFileSync(gitBin, args, { encoding: "utf8", windowsHide: true, timeout: 30000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
         const sha = String(output).trim().split(/\s+/)[0] || "";
-        if (!sha) throw new Error("ls-remote returned no frontend-main commit");
+        if (!sha) throw new Error(`ls-remote returned no ${branch} commit`);
         const record = {
             full_name: repo,
             host: "cnb.cool",
             stars: null,
             pushed_at: null,
             commit_sha: shortSha(sha),
-            commit_message: "CNB frontend-main HEAD",
+            commit_message: `CNB ${branch} HEAD`,
             commit_date: null,
             release_tag: "",
             release_date: null,
