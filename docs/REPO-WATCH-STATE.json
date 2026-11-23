@@ -1,41 +1,41 @@
 {
-  "updatedAt": "2026-11-02T01:20:22.960Z",
+  "updatedAt": "2026-11-23T12:38:32.243Z",
   "repos": {
-    "DengTaHome/dengta-home": {
-      "full_name": "DengTaHome/dengta-home",
+    "tnineninet/dengta-home": {
+      "full_name": "tnineninet/dengta-home",
       "stars": 4,
-      "pushed_at": "2026-11-02T01:14:43Z",
-      "commit_sha": "b8d91a40",
-      "commit_message": "Record Nov 2 Actions signing blocker",
-      "commit_date": "2026-11-02T01:14:41Z",
+      "pushed_at": "2026-11-23T12:29:53Z",
+      "commit_sha": "2ebe8a02",
+      "commit_message": "Document web install and in-app APK release gate",
+      "commit_date": "2026-11-23T12:29:53Z",
       "release_tag": "v2.13.43",
       "release_date": "2026-10-28T16:56:40Z",
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
-    "DengTaHome/dengta-home-backend": {
-      "full_name": "DengTaHome/dengta-home-backend",
+    "tnineninet/dengta-home-backend": {
+      "full_name": "tnineninet/dengta-home-backend",
       "stars": 0,
-      "pushed_at": "2026-10-30T06:03:16Z",
-      "commit_sha": "da16cbda",
-      "commit_message": "Update chat contract for deleted-session recovery",
-      "commit_date": "2026-10-30T06:03:14Z",
+      "pushed_at": "2026-11-06T10:02:55Z",
+      "commit_sha": "b1d60630",
+      "commit_message": "Merge QQ cloud onboarding and AstrBot persona export",
+      "commit_date": "2026-11-06T10:02:55Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
-    "DengTaHome/dengta-home-frontend": {
-      "full_name": "DengTaHome/dengta-home-frontend",
+    "tnineninet/dengta-home-frontend": {
+      "full_name": "tnineninet/dengta-home-frontend",
       "stars": 0,
-      "pushed_at": "2026-10-30T06:58:56Z",
-      "commit_sha": "4916b678",
-      "commit_message": "Add LF download CSP hash",
-      "commit_date": "2026-10-30T06:58:54Z",
+      "pushed_at": "2026-11-23T12:33:52Z",
+      "commit_sha": "af5c29fd",
+      "commit_message": "Fix Android APK workflow YAML quoting",
+      "commit_date": "2026-11-23T12:33:51Z",
       "release_tag": "v2.13.47",
       "release_date": "2026-10-29T15:05:15Z",
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
-    "DengTaHome/kiwi-mem-dengta": {
-      "full_name": "DengTaHome/kiwi-mem-dengta",
+    "tnineninet/kiwi-mem-dengta": {
+      "full_name": "tnineninet/kiwi-mem-dengta",
       "stars": 0,
       "pushed_at": "2026-08-18T16:35:43Z",
       "commit_sha": "483a0c5a",
@@ -43,7 +43,7 @@
       "commit_date": "2026-08-18T16:35:31Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "Geokkk/wechat-ilink-bridge-hardened": {
       "full_name": "Geokkk/wechat-ilink-bridge-hardened",
@@ -54,40 +54,40 @@
       "commit_date": "2026-10-28T08:49:56Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "DONGH4O/wechat-ilink-bridge": {
       "full_name": "DONGH4O/wechat-ilink-bridge",
-      "stars": 13,
+      "stars": 40,
       "pushed_at": "2026-05-18T12:46:22Z",
       "commit_sha": "7946df5d",
       "commit_message": "Release M14 M15 P2 adapters",
       "commit_date": "2026-05-18T12:43:43Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "SnowLuma/SnowLuma": {
       "full_name": "SnowLuma/SnowLuma",
-      "stars": 3413,
-      "pushed_at": "2026-11-02T01:09:32Z",
-      "commit_sha": "e9faec0e",
-      "commit_message": "chore(release): v2.3.4",
-      "commit_date": "2026-11-02T01:09:06Z",
-      "release_tag": "v2.3.4",
-      "release_date": "2026-11-02T01:14:10Z",
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "stars": 3692,
+      "pushed_at": "2026-11-04T15:23:47Z",
+      "commit_sha": "e44e4ced",
+      "commit_message": "chore(release): v2.4.0",
+      "commit_date": "2026-11-03T03:07:44Z",
+      "release_tag": "v2.4.0",
+      "release_date": "2026-11-03T03:13:42Z",
+      "checkedAt": "2026-11-06T01:10:02.104Z"
     },
     "yxiy171866-boop/x-twikit-mcp": {
       "full_name": "yxiy171866-boop/x-twikit-mcp",
-      "stars": 25,
-      "pushed_at": "2026-10-31T14:01:08Z",
-      "commit_sha": "cf2d3e04",
-      "commit_message": "fix(client): optimize client session reuse, anti-bot pacing, and error formatting",
-      "commit_date": "2026-10-31T14:01:00Z",
+      "stars": 35,
+      "pushed_at": "2026-11-13T13:08:39Z",
+      "commit_sha": "ec842b1d",
+      "commit_message": "feat(timezone): format tweet created_at to Asia/Shanghai (UTC+8) datetime string",
+      "commit_date": "2026-11-13T12:36:52Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "Anko3o/Music-Mcp-Netease": {
       "full_name": "Anko3o/Music-Mcp-Netease",
@@ -98,62 +98,62 @@
       "commit_date": "2026-10-27T17:58:33Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "Cheiineeey/netease-music-mcp": {
       "full_name": "Cheiineeey/netease-music-mcp",
-      "stars": 114,
+      "stars": 118,
       "pushed_at": "2026-10-01T18:10:01Z",
       "commit_sha": "547afbe0",
       "commit_message": "Adopt noncommercial licensing",
       "commit_date": "2026-10-01T18:07:13Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "Vael-KY/netease-music-mcp": {
       "full_name": "Vael-KY/netease-music-mcp",
-      "stars": 215,
-      "pushed_at": "2026-10-12T13:23:56Z",
-      "commit_sha": "7a9344bd",
-      "commit_message": "fix: apply 3.2.1 NetEase request and history repairs",
-      "commit_date": "2026-10-12T13:20:40Z",
+      "stars": 237,
+      "pushed_at": "2026-11-22T15:28:55Z",
+      "commit_sha": "af20456a",
+      "commit_message": "together: grade room events; a song that ran out and pauses go to the relay as quiet events",
+      "commit_date": "2026-11-22T15:27:47Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "ELDment/Meting-Agent": {
-      "full_name": "ELDment/Meting-Agent",
-      "stars": 116,
-      "pushed_at": "2026-03-20T13:54:40Z",
-      "commit_sha": "f91472c6",
-      "commit_message": "docs: Synchronize updates to improve user guidance",
-      "commit_date": "2026-03-20T13:54:02Z",
-      "release_tag": "v1.6.11",
-      "release_date": "2026-03-20T13:54:40Z",
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "full_name": "ELDment/meting-agent",
+      "stars": 119,
+      "pushed_at": "2026-11-21T18:35:28Z",
+      "commit_sha": "c22e26d7",
+      "commit_message": "refactor: 全面重构 Meting Agent 并重写构建发布流程 (#11)",
+      "commit_date": "2026-11-21T18:26:55Z",
+      "release_tag": "2026.11.22",
+      "release_date": "2026-11-21T18:28:34Z",
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "Derpyu520/qq-bridge": {
       "full_name": "Derpyu520/qq-bridge",
-      "stars": 3418,
-      "pushed_at": "2026-11-01T06:55:36Z",
-      "commit_sha": "b80fa51b",
-      "commit_message": "Merge pull request #146 from Derpyu520/dev",
-      "commit_date": "2026-11-01T06:48:48Z",
-      "release_tag": "v0.2.1-r2",
-      "release_date": "2026-10-31T16:44:18Z",
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "stars": 3679,
+      "pushed_at": "2026-11-18T04:12:53Z",
+      "commit_sha": "12e66d2c",
+      "commit_message": "Merge pull request #186 from Derpyu520/dev",
+      "commit_date": "2026-11-18T04:10:53Z",
+      "release_tag": "v0.2.2-final",
+      "release_date": "2026-11-18T04:12:58Z",
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "0xblewalker/dayflow": {
       "full_name": "0xblewalker/dayflow",
-      "stars": 50,
+      "stars": 54,
       "pushed_at": "2026-08-16T14:47:28Z",
       "commit_sha": "30b338c7",
       "commit_message": "Relicense current and future versions under AGPL-3.0-only",
       "commit_date": "2026-08-16T14:47:26Z",
       "release_tag": "v0.1.2",
       "release_date": "2026-08-09T19:41:04Z",
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "Cami-Ose/muse-toy-broadcaster": {
       "full_name": "Cami-Ose/muse-toy-broadcaster",
@@ -164,7 +164,7 @@
       "commit_date": "2026-08-27T08:53:00Z",
       "release_tag": "v1.0",
       "release_date": "2026-08-27T09:20:44Z",
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
     "Cami-Ose/navi-shell": {
       "full_name": "Cami-Ose/navi-shell",
@@ -175,19 +175,19 @@
       "commit_date": "2026-10-08T15:32:19Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     },
-    "dengtahome/dengtahome": {
-      "full_name": "dengtahome/dengtahome",
+    "DengTaArchive2026/dengta-workspace": {
+      "full_name": "DengTaArchive2026/dengta-workspace",
       "host": "cnb.cool",
       "stars": null,
       "pushed_at": null,
-      "commit_sha": "4916b678",
-      "commit_message": "CNB frontend-main HEAD",
+      "commit_sha": "2fecd209",
+      "commit_message": "CNB main HEAD",
       "commit_date": null,
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-02T01:20:22.960Z"
+      "checkedAt": "2026-11-23T12:38:32.243Z"
     }
   }
 }
