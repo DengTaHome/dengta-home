@@ -68,3 +68,11 @@
 | `TC-SDD-01` | SDD 文档双向可追溯性 | 运行 `node D:\GZdeepseek\dengta-home\tools\verify-sdd-compliance.mjs` | 主规范中全部 `SPEC-*` ID 在需求表单、测例库与验收清单中 100% 匹配无孤儿条目 | `tools/verify-sdd-compliance.mjs` |
 | `TC-SDD-02` | 发布清单与实测 APK 一致性 | 运行 `verify-sdd-compliance.mjs` | `android.json` / `download.json` / `download.html` / `vercel.json` / `DENGTA-SDD-SPEC.md` / `CHANGELOG.md` 版本号及实盘 APK `size` 与 `sha256` 100% 一致 | `tools/verify-sdd-compliance.mjs` |
 | `TC-SDD-03` | 红线防回归与零密钥扫描 | 运行 `verify-sdd-compliance.mjs` | 无高危密钥模式泄露、无 `#f3dccb` 小棉花白桃背景回归、存在 `18px` 复选框锁与 `user-agents-md` 契约 | `tools/verify-sdd-compliance.mjs` |
+
+## 8. AI 视界与 B站/抖音/小红书多平台接入向导（`SPEC-CREATOR-ONBOARDING`）
+
+| 测例 ID | 场景 | 操作步骤 | 可观察预期结果 | 自动化映射 |
+|---|---|---|---|---|
+| `TC-CREATOR-01` | MCP 插件中心与小红书入口准确跳转 | 分别在 AI 视界 / X / 剪映 / 一起看点击「MCP 插件中心」，并在接入向导点击「打开小红书登录与发布」 | 前者准确打开「设置 → 设备与共看 (`devices`)」并滚动至 `#mcp-device-center`（绝不误开「模型与服务」）；后者准确打开「设置 → 成就与新玩法 (`fun`)」并聚焦 `#xhs-login-section` | `frontend-gh/test/creator-world-onboarding.test.js` |
+| `TC-CREATOR-02` | 本机/局域网 18088 网关直连与真实状态 | 在「AI 视界·创作者 → 接入向导」填入 `http://127.0.0.1:18088` 或局域网 IP 点「测试并连接本机网关」 | 连通后持久化共用地址并切换「本机创作者网关在线」，立即刷新 B 站实时热点与 FFmpeg 视频；云端 404 且本机未启动时如实显示离线策划模式，不虚报在线 | `frontend-gh/test/creator-world-onboarding.test.js` |
+| `TC-CREATOR-03` | MCP 模板 Bearer 默认与 HTTPS 陷阱提示 | 在 MCP 插件中心点击 B 站/抖音/视频工坊「使用此应用」并检查 AI 视界文案 | 授权方式自动设为 `bearer` 并平滑滚动到表单；AI 视界明确区分本机直连与云端公网 `https://.../mcp`（附 `cloudflared tunnel` 命令），不诱导直接填 `127.0.0.1` 进云端 MCP 表单 | `creator-world-onboarding.test.js` + `mcp-device-center.test.js` |

@@ -61,3 +61,9 @@
 - [x] 整合历史交接文档（`AI-HANDOVER-2026-11-25`、`ENGINEERING-AUDIT`、`OPTIMIZATION-LEDGER`）与 `v2.13.53`–`v2.13.62` 全量需求，沉淀结构化需求表单 [REQUIREMENTS-FORM.md](file:///D:/GZdeepseek/dengta-home/docs/sdd/REQUIREMENTS-FORM.md)（含 `In/Out` 边界与可执行交互明细）
 - [x] 建立可执行验收测例库 [TEST-CASES.md](file:///D:/GZdeepseek/dengta-home/docs/sdd/TEST-CASES.md) 并补齐 [SYNC-LEDGER.md](file:///D:/GZdeepseek/dengta-home/docs/SYNC-LEDGER.md) 同步台账
 - [x] 落地 SDD Harness 自动化合规检查门禁 [verify-sdd-compliance.mjs](file:///D:/GZdeepseek/dengta-home/tools/verify-sdd-compliance.mjs) 并全项通过（exit 0）
+
+## J. AI 视界与 B站/抖音/小红书多平台接入向导（`SPEC-CREATOR-ONBOARDING`）
+- [x] 修复 `App.jsx` 全部 4 处「MCP 插件中心」跳转改用 `openMcpDeviceCenter()` 准确进入 `settingsCategory="devices"` 与 `#mcp-device-center`，新增 `openXhsSettings()` 直达小红书登录与发布面板
+- [x] `CreatorWorldStudio.jsx` 新增「接入向导 · 平台入口」标签页与「怎么接入？」快捷入口，支持本机/局域网 `18088` 网关一键测试连接、真实状态徽章、B站/小红书/抖音/剪映四平台一键直达与 `18px` 复选框锁
+- [x] `McpDeviceCenter.jsx` 创作者应用模板自动切换 Bearer 并平滑滚至表单；`dengta-creator-bridge-mcp/server.js` 放行 `https://dengta-home.vercel.app` CORS 与 PNA 预检
+- [x] 自动化单测 `test/creator-world-onboarding.test.js` + `test/mcp-device-center.test.js` 全部通过

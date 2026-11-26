@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.63-sdd.3`  
-> **对应应用版本**：`v2.13.63`（Android `versionCode 321`）  
+> **文档版本**：`v2.13.64-sdd.4`  
+> **对应应用版本**：`v2.13.64`（Android `versionCode 322`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：
@@ -106,6 +106,12 @@
 ### 模块 I · 既有成熟能力基线（汇总自历史交接与工程审计）
 - **流光天幕 60fps 零闪屏 + 灵动岛中控 + 多平台点外卖 + 混合语义知识库与 28/29 种家庭常备药联用预警 + Floating UI 全局悬浮卡片**（`2026-11-25` 审计基线）。
 - **记忆与人格自由导入导出**（45+ 文件格式 + MCP 外部记忆导入 + Kiwi 记忆健康与召回诊断）、**灯塔邮局（Surprise Map）**、**AI 创作者与 `dbskill` / `adudir-open` 剪映本地工作区桥接**。
+
+### 模块 J · AI 视界与 B站/抖音/小红书多平台接入向导（`SPEC-CREATOR-ONBOARDING` · v2.13.64）
+- **可执行规范**：
+  1. **全站 MCP 跳转与小红书直达路由（`App.jsx`）**：所有「MCP 插件中心 / 去绑定 MCP」入口统一调用 `openMcpDeviceCenter()` 准确进入 `settingsCategory="devices"` 并聚焦 `#mcp-device-center`（彻底杜绝误开「模型与服务」）；新增 `openXhsSettings()` 直达 `settingsCategory="fun"` 并聚焦 `#xhs-login-section`。
+  2. **AI 视界一站式接入向导与本机 18088 网关同步（`CreatorWorldStudio.jsx` + `creator-world-studio.css`）**：提供顶部「怎么接入？」按钮与「接入向导 · 平台入口」标签页，与 `LocalAgentStudio` 共用 `getSavedBridgeBaseUrl()` / `setSavedBridgeBaseUrl()`，支持本机 `127.0.0.1:18088` 或同 Wi-Fi 局域网 IP 一键测试连接并自动回落探测；如实展示在线/离线状态（云端 404 不再虚报已连接）；分卡清晰列出 B 站、小红书、抖音、剪映的「免配置开箱即用功能」与「进阶登录/MCP 接口位置」并提供一键直达按钮与 `cloudflared tunnel` 公网 HTTPS 隧道说明；复选框锁死 `18px × 18px`。
+  3. **MCP 模板与本机网关 CORS 加固（`McpDeviceCenter.jsx` + `dengta-creator-bridge-mcp/server.js`）**：创作者模板默认 `auth_type="bearer"` 并平滑滚动至连接表单；本机网关放行精确 `https://dengta-home.vercel.app` Origin 及 `Access-Control-Allow-Private-Network: true`。
 
 ---
 

@@ -4,6 +4,19 @@
 
 ---
 
+## `v2.13.64`（2026-11-27）— AI 视界 · B站/抖音/小红书一站式接入向导、修复「MCP 插件中心」全站跳转错位与本机 18088 网关直连
+
+- **根治「MCP 插件中心」全站跳转错位大 Bug（`App.jsx`）**：
+  - 修复 `CreatorWorldStudio`、`XHub`、`LocalAgentStudio`、`Together` 全部 4 处点击「MCP 插件中心 / 去绑定 MCP」误调 `openProviderRecovery()`（打开「模型与服务」而非「设备与共看」）导致找不到 MCP 接口表单的缺陷；新增 `openMcpDeviceCenter()` 准确进入 `settingsCategory="devices"` 并聚焦 `#mcp-device-center`，同步优化设置首页「设备与共看」副标题标明「MCP 插件中心（B站/抖音/X/网易云）」。
+  - 新增 `openXhsSettings()` 一键直达「设置 → 成就与新玩法 → 小红书」登录与发布面板。
+- **AI 视界新增「接入向导 · 平台入口」与本机 18088 网关直连（`CreatorWorldStudio.jsx` + `creator-world-studio.css` + `feature-navigation.js`）**：
+  - 新增「怎么接入？」顶部按钮与「接入向导 · 平台入口」标签页，将本机/局域网 `18088` 网关连接测试（与 `LocalAgentStudio` 共享持久化地址）、B 站（免配置热门 + 去一起看登录 + MCP）、小红书（dbskill 选题 + 一键打开小红书登录/发布面板 + worker 配置说明）、抖音（9:16 分镜/成片免配置 + 开放平台/MCP）与剪映工作台集中呈现并支持一键直达。
+  - 修正云端 `/api/v2/creator-bridge` 404 时虚报「后端已连接」的问题，支持自动回落本机 `127.0.0.1:18088` 与如实展示状态；消除「把 `127.0.0.1:18088/mcp` 直接填进云端 MCP 中心」的错误指引，补充 `cloudflared tunnel` 公网 HTTPS 隧道命令；锁定 `.cws-check input[type="checkbox"]` 为 `18px × 18px`。
+- **MCP 模板体验与本机网关 CORS 加固（`McpDeviceCenter.jsx` + `dengta-creator-bridge-mcp/server.js`）**：
+  - 点击 B 站/抖音/视频工坊/分发器模板自动预选 `bearer` 并平滑滚动到连接表单；本机网关放行 `https://dengta-home.vercel.app` 精确 Origin 与 `Access-Control-Allow-Private-Network: true`，允许桌面浏览器直连本机 `18088` 网关。
+
+---
+
 ## `v2.13.63`（2026-11-27）— 音乐工作室手机端全量根治（零裁切二维码 + `-462` 风控识别与 App 内一键登录直出 + 网易云 HTTPS 音频直链修复）& 侧边栏比例再精修
 
 - **音乐工作室零裁切二维码与 `-462` 风控根治（`MusicStudio.jsx` + `NeteaseQrLogin.jsx` + `music-studio.css` + `backend-prod/services/netease-qr-login.js`）**：
