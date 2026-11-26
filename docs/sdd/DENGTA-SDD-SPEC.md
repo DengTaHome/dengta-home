@@ -134,10 +134,14 @@
 
 ---
 
-## 9. `agents.md` 提示词分层注入与双断点缓存（`SPEC-PROMPT-PIPELINE` · v2.13.55）
+## 9. `agents.md` 提示词分层注入与双断点缓存（`SPEC-PROMPT-PIPELINE` · v2.13.55–v2.13.58）
 
 - **链路核验结论**：`buildUserAgentsMdPlan` → `<file path="agents.md">` 置于最高系统层首位，静态人设与锁定核心记忆前置、动态记忆去重后置、易变上下文隔离在最新消息前的 4 层架构（L0–L3）完全正确且符合主流 LLM KV Prefix Cache 机制。
 - **v2.13.55 强化**：`buildAnthropicSystem` 新增 **双断点 Ephemeral Cache**——当首位 `agents.md` 静态前缀自身达到可缓存阈值（≥1024 tokens）且后续仍有系统指令块时，在 `blocks[0]` 与尾部同时写入 `cache_control: { type: "ephemeral" }`，确保动态尾部变更不再击穿静态人设缓存。
+- **v2.13.58 升级**：
+  1. **全协议真实 KV-Cache 遥测（`ai-service.js`）**：新增 `extractProviderUsageMetrics` 与 `mergeProviderUsageMetrics`，统一采集 DeepSeek、OpenAI Chat/Responses、Anthropic（双事件流合并）与 Gemini 的 `cached_input_tokens` / `cache_creation_tokens` / `cache_hit_ratio`，并在 `prompt_receipt.upstream_usage` 透出。
+  2. **自定义接口控制台升级（`ai-provider-center.js` + `provider-form.js` + `AiProviderCenter.jsx`）**：后端 `testDraft`/`testProfile` 返回真实 `latency_ms`；前端自动识别 Base URL 协议并弹出「一键切换协议」提示，卡片与表单展示协议 KV 缓存能力与实测延迟徽章。
+  3. **`PromptPipelineInspector` + 设置面板精修**：新增「实时感知与严格时间」模板与 5 维自动体检清单；全局设置面板统一高精度 SVG 渲染（`geometricPrecision` / `round`）、滑入动效与 `reduced-motion` 兼容、Night Glass 高对比卡片及 `18px` 复选框锁定。
 
 ---
 

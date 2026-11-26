@@ -4,6 +4,20 @@
 
 ---
 
+## `v2.13.58`（2026-11-27）— `agents.md` 提示词 KV 缓存遥测闭环 + 自定义 API 控制台智能识别与测速 + 设置面板动效/SVG/深浅双主题精修
+
+- **上游真实 KV-Cache 命中遥测（`backend-prod/services/ai-service.js`）**：新增 `extractProviderUsageMetrics()` 与 `mergeProviderUsageMetrics()`，统一解析 DeepSeek（`prompt_cache_hit_tokens`）、OpenAI Chat/Responses（`prompt_tokens_details.cached_tokens` / `input_tokens_details.cached_tokens`）、Anthropic（`cache_read_input_tokens` / `cache_creation_input_tokens`，含流式 `message_start` + `message_delta` 合并）与 Gemini（`cachedContentTokenCount`），在聊天回执中非破坏性写入 `prompt_receipt.upstream_usage`（`input_tokens / output_tokens / cached_input_tokens / cache_creation_tokens / cache_hit_ratio`），同时保持 `user-agents-md.test.js` 1:1 原文透传契约。
+- **多供应商 API 控制台升级（`ai-provider-center.js` + `provider-form.js` + `AiProviderCenter.jsx`）**：
+  - 后端 `testDraft()` 与 `testProfile()` 实时测量并返回 `latency_ms`，前端自动读取模型目录与手动检测均展示耗时徽章（`142 ms` / `1.28 s`）。
+  - 新增 `inferProtocolFromBaseUrl()` 智能协议识别：粘贴 Anthropic / Gemini / OpenAI / DeepSeek / OpenRouter / 硅基流动 / Moonshot 地址时，若与当前协议不匹配则弹出「一键切换协议」建议条并展示协议级 KV 缓存策略标签（`双断点 Ephemeral` / `Prefix Cache Key` / `自动前缀 KV 缓存` / `1M+ 隐式长窗缓存`）。
+- **`PromptPipelineInspector` 提示词工作台升级**：新增第 5 项结构化模板「实时感知与严格时间」，新增 5 维自动「提示词链路体检清单」（顶层 `agents.md` 封装、静态前缀占比、8K Token 预算、Markdown 分节、密钥自动脱敏），并在 Anthropic 下标注双断点 Ephemeral 缓存状态。
+- **整体设置面板动效、SVG 精度与深浅主题视觉精修（`settings-home.css` / `settings-night-contrast.css` / `prompt-pipeline-inspector.css` / `index.css`）**：
+  - 全局设置面板 SVG 统一 `shape-rendering: geometricPrecision; stroke-linecap: round; stroke-linejoin: round;`；
+  - 新增 `.settings-sheet` 与 `.settings-sheet-backdrop` 轻盈入场动效、子页标题栏磨砂卡片质感与返回按钮独立胶囊，完整对齐 `prefers-reduced-motion` 与 `data-dengta-reduced-motion="true"`；
+  - 补齐 Night Glass 夜间模式下设置首页卡片、`PromptPipelineInspector` 工作台与折叠预览区的深色高对比样式，并将所有内联复选框锁定为 `18px × 18px`。
+
+---
+
 ## `v2.13.57`（2026-11-27）— 真机实测三项像素级缺陷根治 + 移动端冷启动登录态重试加固
 
 通过 vivo V2454A (Android 15 · `1080×2376`) 真机逐页实拍验收，一次性定位并根治 4 项细节问题：

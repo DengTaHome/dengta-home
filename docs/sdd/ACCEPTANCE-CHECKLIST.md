@@ -45,6 +45,9 @@
 - [x] `App.jsx` 发送消息时自动附带已开启的实时屏幕/摄像头临时视觉帧并注入 `environment_context.live_perception`
 - [x] 后端 `environment-context.js` 清洗并注入 `[实时多模态感知]` 运行时提示，`live-perception-context.test.js` 通过
 
-## H. `agents.md` 提示词缓存与 Mika 工具链（`SPEC-PROMPT-PIPELINE` / `SPEC-MIKA-PHONE-CONTROL`）
-- [x] `ai-service.js` `buildAnthropicSystem` 双断点 Ephemeral Cache 单测通过
-- [x] `wangzan101/Mika` 开源仓库与 `Mika-v0.1.51-arm64.apk` 已落盘，`mika_cli.py devices` 已识别连接设备 `10AF4G1GUX002N2`
+## H. `agents.md` 提示词缓存、自定义 API 控制台与设置面板精修（`SPEC-PROMPT-PIPELINE` / `SPEC-MIKA-PHONE-CONTROL`）
+- [x] `ai-service.js` `buildAnthropicSystem` 双断点 Ephemeral Cache + 四大协议 `extractProviderUsageMetrics` KV 缓存遥测单测通过（`prompt-pipeline-cache.test.js` + `user-agents-md.test.js`）
+- [x] `ai-provider-center.js` `testDraft` / `testProfile` 返回实测 `latency_ms`，`AiProviderCenter.jsx` 支持 Base URL 协议智能识别与一键切换、KV 缓存徽章及延迟徽章
+- [x] `PromptPipelineInspector.jsx` 具备 5 组结构化模板与 5 维自动提示词体检清单
+- [x] 设置面板 SVG 精度、滑入动效、Night Glass 对比度、reduced-motion 兼容与 `18px` 复选框锁定通过 `test/prompt-and-settings-polish.test.js` 与 `build:web`
+- [x] `wangzan101/Mika` 开源仓库与 `Mika-v0.1.51-arm64.apk` 已落盘，`mika_cli.py connect` 已成功连接 `10AF4G1GUX002N2`（`ready: true`）
