@@ -4,6 +4,23 @@
 
 ---
 
+## `v2.13.67`（2026-11-27）— 涂鸦画室调用链路与提示词书写逻辑专业化升级 + Windows 零乱码 GUI GitHub 同步工具 + 本机 X MCP 一键启动脚本
+
+- **专业视觉提示词工程引擎（`backend-prod/services/creative-prompt-engineer.js` + `tenant-companion-creative.js` + `companion-creative-tool.js`）**：
+  - 建立 7 层美术指导视觉编译规范（主体与动作 / 人物关系与情绪 / 构图与镜头 / 光线与色彩 / 材质与细节 / 画风与环境叙事物件 / 画面层次与成品质量），按 `avatar` / `doodle` / `gift` 自动套用差异化构图与默认画幅（`1:1` / `3:4` / `4:3`），内置 8 套专业画风预设与 5 种画幅比例。
+  - 自动清洗「请帮我画一张」等对话前缀及 `masterpiece, best quality, 8k` 等陈旧堆词，把短提示智能补全为可直接交付生图模型的具象视觉画面，并通过 `__DT_PROMPT_V2__:` 加密封套无损存入既有 `prompt_ciphertext` 列（零数据库迁移，`INV-01`）。
+  - 升级聊天工具 `create_artwork` Schema 与 `server.js` 触发提示（排除「别画/不要画」否定误触发，补全「出张图/做张壁纸/画个立绘」等专业表达）。
+- **多模型家族感知调用与渐进降级（`backend-prod/services/companion-creative.js` + `routes/companion-creative.js`）**：
+  - 自动识别 `gpt-image`、`dall-e-3`、`siliconflow`（`image_size` + `negative_prompt`）、`zhipu`、`gemini-image`、`openai-compatible`，免除 `gpt-image-1` 首次发 `response_format` 必败 400，并在上游返回 `400/422` 时逐级剥离可选字段重试。
+  - 新增 `PATCH /api/v2/creative/artworks/:id/prompt` 与 `POST /api/v2/creative/artworks/:id/refine-prompt`（使用文字模型零生图扣费润色）。
+- **涂鸦画室前端导演台与提示词工坊（`CompanionCreativeStudio.jsx` + `cozy-theme.css` + `native-feel.css`）**：
+  - 顶栏升级为创作导演台：支持可选画面主题输入、8 套画风预设、5 种画幅胶囊、标准/高清画质、可选避坑词及「按此直接建稿」；作品卡片新增「精修提示词 / 查看提示词」抽屉与「AI 专业润色」按钮；图片接口预设扩充至 8 项并展示实时协议适配徽章。
+- **运维工具体验根治**：
+  - 根治 `点我一键同步GitHub-*.cmd` 中文乱码与 `Read-Host -AsSecureString` 按 `Ctrl+V` 键入 `\x16` 控制字符报错问题：改为纯 UTF-8 Windows 原生弹窗 + 一键从剪贴板读取并自动清理控制字符。
+  - 补齐本机 `x-twikit-mcp` 代理适配（`127.0.0.1:7877`）与 `tools/x-mcp/start-x-mcp-tunnel.ps1` 一键启动验证脚本。
+
+---
+
 ## `v2.13.66`（2026-11-27）— 根治 X / Twitter「未连接却虚报已连接、功能全不可用」缺陷
 
 - **严格真实连接态机（`x-hub-utils.js` + `XHub.jsx` + `x-hub.css`）**：

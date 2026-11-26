@@ -91,3 +91,11 @@
 |---|---|---|---|---|
 | `TC-XHUB-01` | 杜绝名称含字母 x 误匹配与未启用/离线虚报已连接 | 传入含字母 `x` 的非 X 连接、未启用 X 连接、离线错误连接、0 工具连接与健康连接调用 `resolveXConnectionState` | 非 X 连接返回 `none`；未启用返回 `disabled`；错误/0 工具返回 `disconnected`；仅启用+已连通+含 X 工具才返回 `connected` | `frontend-gh/test/x-hub-status.test.js` |
 | `TC-XHUB-02` | 实测连通性、一键启用与失败自动翻红 | 检查 `XHub.jsx` 状态徽章与交互逻辑 | 无硬编码「MCP 网关在线」与 `/\bx\b/`；提供「实测连通性」与「一键启用并实测连通」，遇到 409/502/504 立即切回离线/未启用态 | `frontend-gh/test/x-hub-status.test.js` |
+
+## 11. 涂鸦画室专业提示词工程与多模型调用适配（`SPEC-CREATIVE-PROMPT-PRO`）
+
+| 测例 ID | 场景 | 操作步骤 | 可观察预期结果 | 自动化映射 |
+|---|---|---|---|---|
+| `TC-CREATIVE-01` | 废话与陈旧堆词清洗、短提示 7 层补全与 V2 加密封套兼容 | 调用 `sanitizeVisualPrompt`、`compileCreativePrompt`、`encodeArtworkPromptPayload` / `decodeArtworkPromptPayload` | 剥离「请帮我画一张」与 `masterpiece/best quality/8k`；短提示自动注入类型构图与画风媒介指导及负向避坑词；旧明文与新 V2 封套双向无损解码 | `backend-prod/test/creative-prompt-engineer.test.js` |
+| `TC-CREATIVE-02` | 多模型家族协议适配与 400/422 渐进降级重试 | 针对 `gpt-image-1`、`dall-e-3`、`Kwai-Kolors/Kolors`、`FLUX.1-schnell`、`test-image` 验证 `buildImageGenerationRequests` 与 `fetchGeneratedImage` | `gpt-image-1` 跳过无效 `response_format` 并映射 `1024x1536` + `quality=high`；SiliconFlow 使用 `image_size` + `negative_prompt`；遇到 400/422 逐级剥离可选字段重试成功 | `backend-prod/test/creative-prompt-engineer.test.js` + `companion-creative.test.js` |
+| `TC-CREATIVE-03` | 聊天 `create_artwork` 专业槽位与画室首屏零扣费兼容 | 调用 `createCompanionCreativeToolExecutor` 传精简/完整槽位；渲染 `CompanionArtStudio` 核对首屏请求 | 工具自动按 `kind` 匹配默认画幅并编译高质量提示词；打开涂鸦画室仍仅发 2 个 GET（`/status`、`/artworks`），无任何自动生图调用 | `companion-creative-tool.test.js` + `art-studio.component.test.js` |

@@ -79,3 +79,8 @@
 - [x] `x-hub-utils.js` 新增 `resolveXConnectionState()`，彻底移除裸 `/\bx\b/i` 误匹配，严格校验 `enabled === true`、`last_status === "connected"` 与真实 X 工具存在
 - [x] `XHub.jsx` + `x-hub.css` 移除硬编码「MCP 网关在线」，清晰呈现四态与诊断卡片，提供「实测连通性」「一键启用并实测连通」及工具调用失败自动翻红，新增用户资料/时间线查询卡
 - [x] 自动化单测 `test/x-hub-status.test.js`（3/3）及 `build:web` / `verify:csp` / `test:initial-bundle-budget` 全通过
+
+## M. 涂鸦画室专业提示词工程与多模型调用适配（`SPEC-CREATIVE-PROMPT-PRO` · `v2.13.67`）
+- [x] `creative-prompt-engineer.js` + `companion-creative.js` 实现 8 套画风预设、5 种画幅、7 层美术指导编译、零 DB 迁移 `__DT_PROMPT_V2__:` 加密封套及多模型家族渐进降级调用
+- [x] `companion-creative-tool.js` + `tenant-companion-creative.js` + `routes/companion-creative.js` + `server.js` 升级专业工具 Schema、否定句过滤、`PATCH /artworks/:id/prompt` 与 `POST /artworks/:id/refine-prompt`
+- [x] `CompanionCreativeStudio.jsx` + `cozy-theme.css` + `native-feel.css` 落地创作导演台、提示词精修/AI 免费润色抽屉与 8 项主流生图接口预设；前后端单测、ESLint、CSP 与包体预算全绿

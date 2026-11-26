@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.66-sdd.6`  
-> **对应应用版本**：`v2.13.66`（Android `versionCode 324`）  
+> **文档版本**：`v2.13.67-sdd.7`  
+> **对应应用版本**：`v2.13.67`（Android `versionCode 325`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：
@@ -123,6 +123,12 @@
 - **可执行规范**：
   1. **严格连接态判定（`x-hub-utils.js` `resolveXConnectionState`）**：严禁使用裸 `/\bx\b/i` 正则误匹配非 X 连接；只有同时满足 `enabled === true && last_status === "connected"` 且发现真实 X 工具（`search_tweets` / `post_tweet` 等）时才显示「● 已连接 · 可用」，其余明确区分为「○ 未连接」「◌ 已保存 · 未启用」「✕ 连接离线 / 不可用」。
   2. **实时连通性探测与工具按需启用（`XHub.jsx` + `x-hub.css`）**：移除硬编码「MCP 网关在线」文案；提供「实测连通性」「一键启用并实测连通」直连后端 `/api/mcp/connections/manage/:id/test`，调用遇 `409/502/504` 即时翻转真实离线/未启用态；按已发现工具动态呈现搜索、推文解析、用户资料/时间线与发帖卡片。
+
+### 模块 M · 涂鸦画室专业提示词工程与多模型调用适配（`SPEC-CREATIVE-PROMPT-PRO` · v2.13.67）
+- **可执行规范**：
+  1. **专业提示词编译引擎与零 Schema 变更 V2 封套（`backend-prod/services/creative-prompt-engineer.js` + `companion-creative.js`）**：内置 8 套专业画风预设（智能匹配/水彩手账/电影胶片/日系通透/暖调厚涂油画/彩铅淡彩速写/极简杂志人像/梦幻光影绘本）、5 种标准画幅（`1:1`/`3:4`/`4:3`/`9:16`/`16:9`）与分类型构图规范（`avatar`/`doodle`/`gift`）；自动剥离对话废话与陈旧 `masterpiece/best quality/8k` 堆词，将短提示补全为具象可绘制视觉分镜与避坑词，经 `__DT_PROMPT_V2__:` 加密存入既有 `prompt_ciphertext` 列（零 DB 迁移，`INV-01`）。
+  2. **模型家族感知的协议适配与渐进降级调用（`buildImageGenerationRequests` + `fetchGeneratedImage`）**：自动识别 `gpt-image`（免无效 `response_format` 报错并支持 `1024x1536`/`1536x1024` + `quality`）、`dall-e-3`（`quality`/`style`/`1792`）、`siliconflow`（`image_size` + `negative_prompt` + `batch_size`）、`zhipu`、`gemini-image` 与通用 `openai-compatible`，遇上游 `400/422` 逐级剥离可选字段重试以最大化调用成功率。
+  3. **聊天专业工具契约与涂鸦画室导演台（`companion-creative-tool.js` + `tenant-companion-creative.js` + `routes/companion-creative.js` + `server.js` + `CompanionCreativeStudio.jsx`）**：`create_artwork` 工具扩展 `aspect_ratio`/`style_preset`/`quality`/`composition`/`lighting_palette`/`medium_style`/`negative_prompt` 槽位并在触发提示排除否定句；涂鸦画室提供主题输入、画风/画幅/画质/避坑词选择、直接建稿及单卡「精修提示词」与免费文字模型「AI 专业润色」（`PATCH /artworks/:id/prompt`、`POST /artworks/:id/refine-prompt`）。
 
 ---
 
