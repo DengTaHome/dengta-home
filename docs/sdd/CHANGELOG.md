@@ -4,6 +4,16 @@
 
 ---
 
+## `v2.13.61`（2026-11-27）— 聊天记录 0ms 秒开架构（L0 同步启动快照 + `?after=` 增量差量拉取 + 侧边栏悬停/按压预热 + 会话切换 DOM 窗口重置）
+
+- **L0 同步本地启动快照（`chat-history-cache.js` + `App.jsx`）**：按「账号+伴侣」作用域在本地保存最近 20 个会话摘要与当前活跃会话最近 25 条精简消息（`< 48KB`）；打开 App 瞬间 `0ms` 同步还原聊天界面、消除冷启动等 `/api/v2/bootstrap` 时的空白加载转圈，同时后台静默校准设置与最新数据；人设清空或切账号时自动清除。
+- **零冗余 `?after=` 增量差量同步（`routes/v2/core.js` + `chat-history-cache.js` + `App.jsx`）**：
+  - `GET /api/v2/sessions/:id/messages` 新增 `?after=<iso>` 增量游标查询，仅返回晚于本地已校准最新消息的新条目（无新消息时仅 ~120 字节空数组，彻底避免重复下载 500 条全量 JSON）。
+  - 新增 `mergeIncrementalMessages()` 与 `areRawMessageListsEquivalent()`，无变化时跳过 `setMessages` 整页重绘与滚动跳动。
+- **侧边栏会话悬停/触碰预热（`prefetchSessionHistory`）**：鼠标悬停或手指刚触碰侧边栏会话条目时即异步预热 IndexedDB / 首屏 40 条到 L1 内存（带并发去重），点击瞬间 0ms 切换；为 `<ChatTranscript>` 绑定 `key={activeSessionId}`，切会话自动回归轻盈的 80 行 DOM 首屏窗口。
+
+---
+
 ## `v2.13.60`（2026-11-27）— Chronos 严格时间与自动唤醒架构深度加固（实时轮次时间差防遮蔽 + 未读退避防刷屏 + AI 全功能调度 + 准秒级前台唤醒）
 
 - **根治实时对话「自消息时间差遮蔽」核心缺陷（`chronos-engine.js` + `environment-context.js` + `server.js`）**：

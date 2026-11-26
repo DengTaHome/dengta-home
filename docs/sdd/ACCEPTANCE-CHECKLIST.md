@@ -8,6 +8,7 @@
 - [x] 无本地缓存时并发请求 `limit=40` 首屏与全量校准，流式回复中不被后台回执覆盖
 - [x] `ChatTranscript.jsx` 首屏 DOM 窗口缩减为 80 条，展开更早消息保持滚动位置不跳动
 - [x] `GET /api/v2/bootstrap` 单次往返预取最近会话 40 条消息 + `seedInitialHistory()` 零覆盖预热，消除无本地缓存冷启动二次 RTT（`v2.13.59`）
+- [x] L0 同步本地启动快照（0ms 无转圈秒开）+ `GET /api/v2/sessions/:id/messages?after=` 增量差量拉取 + 侧边栏悬停/触碰预热 + `<ChatTranscript key={activeSessionId}>` 窗口重置（`v2.13.61`）
 - [ ] 真机实测：打开聊天页/切换会话瞬间显示记录、无明显白屏卡顿
 
 ## B. 音乐工作室手机白屏与二维码登录态同步（`SPEC-MUSIC-STUDIO`）
