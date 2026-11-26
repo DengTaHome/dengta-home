@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.62-sdd.2`  
-> **对应应用版本**：`v2.13.62`（Android `versionCode 320`）  
+> **文档版本**：`v2.13.63-sdd.3`  
+> **对应应用版本**：`v2.13.63`（Android `versionCode 321`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：

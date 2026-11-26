@@ -1,7 +1,7 @@
 # DengTa（灯塔）全量 SDD 需求表单文档（Requirements Form）
 
 > **文档定位**：严格遵循 PMGao SDD（规范驱动开发）核心方法论，整合自历史交接文档（[AI-HANDOVER-2026-11-25.md](file:///D:/GZdeepseek/dengta-home/docs/AI-HANDOVER-2026-11-25.md)、[ENGINEERING-AUDIT-AND-DELIVERY-2026-11-25.md](file:///D:/GZdeepseek/dengta-home/docs/ENGINEERING-AUDIT-AND-DELIVERY-2026-11-25.md)、[OPTIMIZATION-LEDGER.md](file:///D:/GZdeepseek/dengta-home/docs/OPTIMIZATION-LEDGER.md)）与本轮连续迭代（`v2.13.53` → `v2.13.62`）的**单一结构化需求表单**。  
-> **文档版本**：`v2.13.62-req.1` · **更新日期**：`2026-11-27`  
+> **文档版本**：`v2.13.63-req.2` · **更新日期**：`2026-11-27`  
 > **使用规则**：后续任何新需求动代码前，必须先在本表新增或更新 `REQ-*` 条目并写清 **In/Out 边界、可执行交互明细与验收测例号**，禁止直接口头盲改。
 
 ---

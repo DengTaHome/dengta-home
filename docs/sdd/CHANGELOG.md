@@ -4,6 +4,18 @@
 
 ---
 
+## `v2.13.63`（2026-11-27）— 音乐工作室手机端全量根治（零裁切二维码 + `-462` 风控识别与 App 内一键登录直出 + 网易云 HTTPS 音频直链修复）& 侧边栏比例再精修
+
+- **音乐工作室零裁切二维码与 `-462` 风控根治（`MusicStudio.jsx` + `NeteaseQrLogin.jsx` + `music-studio.css` + `backend-prod/services/netease-qr-login.js`）**：
+  - 针对实机反馈「只显示一半二维码」：移动端（`<=700px`）将二维码画布显示收紧为 `180×180px`（保持 `248×248` 高清保存像素）、操作按钮排布为 2×2 紧凑矩阵、隐藏重复底注并增加 `88px` 底部滚动余量，确保完整二维码与全部操作按钮一屏完整显示且不被悬浮桌宠遮挡。
+  - 针对实机反馈「扫码后点我已扫码提示 `code -462 · 请完成验证操作` 检测失败」：前后端统一识别 `-462 / -460 / 8820 / 8821` 与验证/风控文案为 `risk_blocked`（不再死循环「等待扫码」），并在卡片主区直接置顶 **「App 内一键登录（免风控 · 推荐）」**（走手机本机网络 100% 绕开云端 IP 风控）；修复 `handleNativeCookieLogin` 漏检 `saved.ok`、补齐 `cookie_session` 模式下歌单（`/cookie/my-playlists`）、搜歌（`data.items`）与曲目直链拉取（`/cookie/song-url`）。
+- **一起听 / 随机放歌「歌曲暂时无法播放」根治（`built-in-now-playing.js` + `backend-prod/services/netease-cookie-session.js` + `routes/v2/music-cookie.js`）**：
+  - 前后端将网易云官方音频 CDN（`http://*.music.126.net/...`）安全升级为 `https://`，避免被客户端 HTTPS 直链校验拦截；`random-playable` 同步刷新 `netease_resolved` 过期签名，前端 `neteaseUrlFresh` 窗口由 12 小时收紧为 15 分钟。
+- **侧边栏比例再精修（`FeatureNavigation.jsx` + `feature-navigation.css` + `index.css` + `android-compat.css`）**：
+  - 提高 `.feature-navigation .primary-nav .feature-navigation-group-toggle` 优先级，根治分组标题被 `apple-ui.css` `.primary-nav button` 撑成 17px 巨型按钮的问题；将「找个玩法」标签收入无障碍 `sr-only` 与搜索框占位符；移动端 `44px` 方形规则收敛至 `.session-heading > button:last-child`；收紧最近对话列表至 `88px`、统一底部单行等高账号+设置 Dock，单屏可视玩法大幅增加。
+
+---
+
 ## `v2.13.62`（2026-11-27）— 小棉花 3D 渲染与舞台高对比度重塑（根治「白的啥也看不见」：毛绒立体顶点 AO + MToon 防过曝校准 + 蒙皮后法线外扩细描边 + 摄影棚底色切换 + 磨砂控制面板）
 
 - **毛绒立体着色与自然五官层次（`b1857-character.js`）**：在不改动 `b1857.json` 原模型与 49,853 顶点的前提下，基于每顶点位置与法线注入下颌/领毛折痕/爪底环境光遮蔽（AO）与浅奶咖过渡，增补耳尖淡杏色、耳廓淡粉、面颊微红腮红与嘴角笑弧，告别单调纯白一团糊。
