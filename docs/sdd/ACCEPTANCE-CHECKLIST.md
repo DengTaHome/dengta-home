@@ -55,3 +55,9 @@
 - [x] `PromptPipelineInspector.jsx` 具备 5 组结构化模板与 5 维自动提示词体检清单
 - [x] 设置面板 SVG 精度、滑入动效、Night Glass 对比度、reduced-motion 兼容与 `18px` 复选框锁定通过 `test/prompt-and-settings-polish.test.js` 与 `build:web`
 - [x] `wangzan101/Mika` 开源仓库与 `Mika-v0.1.51-arm64.apk` 已落盘，`mika_cli.py connect` 已成功连接 `10AF4G1GUX002N2`（`ready: true`）
+
+## I. SDD 规范驱动开发治理体系与自动化门禁（`SPEC-SDD-GOVERNANCE`）
+- [x] 完整读取并提炼 PMGao SDD 视频核心五支柱与三步闭环，同步更新 [DENGTA-SDD-SPEC.md](file:///D:/GZdeepseek/dengta-home/docs/sdd/DENGTA-SDD-SPEC.md) 至 `v2.13.62-sdd.2`
+- [x] 整合历史交接文档（`AI-HANDOVER-2026-11-25`、`ENGINEERING-AUDIT`、`OPTIMIZATION-LEDGER`）与 `v2.13.53`–`v2.13.62` 全量需求，沉淀结构化需求表单 [REQUIREMENTS-FORM.md](file:///D:/GZdeepseek/dengta-home/docs/sdd/REQUIREMENTS-FORM.md)（含 `In/Out` 边界与可执行交互明细）
+- [x] 建立可执行验收测例库 [TEST-CASES.md](file:///D:/GZdeepseek/dengta-home/docs/sdd/TEST-CASES.md) 并补齐 [SYNC-LEDGER.md](file:///D:/GZdeepseek/dengta-home/docs/SYNC-LEDGER.md) 同步台账
+- [x] 落地 SDD Harness 自动化合规检查门禁 [verify-sdd-compliance.mjs](file:///D:/GZdeepseek/dengta-home/tools/verify-sdd-compliance.mjs) 并全项通过（exit 0）

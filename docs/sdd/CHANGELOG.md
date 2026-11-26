@@ -14,6 +14,10 @@
 - **高对比摄影棚舞台底色与壁纸免疫控制卡（`CottonPet.jsx` + `cotton-pet.css` + `cotton-desktop-pet.css`）**：
   - 彻底移除浅桃白 `#f3dccb` / 浅灰白底色，改为 `>4.2:1` 高对比摄影棚深色调，并新增「底色：雾松绿 / 暖咖绒 / 暮色蓝」一键切换（MToon 下默认暮光紫罗兰，夜间为星夜深蓝）。
   - 为头部标题与右侧「一起照料的小日常」包裹基于 `--theme-card-rgb` 的防壁纸透字磨砂卡片，在彩色壁纸及 Night Glass 夜间模式下均保持高可读性，同步强化悬浮桌宠在亮色聊天页的轮廓对比度；已通过实时浏览器 WebGL 0 报错渲染验收。
+- **SDD 规范体系与自动化 Harness 门禁全面落地（对齐 PMGao SDD 方法论）**：
+  - 完整提炼视频三步闭环与五大支柱，升级 [DENGTA-SDD-SPEC.md](file:///D:/GZdeepseek/dengta-home/docs/sdd/DENGTA-SDD-SPEC.md) 至 `v2.13.62-sdd.2`；
+  - 整合历史交接文档（`AI-HANDOVER-2026-11-25`、`ENGINEERING-AUDIT`、`OPTIMIZATION-LEDGER`）与 `v2.13.53`–`v2.13.62` 全部需求，新建结构化全量需求表单 [REQUIREMENTS-FORM.md](file:///D:/GZdeepseek/dengta-home/docs/sdd/REQUIREMENTS-FORM.md)（含 `In/Out` 边界与可执行交互明细）与可执行验收测例库 [TEST-CASES.md](file:///D:/GZdeepseek/dengta-home/docs/sdd/TEST-CASES.md)，刷新 [SYNC-LEDGER.md](file:///D:/GZdeepseek/dengta-home/docs/SYNC-LEDGER.md)；
+  - 落地自动化合规门禁脚本 [verify-sdd-compliance.mjs](file:///D:/GZdeepseek/dengta-home/tools/verify-sdd-compliance.mjs)，自动校验 `SPEC-*` 双向追溯、多文件版本/实盘 APK SHA-256 一致性与红线防回归。
 
 ---
 

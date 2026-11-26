@@ -1,0 +1,68 @@
+# DengTa（灯塔）全量 SDD 需求表单文档（Requirements Form）
+
+> **文档定位**：严格遵循 PMGao SDD（规范驱动开发）核心方法论，整合自历史交接文档（[AI-HANDOVER-2026-11-25.md](file:///D:/GZdeepseek/dengta-home/docs/AI-HANDOVER-2026-11-25.md)、[ENGINEERING-AUDIT-AND-DELIVERY-2026-11-25.md](file:///D:/GZdeepseek/dengta-home/docs/ENGINEERING-AUDIT-AND-DELIVERY-2026-11-25.md)、[OPTIMIZATION-LEDGER.md](file:///D:/GZdeepseek/dengta-home/docs/OPTIMIZATION-LEDGER.md)）与本轮连续迭代（`v2.13.53` → `v2.13.62`）的**单一结构化需求表单**。  
+> **文档版本**：`v2.13.62-req.1` · **更新日期**：`2026-11-27`  
+> **使用规则**：后续任何新需求动代码前，必须先在本表新增或更新 `REQ-*` 条目并写清 **In/Out 边界、可执行交互明细与验收测例号**，禁止直接口头盲改。
+
+---
+
+## 1. 迭代波次总览（Iterative Roadmap · 拒绝一次空想全部）
+
+| 波次 | 版本范围 | 本轮唯一聚焦目标（MVP / 增量） | 交付状态 |
+|---|---|---|---|
+| **Wave 0 · 交接基线** | `v2.13.52` → `v2.13.53` | 账号迁入 `tnineninet` + CNB 归档、零闪屏流光天幕、灵动岛、三平台外卖、混合语义药箱与诊断包、全功能整合签发 | ✅ 已交付并归档 |
+| **Wave 1 · 体验破冰** | `v2.13.54` → `v2.13.57` | 音乐工作室手机零白屏扫码闭环、侧边栏比例重构、全程多模态感知、Mika 真机联动与 vivo 真机实拍缺陷清零 | ✅ 已交付并真机初验 |
+| **Wave 2 · 引擎深水区** | `v2.13.58` → `v2.13.60` | `agents.md` 真实四协议 KV-Cache 遥测闭环、自定义 API 控制台与设置精修、Chronos 严格时间与防刷屏自动唤醒深层加固 | ✅ 已交付并全测通过 |
+| **Wave 3 · 极致体感与规范固化** | `v2.13.61` → `v2.13.62` | 聊天页 0ms 四级秒开与 `?after=` 增量同步、小棉花 3D 毛绒立体与高对比重塑、SDD 全量需求表单与自动化 Harness 门禁 | ✅ 已交付（APK `v2.13.62` 就绪） |
+| **Wave 4 · 线上发版与真机终验** | `Backlog` | 恢复 GitHub Billing / 执行 `complete-github-release-v2.13.62.ps1` 推送线上、vivo 手机安装 `v2.13.62` 完成逐项真机勾选、持续优化 iOS 工作区 | ⏳ 待用户清醒后授权触发 |
+
+---
+
+## 2. 全量结构化需求表单（Requirements Matrix）
+
+> 字段口径对齐 SDD 五大支柱：**In Scope（必做） / Out Scope（明确暂缓或不做） / 可执行交互明细（前置 → 操作 → 动作 → 回退） / 红线 / 测例映射**。
+
+| 需求编号 | 模块与 Spec | 优先级 / 版本 | In Scope（本版必做） | Out Scope（明确不做/暂缓） | 可执行交互明细（用户一步步怎么点 & 系统如何响应） | 红线约束 | 验收测例 & 证据 | 当前状态 |
+|---|---|---|---|---|---|---|---|---|
+| `REQ-001` | 聊天极速加载<br>`SPEC-CHAT-SPEED` | `P0`<br>`v2.13.54 / .59 / .61` | L0 同步本地启动快照（`<48KB`，20 会话 + 25 消息）；L1 内存 + 侧边栏悬停/触碰预热；L2 IndexedDB 200 条；`/bootstrap` 预取 40 条；`?after=` 增量拉取；`<ChatTranscript>` 80 行首屏窗口与切会话复位 | 不做全量离线全文数据库；不改动 Supabase 消息表 Schema | 1) 冷启动重开 App → 首帧 `0ms` 直接渲染 L0 最近聊天记录（无转圈空白），后台静默对齐 `/bootstrap`；2) 悬停/触碰侧边栏会话 → 后台预热 L1；3) 切回已缓存会话 → 仅请求 `?after=<lastIso>`，无新消息返回空数组（~120B）且零重绘；4) 流式回复中收到后台校准 → 严禁覆盖正在生成的气泡 | `INV-01`<br>`INV-02`<br>`INV-03` | `TC-SPEED-01~04`<br>`music-studio-qr-and-history.test.js`<br>`v2-core-routes.test.js` | ✅ 已完成<br>（待真机终验） |
+| `REQ-002` | 音乐工作室手机扫码<br>`SPEC-MUSIC-STUDIO` | `P0`<br>`v2.13.54 / .57` | 默认直连扫码/歌单工作台；首屏高清白边二维码 + 4 明确按钮；Android `MediaStore` 零权限存相册；禁用 120s 自动换码；`sessionStorage` 保留 `qrKey` + 切回多波次复查；后端 `803` 幂等缓存与 `type=3` 兜底；原生 WebView 第三方 Cookie 与 `MUSIC_U` 自动捕获 | 不做离线音频缓存下载；不接入非 MIT 版权风险代理代码 | 1) 打开音乐工作室 → 未登录直接出二维码（顶边不裁切、底部不被悬浮按钮遮挡）；2) 点击「保存二维码到相册」→ 写入 `Pictures/DengTa` 且弹成功提示；3) 切网易云扫码确认后切回灯塔 → `0ms/1.5s/4s` 自动补查即切换已登录工作台；4) 点击「换一张」→ 仅用户显式点击时才换新码 | `INV-02`<br>`INV-06` | `TC-MUSIC-01~04`<br>`netease-qr-login.test.js`<br>`music-studio-qr-and-history.test.js` | ✅ 已完成<br>（真机已初验，待扫码复核） |
+| `REQ-003` | Chronos 严格时间感知<br>`SPEC-CHRONOS` | `P0`<br>`v2.13.54 / .60` | 单一服务端权威 UTC + IANA 时区时钟；修复凌晨 `00:00–08:00` 跨天错位；时钟偏差 `>=90s` 提示；`excludeMessageId` + `<=20s` 尾消息剔除修复隔夜首轮误判「刚刚」；读时非侵入插入 `>=20min`/跨午夜分隔提示 | 不做硬件 NTP 校时；不新增生产数据库独立表（状态存 `__chronos_v1`） | 1) 用户隔夜/隔多天再次发消息 → 后端剔除本轮刚存的用户消息，准确注入真实间隔时长；2) 打开设置 → Chronos 面板实时走字，支持任意系统 IANA 时区切换；3) 手机系统时间错乱超 90 秒 → 界面出现时钟偏移提醒 | `INV-01`<br>`INV-04` | `TC-CHRONOS-01~03`<br>`chronos-time-and-wake.test.js`<br>`chronos-wake-center.test.js` | ✅ 已完成 |
+| `REQ-004` | Chronos 自动唤醒与防刷屏<br>`SPEC-CHRONOS` | `P0`<br>`v2.13.54 / .60` | 工作日/周末跨午夜静默窗口；一次性/每日/工作日/周末闹钟与早晚仪式；`silence_wake` 连续未读 `2×` 指数退避上限（最多 2 条后暂停）；`manage_wake_schedule` 支持增删改/推迟/改策略；`<45s` 准秒级前台定时器 + `dengta:chronos-refresh` + Android 离线通知预装 + `+10分` 推迟 UI | 不做越权强拉后台唤醒（遵循 Android Doze 与系统通知规范） | 1) 对话中说「10 分钟后提醒我喝水」→ AI 调用 `manage_wake_schedule(create)` 落库，前端即时刷新并挂载原生本地通知；2) 距到期 `<45s` → 精确对准目标秒 `+800ms` 触发；3) 静默时段到期 → 不调 LLM，自动顺延至静默结束；4) 沉默轻唤连续 2 条未读 → 自动暂停至用户再次发言 | `INV-01`<br>`INV-02` | `TC-CHRONOS-04~06`<br>`chronos-time-and-wake.test.js`<br>`chronos-wake-center.test.js` | ✅ 已完成 |
+| `REQ-005` | 小棉花 3D 可见性与质感<br>`SPEC-COTTON-PET` | `P0`<br>`v2.13.54 / .62` | 49,853 顶点毛绒 AO 阴影与耳廓/腮红/笑弧层次；PBR 与 MToon（`hemi=0.34`）防过曝布光校准；`onBeforeCompile` 蒙皮后法线外扩手绘细描边；`96×96` 脚底接触阴影；深色摄影棚舞台底色（`雾松绿/暖咖绒/暮色蓝`一键切换 + MToon 暮光紫）；防壁纸透字磨砂控制卡；悬浮桌宠亮底轮廓加固 | 不替换 `b1857.json` 原模型网格（保持 SHA-256 契约不变） | 1) 打开「小棉花的小屋」→ 点击「打开小屋」→ 白色博美在深雾松绿舞台清晰立体，每簇胸毛、耳朵、五官、细描边与接触阴影分明；2) 开启「MToon 卡通」→ 自动切换暮光紫底色并呈现 4 阶卡通阴影而不泛白；3) 点击「底色」按钮 → 依次切换雾松绿/暖咖绒/暮色蓝；4) 任意彩色壁纸下右侧按钮与说明文字高对比可读 | `INV-05` | `TC-COTTON-01~04`<br>`cotton-course-upgrades.test.js`<br>浏览器 WebGL 实拍 `final_step_14.png` | ✅ 已完成<br>（WebGL 0 报错实拍通过） |
+| `REQ-006` | 侧边栏重构与玩法全景<br>`SPEC-SIDEBAR-LAYOUT` | `P0`<br>`v2.13.55 / .57` | 底部合并单行 `46px` `.sidebar-dock-footer`；原生 Android 隐藏「下载 Android App」；玩法导航取消 `52vh` 截断并不透明粘性搜索；「最近对话」限高 `124px` 可折叠且修复折叠按钮挤压 | 不改变顶部品牌 Logo 结构与路由映射 | 1) 打开侧边栏 → 玩法列表占主体区域，单屏可见玩法数提升 2.5 倍以上；2) 滚动玩法列表 → 搜索栏不透字；3) 点击「最近对话」折叠按钮 → 按钮保持单行不缩圈，收起后释放近 100% 空间；4) Android App 内不显示冗余「下载安装包」按钮 | `INV-05` | `TC-SIDEBAR-01~03`<br>`sidebar-and-perception.test.js`<br>vivo 真机实拍 | ✅ 已完成 |
+| `REQ-007` | 全程实时多模态感知<br>`SPEC-MULTIMODAL-PERCEPTION` | `P0`<br>`v2.13.55–.57` | Android 权限声明 + `ScreenGlancePlugin.captureSnapshotNow()`；跨页 0px 常驻流 + 聊天页 `createPortal` 单行输入上方感知栏（防叠压灵动岛）；看屏幕/应用感知/前后镜头+抓拍/离线 VAD+常开麦（防 TTS 回声）/一键全停；AI 主动工具 `inspect_live_perception` | 绝不在用户未显式开启权限时后台静默录屏或录音 | 1) 用户主动授权并打开对应开关 → 切换页面不中断感知流；2) 在聊天页发消息 → 自动附带实时屏幕/镜头临时帧与应用状态，伴侣自然结合当下情境回应；3) AI 语音播报时自动暂停拾音防回声；4) 点击「一键全停」→ 立即释放全部媒体轨 | `INV-02`<br>`INV-06` | `TC-PERCEPT-01~03`<br>`live-perception-context.test.js`<br>`sidebar-and-perception.test.js` | ✅ 已完成 |
+| `REQ-008` | `agents.md` 提示词缓存与自定义 API 控制台<br>`SPEC-PROMPT-PIPELINE` | `P1`<br>`v2.13.55 / .58 / .59` | 保持 `<file path="agents.md">` 1:1 原文置顶 + 4 层静态/动态隔离；Anthropic 双断点 Ephemeral 缓存；四大协议真实 KV-Cache 命中采集与前端持久化可视化；API 控制台实测 `latency_ms` + Base URL 协议智能识别一键切换；提示词工作台 5 模板 + 5 维体检清单 | 不修改或删减用户手写的 `agents.md` 原文内容；不向第三方严格中转强塞非标准字段 | 1) 在 API 控制台粘贴 Anthropic/Gemini/DeepSeek URL → 若协议不匹配弹出「一键切换协议」建议并展示 KV 缓存能力标签；2) 点击测试连接 → 显示真实 `ms/s` 延迟；3) 对话后打开提示词工作台 → 查看真实上游 `cached_input_tokens` 与命中率 | `INV-03`<br>`INV-04`<br>`INV-06` | `TC-PROMPT-01~04`<br>`user-agents-md.test.js`<br>`prompt-pipeline-cache.test.js`<br>`ai-provider-center.test.js` | ✅ 已完成 |
+| `REQ-009` | 设置面板动效、SVG 精度与双主题精修<br>`SPEC-PROMPT-PIPELINE` | `P1`<br>`v2.13.58 / .59` | 设置页 SVG 统一 `geometricPrecision` + `round`；抽屉轻盈入场动效与 `reduced-motion` 对齐；Night Glass 夜间高对比卡片与回执样式；全站设置内联复选框锁定 `18px × 18px` | 不重构设置路由结构与自动保存生命周期 | 1) 打开设置首页及子页 → 图标边缘锐利无锯齿、入场顺滑；2) 切夜间玻璃模式 → 所有卡片/提示条/回执文字高对比可读；3) 开启「减少动画」→ 瞬时切换无抖动；4) 检查语音/多模态/Chronos 复选框 → 均为 `18px` 不被撑爆 | `INV-05` | `TC-SETTINGS-01~03`<br>`prompt-and-settings-polish.test.js`<br>`settings-save-lifecycle.test.js` (25/25) | ✅ 已完成 |
+| `REQ-010` | 开源手机控制引擎 Mika 接入<br>`SPEC-MIKA-PHONE-CONTROL` | `P1`<br>`v2.13.55` | 拉取 `wangzan101/Mika` 与 `Mika-v0.1.51-arm64.apk`；连接 `10AF4G1GUX002N2`（`ready: true`）；支持后台虚拟屏开发调试联动 | 严禁绕过/自动点击 Android 系统权限弹窗、vivo 安装拦截与 CAPTCHA；夜间休眠时段禁向用户手机弹安装窗口 | 1) 电脑端执行 `mika_cli.py connect --device 10AF4G1GUX002N2 --json` → 返回 `ready: true`；2) 需安装新版 APK 时提示用户手动确认或清醒后执行 `adb install -r` | `INV-06` | `mika_cli.py devices --json` 实测连接通过 | ✅ 已就绪 |
+| `REQ-011` | 流光天幕 60fps 零闪屏 + 灵动岛 + 外卖 + 药箱知识库<br>`SPEC-BASELINE-20261125` | `P1`<br>`v2.13.53` | 60fps 零闪屏流光天幕 & 49 格刻度尺；灵动岛动态频谱与快捷中控；三平台外卖与错误恢复栏；`minisearch` 混合检索 + 28/29 种家庭常备药联用预警 + Floating UI 全局悬停卡片；全链路 `DTF-*` 诊断包 | 禁止合入 `SnowLuma` 非商用包与 AGPL/PolyForm NC 代码 | 详见 [ENGINEERING-AUDIT-AND-DELIVERY-2026-11-25.md](file:///D:/GZdeepseek/dengta-home/docs/ENGINEERING-AUDIT-AND-DELIVERY-2026-11-25.md) 实景验收记录 | `INV-05`<br>`INV-06` | `zero-flicker-sky`、`dynamic-island`、`takeout`、`knowledge-medicine` 全绿 | ✅ 已完成 |
+| `REQ-012` | SDD 规范体系与自动化 Harness 门禁<br>`SPEC-SDD-GOVERNANCE` | `P0`<br>`v2.13.62` | 沉淀 `DENGTA-SDD-SPEC.md` + `REQUIREMENTS-FORM.md` + `TEST-CASES.md` + `ACCEPTANCE-CHECKLIST.md` + `CHANGELOG.md` + `SYNC-LEDGER.md`；落地 `tools/verify-sdd-compliance.mjs` 自动校验 Spec↔需求表单↔测例↔清单映射、多文件版本/SHA256 一致性与零密钥泄露 | 不引入外部付费 SaaS 需求管理工具（全量纯文本版本化留在 Git + CNB） | 1) 任意迭代修改完代码与文档后运行 `node D:\GZdeepseek\dengta-home\tools\verify-sdd-compliance.mjs` → 自动核验 Spec 完整映射、最新 APK SHA-256 与 4 份发布清单一致、零敏感信息泄露；2) 任何一项漂移即返回非零退出码阻止「口头宣称完成」 | `INV-01`~`INV-06` | `TC-SDD-01~03`<br>`verify-sdd-compliance.mjs` exit 0 | ✅ 已完成 |
+| `REQ-013` | 线上三方发布 & GitHub Actions 恢复<br>`SPEC-RELEASE-OPS` | `P1`<br>`Backlog (待人工)` | 使用 `Jessica-tce` PAT 运行 `complete-github-release-v2.13.62.ps1` 推送 3 仓、上传 Release APK、核验 Vercel/Render 与 `deployment-health.mjs`；修复 GitHub Org Billing 恢复 Actions 自动出包；手机安装 `v2.13.62` 完成逐条真机打勾 | 未获用户确认前不改 Cloudflare DNS、不清理旧账号、不动生产 Supabase | 1) 用户醒来后提供 `GH_TOKEN` 并执行发布脚本 → 推送 GitHub + 上传 `DengTa-2.13.62.apk` + 验证线上 feed `version_code=320`；2) 手机端安装 `DengTa-2.13.62.apk` → 逐项勾选 `ACCEPTANCE-CHECKLIST.md` 剩余真机项 | `INV-01`<br>`INV-06` | `complete-github-release-v2.13.62.ps1`<br>`deployment-health.mjs` | ⏳ 待用户清醒后执行 |
+
+---
+
+## 3. 历史交接遗留风险与已知约束台账（承接 `AI-HANDOVER-2026-11-25` & `OPTIMIZATION-LEDGER`）
+
+| 风险 ID | 历史记录的问题/阻塞 | 当前处置状态 | 责任与下一步 |
+|---|---|---|---|
+| `RISK-01` | GitHub Actions 因账单/额度 `startup_failure`，无法云端自动构建发布 APK | **本机已彻底兜底**：本地 JDK21 + Android SDK + 正式签名仓稳定签发 `v2.13.53`→`v2.13.62` APK，配套一键发布脚本 | 待用户在 GitHub `tnineninet` Billing 解除限额恢复云端 CI |
+| `RISK-02` | 线上登录偶发失败（冷启动/弱网/旧邮箱 `tnineninet@gmail.com` 失效） | 已落地 `auth-session.js` 600ms 静默重试（`v2.13.57`）与 `DTF-*` 一键复制诊断包（`v2.13.53`） | 复现时凭脱敏诊断包 10 秒定位，绝不直接改线上用户表 |
+| `RISK-03` | 生产后端与数据库 Schema 同源差异（严禁跑 062/063/064 迁移） | 已固化为红线 `INV-01`，Chronos 状态严格寄生在 `companion_runtime_states.status.__chronos_v1` | 永久遵守，任何新字段先走 JSONB 扩展或经用户审批 |
+| `RISK-04` | Cloudflare 旧账号不可登录 | 保持 DNS 只读不动，全链路经现有域名正常工作 | 待用户完成域名托管权交接前严禁改动 DNS |
+| `RISK-05` | `D:\GZdeepseek\_worktrees\ios-import-75ad3da` 存在未收口 iOS 改动 | 保留不动并在本地备份与 CNB 快照归档 | 后续单独开 iOS 迭代波次按 SDD 表单收口 |
+
+---
+
+## 4. 新增需求标准填报模板（后续每次迭代先填再写代码）
+
+```markdown
+### REQ-XXX · <需求名称>（SPEC-XXX · v2.13.XX）
+- **本轮 In Scope（必做）**：...
+- **明确 Out Scope（暂缓/不做）**：...
+- **可执行交互明细**：
+  - 前置条件：...
+  - 触发动作：...
+  - 系统行为与界面反馈：...
+  - 边界与失败回退：...
+- **涉及红线**：`INV-0X`
+- **验收测例（TC-XXX）与自动化命令**：...
+```
