@@ -1,16 +1,16 @@
 {
-  "updatedAt": "2026-11-23T12:38:32.243Z",
+  "updatedAt": "2026-11-25T01:20:05.216Z",
   "repos": {
     "tnineninet/dengta-home": {
       "full_name": "tnineninet/dengta-home",
       "stars": 4,
-      "pushed_at": "2026-11-23T12:29:53Z",
-      "commit_sha": "2ebe8a02",
-      "commit_message": "Document web install and in-app APK release gate",
-      "commit_date": "2026-11-23T12:29:53Z",
+      "pushed_at": "2026-11-24T16:56:39Z",
+      "commit_sha": "8e1139eb",
+      "commit_message": "Add GitHub repository index for AI handover",
+      "commit_date": "2026-11-24T16:56:38Z",
       "release_tag": "v2.13.43",
       "release_date": "2026-10-28T16:56:40Z",
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "tnineninet/dengta-home-backend": {
       "full_name": "tnineninet/dengta-home-backend",
@@ -21,7 +21,7 @@
       "commit_date": "2026-11-06T10:02:55Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "tnineninet/dengta-home-frontend": {
       "full_name": "tnineninet/dengta-home-frontend",
@@ -32,7 +32,7 @@
       "commit_date": "2026-11-23T12:33:51Z",
       "release_tag": "v2.13.47",
       "release_date": "2026-10-29T15:05:15Z",
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "tnineninet/kiwi-mem-dengta": {
       "full_name": "tnineninet/kiwi-mem-dengta",
@@ -43,7 +43,7 @@
       "commit_date": "2026-08-18T16:35:31Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "Geokkk/wechat-ilink-bridge-hardened": {
       "full_name": "Geokkk/wechat-ilink-bridge-hardened",
@@ -54,18 +54,18 @@
       "commit_date": "2026-10-28T08:49:56Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "DONGH4O/wechat-ilink-bridge": {
       "full_name": "DONGH4O/wechat-ilink-bridge",
-      "stars": 40,
+      "stars": 41,
       "pushed_at": "2026-05-18T12:46:22Z",
       "commit_sha": "7946df5d",
       "commit_message": "Release M14 M15 P2 adapters",
       "commit_date": "2026-05-18T12:43:43Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "SnowLuma/SnowLuma": {
       "full_name": "SnowLuma/SnowLuma",
@@ -87,18 +87,18 @@
       "commit_date": "2026-11-13T12:36:52Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "Anko3o/Music-Mcp-Netease": {
       "full_name": "Anko3o/Music-Mcp-Netease",
-      "stars": 94,
+      "stars": 95,
       "pushed_at": "2026-10-27T17:58:35Z",
       "commit_sha": "06e5a258",
       "commit_message": "批注捆在歌词句上：每条带 line，卡片先放句子再放评论；MCP 的 line 单独递",
       "commit_date": "2026-10-27T17:58:33Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "Cheiineeey/netease-music-mcp": {
       "full_name": "Cheiineeey/netease-music-mcp",
@@ -109,18 +109,18 @@
       "commit_date": "2026-10-01T18:07:13Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "Vael-KY/netease-music-mcp": {
       "full_name": "Vael-KY/netease-music-mcp",
-      "stars": 237,
+      "stars": 239,
       "pushed_at": "2026-11-22T15:28:55Z",
       "commit_sha": "af20456a",
       "commit_message": "together: grade room events; a song that ran out and pauses go to the relay as quiet events",
       "commit_date": "2026-11-22T15:27:47Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "ELDment/Meting-Agent": {
       "full_name": "ELDment/meting-agent",
@@ -131,18 +131,18 @@
       "commit_date": "2026-11-21T18:26:55Z",
       "release_tag": "2026.11.22",
       "release_date": "2026-11-21T18:28:34Z",
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "Derpyu520/qq-bridge": {
       "full_name": "Derpyu520/qq-bridge",
-      "stars": 3679,
+      "stars": 3682,
       "pushed_at": "2026-11-18T04:12:53Z",
       "commit_sha": "12e66d2c",
       "commit_message": "Merge pull request #186 from Derpyu520/dev",
       "commit_date": "2026-11-18T04:10:53Z",
       "release_tag": "v0.2.2-final",
       "release_date": "2026-11-18T04:12:58Z",
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "0xblewalker/dayflow": {
       "full_name": "0xblewalker/dayflow",
@@ -153,7 +153,7 @@
       "commit_date": "2026-08-16T14:47:26Z",
       "release_tag": "v0.1.2",
       "release_date": "2026-08-09T19:41:04Z",
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "Cami-Ose/muse-toy-broadcaster": {
       "full_name": "Cami-Ose/muse-toy-broadcaster",
@@ -164,7 +164,7 @@
       "commit_date": "2026-08-27T08:53:00Z",
       "release_tag": "v1.0",
       "release_date": "2026-08-27T09:20:44Z",
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "Cami-Ose/navi-shell": {
       "full_name": "Cami-Ose/navi-shell",
@@ -175,19 +175,19 @@
       "commit_date": "2026-10-08T15:32:19Z",
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     },
     "DengTaArchive2026/dengta-workspace": {
       "full_name": "DengTaArchive2026/dengta-workspace",
       "host": "cnb.cool",
       "stars": null,
       "pushed_at": null,
-      "commit_sha": "2fecd209",
+      "commit_sha": "2e49b226",
       "commit_message": "CNB main HEAD",
       "commit_date": null,
       "release_tag": "",
       "release_date": null,
-      "checkedAt": "2026-11-23T12:38:32.243Z"
+      "checkedAt": "2026-11-25T01:20:05.216Z"
     }
   }
 }

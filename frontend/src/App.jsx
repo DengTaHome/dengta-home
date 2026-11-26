@@ -87,6 +87,8 @@ import { useAppBackNavigation } from "./useAppBackNavigation.js";
 import { installBrowserAccountBinding } from "./browser-account-binding.js";
 import { copyDiscoveryLink, emptyDiscoveryState, refreshDiscovery, DISCOVERY_ERROR_FEEDBACK } from "./discovery-feed.js";
 import PersonalizationEditor from "./PersonalizationEditor.jsx";
+import AstrBotPersonaExport from "./AstrBotPersonaExport.jsx";
+import ScreenGlanceAttachButton from "./ScreenGlanceAttachButton.jsx";
 import { authSession } from "./auth-session.js";
 import { createScopedSettingsSession, registerSettingsSaveGuard, settingsSaveScope } from "./settings-save-scope.js";
 import { createCoWatchViewScope } from "./co-watch-view-scope.js";
@@ -4668,6 +4670,10 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
   async function selectChatAttachments(event) {
     const files = Array.from(event.target.files || []);
     event.target.value = "";
+    await addChatAttachmentFiles(files);
+  }
+
+  async function addChatAttachmentFiles(files, isCurrent = () => true) {
     if (files.length === 0) return;
 
     try {
@@ -4688,7 +4694,9 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
         preparedFiles.push(prepared.file);
         if (prepared.warning) warnings.push(prepared.warning);
       }
-      const drafts = preparedFiles.map((file) => createAttachmentDraft(file));
+      if (!isCurrent()) return;
+      const finalCheck = validateAttachmentFiles(chatAttachmentsRef.current, preparedFiles);
+      const drafts = finalCheck.accepted.map((file) => createAttachmentDraft(file));
       const next = [...chatAttachmentsRef.current, ...drafts];
       chatAttachmentsRef.current = next;
       setChatAttachments(next);
@@ -4696,6 +4704,7 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
       const messages = [
         ...(blockedAudioFiles.length > 0 ? [voiceService.message] : []),
         ...checked.rejected,
+        ...finalCheck.rejected,
         ...warnings,
       ];
       setNotice(messages.join("；"));
@@ -7199,6 +7208,16 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                   <strong>图片</strong>
                   <small>相册或拍照</small>
                 </button>
+                <ScreenGlanceAttachButton
+                  key={`${privateMediaScope}:${activeSessionId || ""}`}
+                  scope={`${privateMediaScope}:${activeSessionId || ""}`}
+                  disabled={attachmentsAtLimit || isSending}
+                  onAttachment={async (file, isCurrent) => {
+                    await addChatAttachmentFiles([file], isCurrent);
+                    if (isCurrent()) setIsComposerMenuOpen(false);
+                  }}
+                  onNotice={setNotice}
+                />
                 <button
                   type="button"
                   disabled={attachmentsAtLimit}
@@ -8496,6 +8515,8 @@ function App({ accountControl = null, accountScope = "", userName = "" }) {
                   disabled={!hasLoadedSettings || settingsExitBusy}
                 />
               </div>
+
+              <AstrBotPersonaExport key={privateMediaScope} disabled={!hasLoadedSettings || settingsExitBusy} />
 
               <div className="prompt-layer style-distill-panel">
                 <span className="prompt-layer-title">

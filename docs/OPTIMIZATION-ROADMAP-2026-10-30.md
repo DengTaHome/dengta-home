@@ -878,3 +878,98 @@
   ⑨health degraded 进程内计数（多实例不一致）。
 - 结论：**P0=0、P1=1（证据需澄清）**；建议先澄清 504→409 127s 的复现条件/health 计数，修复 abort gate
   无响应窗口与 commit 失败补偿，再扩展文字情绪否定/复合词与 App 深层 44px 审计；Goldfish-R28 同时复核。
+
+## 38. 账号内容清理第二轮只读复核（2026-10-30 09:00–09:25）
+
+- 背景：按“全部内容”清理后，lead 更新 `ACCOUNT-DATA-DELETION.md`（64 行/4,566B，08:53:49，含
+  08:55 最终矩阵）与 `VERIFY-ACCOUNT-CLEAN.py`（201 行）；Elephant 未执行删除，独立只读计数；
+  报告/脚本无聊天正文/口令（扫描 0），脚本只读、仅输出计数。
+- 独立结果：核心内容表（messages/conversations/memories/moments/comments/diary/memory_calendar/
+  chat_error_logs）、nursery、music、takeout、achievements、co_watch（rooms/participants/memories）、
+  timeline、device/delivery/injects、watch、push、image、interest、account_media_assets、
+  companion_artworks 及 private-media/companion-artworks/moments/chat-attachments 等桶用户对象均 **0**；
+  companions=1、user_profiles=1、auth user=200、companion_runtime_states 空；settings 全局 65 行（非用户内容）。
+  脚本已知缺陷：device_latest/music_favorites/timeline 用 select=id 显示 null，已用 select=user_id 复核为 0。
+- **P1-1（最终矩阵与 DB 不一致/被活动重新写入）**：08:55 最终矩阵写 background_jobs=0，但独立读数有
+  4 条 pending（created 08:46:05–08，早于矩阵）与 1 条 chat_error_logs（08:59:16）；`BACKGROUND_JOBS_ENABLED=true`、
+  concurrency>0 → 内容可能被再生成。需冻结后台任务+账号活动，按 id 清理这 5 行后重出矩阵并复读。
+- **P1-2（Kiwi 未独立验证）**：提供脚本 `kiwi_total=null`；本机访问网关 status/debug/recall 均 403；
+  报告“API total=0”为 lead 侧证据；不建议用 app 登录+bootstrap 复核（本次 pending jobs 很可能由此产生）。
+- P2：脚本 select=id 缺陷、未覆盖 private-media/companion-artworks 桶/companion state/账号保留/报告后新行；
+  报告最终矩阵未记录报告后新行；background worker 未暂停；co_watch_room_messages 等无 user_id 表无法直接
+  计数；TLS 校验关闭+本地凭证依赖（P3）。
+- 结论：**P0=0、P1=2（P1-1 最终态不稳定、P1-2 Kiwi 未独立验证）**；建议先冻结/清理 4 pending jobs +
+  1 chat_error_log，再在无账号活动下重出最终矩阵并用 Render/网关侧复核 Kiwi；Goldfish-R30 同时复核。
+
+## 39. 轮次 #65/164 只读复核（2026-10-30 13:21–13:45）
+
+- 基线：backend **9a06e65**（生产 `/health` 一致、degraded=0）、frontend **c0f0429**（生产入口
+  `index-DOfpbID3.js` / CSS `index-Bp4sD6Zh.css`；`TypewriterText-Bab-CRI2.js`、`ChannelHub-BZsFuTmZ.js` +
+  `ChannelHub-ClshZ_qZ.css`）、dengta-home **8380ef6**。
+- APK/feed：生产 `android.json` 200 为 **306/2.13.48**，sha256 `490ed961…4232`、41,372,480B；APK URL 200，
+  下载 SHA 与本地 `_audit/DengTa-2.13.48-306-composer.apk` 一致；aapt2 versionCode306/versionName2.13.48；
+  apksigner cert SHA-256 `0d634aaf…e0f5`（DN Android Debug）与 2.13.47 一致。
+- 前端：生产 CSS 含 composer `calc(100vw - 56px)`/52px/grid 规则；Typewriter chunk 含 startsWith（跨 chunk
+  连续追字）；ChannelHub JS/CSS 含复制/倒计时/自动检测类；changed-area 测试均 exit0（mobile-layout 9、
+  composer、app-recovery 17、android-release、sun-glass 15、initial bundle budget）。
+- 后端全量 **P1**：`round166-backend.log` 13:21:40–13:23:35 在 `test:chat-contract` 中止，
+  `chat-contract.test.js:68` 仍断言旧 `const conversation = existingConversationId…loadConversation` 实现，
+  但 36091b5 已改为 try/catch `let existingConversationId`；stderr AssertionError，后续套件未跑。
+  定向：chat-session-recovery 1/1、companion-creative passed、chat-contract exit1。
+- P2：旧 `/updates/download.json` 仍 305/2.13.47，生产 `/download` 页面实测显示 2.13.47/旧 APK（in-app
+  android.json 正常）；composer 仅 CSS 层验证（safe-area 横屏/平板可能溢出，未登录真机视觉）；Typewriter
+  rAF 打完后仍常驻（App 动态每条 assistant 内容均挂载，可能多路 rAF）；绑定码过期后轮询不停止、复制过期码、
+  “0:60”边界；新测试多为源码正则/单元，无 route/e2e；APK 为 debug 证书（项目沿用）。
+- 外部证据（ledger 163）：涂鸦 201→200 ready、deepseek-flash 首 token ~18s、网易云 connected=false
+  （需重扫码）；本轮不登录未独立重跑。
+- 结论：**P0=0、P1=1（后端全量测试红）**。建议修 chat-contract 断言并重跑全量，再更新 legacy download
+  feed，补 composer/Typewriter/绑定行为测试；Goldfish-R33 同时复核。
+
+## 40. 轮次 #67/165 只读复核（2026-10-30 14:05–14:35）
+
+- 基线：backend **da16cbd**（生产 `/health` 一致、degraded=0）；frontend **b5782e6**（test-only 修复；
+  生产 entry `index-CIgcyn1q.js` / CSS `index-Br5YSMwy.css`；`TypewriterText-CCG7epiC.js`、
+  `ChannelHub-DfarEHCi.js`）；dengta-home **8380ef6**。
+- Feed/APK：`android.json` 与 legacy `download.json` 均为 **307/2.13.49**，site
+  `.../downloads/DengTa-2.13.49.apk`；URL 200、36,467,047B、SHA `f63b1e3a…e6c3`，本地/远端一致；
+  aapt2 versionCode307/versionName2.13.49；Manifest `debuggable=0`；cert `0d634aaf…e0f5`
+  （CN=Android Debug）与 2.13.47 相同；APK 内置 Typewriter/ChannelHub/52px composer CSS 与生产一致。
+- 原生/JS policy：`AppUpdatePolicy` 接受 site `/downloads/*.apk` 与直连对象存储，拒绝 site `/supabase/...`
+  （R33 P0-1 根因）；旧 2.13.47 dex 含 `/downloads/`，旧客户端也接受新 site 路径；JS 测试通过。
+- 测试：后端 `round167-backend.log` 0 fail（`.err` 0；test 文件 13:30 < 运行 13:36；commit da16cbd
+  仅 test 改动，时序 P3）；前端 `round168-frontend.log` 曾在 cast-receiver 旧契约失败，b5782e6 修复后
+  targeted cast 9/9、app-updates 5/5；**round169 全量 0 fail**（294,760B；`.err` 仅弃用警告；
+  无 failing tests/ERR_ASSERTION；尾部 style-distill pass 9/fail 0）。
+- Typewriter 仅 moments/nursery，聊天列表直出；2732d36 已让 loop 完成即停、文本变化再启动，但重启未
+  重置 `last`（新文本可能瞬时显示，P2 边缘）。composer safe-area CSS 已在生产/APK 中核对；未登录真机视觉。
+- P2：2.13.49 仍用 Android Debug 证书；旧 2.13.48 debug APK 在 `/supabase/...` 仍公开 200（41,372,480B）；
+  Typewriter restart `last` 边界；site APK 使 Vercel 每版本存 36.5MB（原 cast 契约曾禁止）；AI 首 token
+  ~18.9s 为外部 UX 观察；backend 日志早于 test commit（P3）。
+- 结论：**P0=0、P1=0**（R33 P0-1/P0-2/R33 P1 已闭环；round167/169 双绿；round168 cast 失败为旧断言，
+  已修复）。Goldfish-R34 同时复核。
+
+## 41. 最终只读复核 · feed 2.13.50/308 + Vercel rewrite（2026-10-30 14:43–14:55）
+
+- 基线：backend **da16cbd**（/health 一致、degraded=0）；frontend **1413bf6**（工作区另有测试/gradle M）；
+  生产 entry `index-Dyj9GJRv.js` / CSS `index-Br5YSMwy.css` / `TypewriterText-Dn5Y4sln.js` /
+  `App-DxVEAdB7.js`；dengta-home 03de569 + 本地 roadmap M。
+- Feed/rewrite：android.json + legacy download.json 均 **308/2.13.50**，site
+  `.../downloads/DengTa-2.13.50.apk`；Vercel rewrite 到 Supabase 对象存储，HEAD/GET 200、
+  Content-Length **36,467,003**、type apk、`Sb-Gateway-Mode: direct`；下载 SHA
+  `7fbf1469…2498b` 与 feed、`_audit/DengTa-2.13.50-308-stream-release.apk` 一致；`git ls-files
+  public/downloads` 为空（部署无二进制）。
+- APK：versionCode308/versionName2.13.50；Manifest debuggable=0；cert `0d634aaf…e0f5`（CN=Android Debug）；
+  内置 TypewriterText-Dn5Y4sln、ChannelHub-DfarEHCi、index-Br5YSMwy（composer safe-area/52px）、
+  App-BMnCzHCi；与生产 web 资源核对。
+- Policy：AppUpdatePolicy 接受 site `/downloads/*.apk` 与直连对象存储，拒绝旧 site `/supabase/...`；
+  JS app-updates 5/5；2.13.47 dex 含 `/downloads/` → 旧客户端可接受新路径。
+- 前端 308：41a1c1a Typewriter 完成后重置 `last`；92c5dde 移除 text 事件 per-token flushSync（新增
+  chat-latency 断言）；composer/ChannelHub 保持；**round170 全量 0 fail**（294,699B；.err 仅弃用警告；
+  无 failing tests/ERR_ASSERTION；尾部 style-distill pass 9/fail 0）；定向 cast 9/9、app-updates 5/5、
+  chat-latency/mobile-layout/composer/app-recovery/android-release/sun-glass/budget 均通过。
+- 后端：round167 全量 0 fail；da16cbd 生产对齐。
+- P2/P3：Debug 证书仍用于 release；旧 2.13.48/49 对象当前 400（不可下载）；工作区
+  `test/cast-receiver.test.js` 与 android gradle 未提交；1413bf6 历史含 63,478,583B/36MB APK blob；
+  composer 无登录真机视觉；AI 18.9s 外部观测；rewrite 依赖 Supabase 对象 ACL/生命周期。
+- 结论：**P0=0、P1=0**（308 feed/site rewrite/APK/原生 policy/无部署二进制/round170 全绿）。
+  Goldfish-R35 同时复核。

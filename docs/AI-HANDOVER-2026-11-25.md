@@ -58,7 +58,7 @@ DengTa（灯塔）是一个长期运行的 AI 伴侣/个人空间项目，核心
 - APK：约 36.4 MB，托管在 Supabase Storage；
 - PWA manifest 和 `sw.js` 均为 200；
 - 后端 `/health` 为 200；
-- CNB 快照：`7cf6c04`；
+- CNB 快照：`cfa74b5`；
 - 本地主目录：`D:\GZdeepseek`。
 
 ---
@@ -232,8 +232,8 @@ https://cnb.cool/DengTaArchive2026/dengta-workspace
 
 - 私有仓库
 - 分支 `main`
-- 最新 commit `7cf6c04`
-- 约 3514 文件 / 180 MB
+- 最新 commit `cfa74b5`
+- 约 3517 文件 / 181 MB
 - 由本地脚本刷新并推送：
   - `D:\GZdeepseek\dengta-home\tools\sync-all-platforms.ps1`
   - `D:\GZdeepseek\dengta-home\tools\sync-cnb-snapshot.py`

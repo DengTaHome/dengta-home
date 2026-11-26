@@ -5703,6 +5703,9 @@ app.get("/attachments/:messageId/:attachmentId", async (req, res, next) => {
     }
 });
 
+const { createAstrBotPersonaRouter } = require("./services/astrbot-persona-export");
+app.use("/settings/astrbot-persona", createAstrBotPersonaRouter());
+
 app.get("/settings", async (req, res, next) => {
     try {
         const settings = await getSettings(req.scope?.db || supabase);
