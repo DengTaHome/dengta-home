@@ -76,3 +76,11 @@
 | `TC-CREATOR-01` | MCP 插件中心与小红书入口准确跳转 | 分别在 AI 视界 / X / 剪映 / 一起看点击「MCP 插件中心」，并在接入向导点击「打开小红书登录与发布」 | 前者准确打开「设置 → 设备与共看 (`devices`)」并滚动至 `#mcp-device-center`（绝不误开「模型与服务」）；后者准确打开「设置 → 成就与新玩法 (`fun`)」并聚焦 `#xhs-login-section` | `frontend-gh/test/creator-world-onboarding.test.js` |
 | `TC-CREATOR-02` | 本机/局域网 18088 网关直连与真实状态 | 在「AI 视界·创作者 → 接入向导」填入 `http://127.0.0.1:18088` 或局域网 IP 点「测试并连接本机网关」 | 连通后持久化共用地址并切换「本机创作者网关在线」，立即刷新 B 站实时热点与 FFmpeg 视频；云端 404 且本机未启动时如实显示离线策划模式，不虚报在线 | `frontend-gh/test/creator-world-onboarding.test.js` |
 | `TC-CREATOR-03` | MCP 模板 Bearer 默认与 HTTPS 陷阱提示 | 在 MCP 插件中心点击 B 站/抖音/视频工坊「使用此应用」并检查 AI 视界文案 | 授权方式自动设为 `bearer` 并平滑滚动到表单；AI 视界明确区分本机直连与云端公网 `https://.../mcp`（附 `cloudflared tunnel` 命令），不诱导直接填 `127.0.0.1` 进云端 MCP 表单 | `creator-world-onboarding.test.js` + `mcp-device-center.test.js` |
+
+## 9. QQ 机器人状态/绑定码/人设同步铁证与 AI 工作台滚动（`SPEC-QQ-SYNC-AND-SCROLL`）
+
+| 测例 ID | 场景 | 操作步骤 | 可观察预期结果 | 自动化映射 |
+|---|---|---|---|---|
+| `TC-QQSYNC-01` | QQ 6 位绑定码拦截与 `/同步状态` 自检 | 向在线 QQ 云机器人发送 `324116` 与 `/同步状态` | 两条均由服务端直接处理不触发 LLM；自动尝试核销绑定码并回执伴侣名、8 位指纹、人设字数、记忆与最近对话条数 | `backend-prod/test/qq-cloud.test.js` |
+| `TC-QQSYNC-02` | 完整人设 + `user_details` + `memory_limit=0` 兜底 + 最近对话衔接 | 配置 `qq_include_persona_prompt=true`、`memory_mode=recent`、`memory_limit=0` 并调用 `buildChannelPersonaDetail` | `is_fallback_generic=false`，同时包含核心人设、主人称呼、已确认记忆与最近对话，返回合法 8 位指纹 | `backend-prod/test/qq-bridge.test.js` |
+| `TC-QQSYNC-03` | QQ 高对比状态横幅、同步证据卡与 AI 工作台垂直滚动 | 打开「QQ」通道与「AI 工作台·剪映」 | QQ 页首帧拉取 `/api/v2/qq-cloud` + `/api/v2/channel-sync/preview` 展示绿/琥珀/红呼吸灯横幅与证据卡；`LocalAgentStudio` 使用 `feature-page` + `overflow-y: auto` + `touch-action: pan-y` 顺滑上下滚动 | `channel-hub-usability.test.js` + `local-agent-studio.test.js` |

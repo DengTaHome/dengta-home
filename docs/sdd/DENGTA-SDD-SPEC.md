@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.64-sdd.4`  
-> **对应应用版本**：`v2.13.64`（Android `versionCode 322`）  
+> **文档版本**：`v2.13.65-sdd.5`  
+> **对应应用版本**：`v2.13.65`（Android `versionCode 323`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：
@@ -112,6 +112,12 @@
   1. **全站 MCP 跳转与小红书直达路由（`App.jsx`）**：所有「MCP 插件中心 / 去绑定 MCP」入口统一调用 `openMcpDeviceCenter()` 准确进入 `settingsCategory="devices"` 并聚焦 `#mcp-device-center`（彻底杜绝误开「模型与服务」）；新增 `openXhsSettings()` 直达 `settingsCategory="fun"` 并聚焦 `#xhs-login-section`。
   2. **AI 视界一站式接入向导与本机 18088 网关同步（`CreatorWorldStudio.jsx` + `creator-world-studio.css`）**：提供顶部「怎么接入？」按钮与「接入向导 · 平台入口」标签页，与 `LocalAgentStudio` 共用 `getSavedBridgeBaseUrl()` / `setSavedBridgeBaseUrl()`，支持本机 `127.0.0.1:18088` 或同 Wi-Fi 局域网 IP 一键测试连接并自动回落探测；如实展示在线/离线状态（云端 404 不再虚报已连接）；分卡清晰列出 B 站、小红书、抖音、剪映的「免配置开箱即用功能」与「进阶登录/MCP 接口位置」并提供一键直达按钮与 `cloudflared tunnel` 公网 HTTPS 隧道说明；复选框锁死 `18px × 18px`。
   3. **MCP 模板与本机网关 CORS 加固（`McpDeviceCenter.jsx` + `dengta-creator-bridge-mcp/server.js`）**：创作者模板默认 `auth_type="bearer"` 并平滑滚动至连接表单；本机网关放行精确 `https://dengta-home.vercel.app` Origin 及 `Access-Control-Allow-Private-Network: true`。
+
+### 模块 K · QQ 通道状态可视化、真实人设记忆同步铁证与 AI 工作台滚动修复（`SPEC-QQ-SYNC-AND-SCROLL` · v2.13.65）
+- **可执行规范**：
+  1. **真实人设与连续记忆同步引擎（`backend-prod/routes/v2/qq-bridge.js` + `channel-sync.js` + `services/qq-cloud.js`）**：`buildChannelPersonaDetail` 完整加载伴侣个性化指令、`user_details`（脱敏）、长期记忆（修复 `memory_limit=0` 静默零条陷阱，自动默认 `15/30` 条）及最近 10 轮灯塔对话延续，并生成 8 位 SHA-256 `sync_fingerprint`；新增 `GET /api/v2/channel-sync/preview` 与保存回执；`qq-cloud.js` 拦截 6 位数字绑定码（自动核销 `channel_bindings` 或回执在线状态，不再透传给 LLM）并支持 QQ 私聊发送 `/同步状态` 实时核对指纹。
+  2. **QQ 连接态醒目横幅与同步证据卡（`ChannelHub.jsx` + `QQCloudConnect.jsx` + `channel-hub.css`）**：首帧立即拉取 `/api/v2/qq-cloud` 与 `/api/v2/channel-sync/preview`，顶部展示绿/琥珀/红三态呼吸灯大横幅与同步证据卡（检测到回落普通人机时标红告警并提供「一键开启完整人设 + 最近 15 条记忆并保存」）；明确区分官方云机器人（12 位配对指令）与旧版 SnowLuma 6 位绑定码。
+  3. **AI 工作台·剪映垂直滚动修复（`LocalAgentStudio.jsx` + `local-agent-studio.css`）**：根节点挂载 `feature-page local-agent-studio` 并设置 `overflow-y: auto; min-height: 0; touch-action: pan-y; flex-shrink: 0`，彻底根治在 `.view-content { overflow: hidden }` 下无法上下滑动的缺陷。
 
 ---
 

@@ -67,3 +67,10 @@
 - [x] `CreatorWorldStudio.jsx` 新增「接入向导 · 平台入口」标签页与「怎么接入？」快捷入口，支持本机/局域网 `18088` 网关一键测试连接、真实状态徽章、B站/小红书/抖音/剪映四平台一键直达与 `18px` 复选框锁
 - [x] `McpDeviceCenter.jsx` 创作者应用模板自动切换 Bearer 并平滑滚至表单；`dengta-creator-bridge-mcp/server.js` 放行 `https://dengta-home.vercel.app` CORS 与 PNA 预检
 - [x] 自动化单测 `test/creator-world-onboarding.test.js` + `test/mcp-device-center.test.js` 全部通过
+
+## K. QQ 机器人连接状态、绑定码与人设同步铁证 & AI 工作台滚动（`SPEC-QQ-SYNC-AND-SCROLL`）
+- [x] `qq-bridge.js` 新增 `buildChannelPersonaDetail()`，修复 `user_details` 缺失、`memory_limit=0` 静默零条陷阱、补齐最近 10 轮灯塔对话衔接与 8 位同步指纹，`channel-sync.js` 新增 `GET /preview` 与保存回执
+- [x] `qq-cloud.js` 拦截 6 位数字绑定码（自动核销或回执在线状态不再透传给 LLM），新增 `/同步状态` 实时服务端自检指令，优化自然口语人设引导
+- [x] `ChannelHub.jsx` + `QQCloudConnect.jsx` + `channel-hub.css` 首帧加载连接态与同步证据，展示高对比三态大横幅、同步指纹证据卡与一键全量开启按钮
+- [x] `LocalAgentStudio.jsx` + `local-agent-studio.css` 添加 `feature-page`、`overflow-y: auto`、`min-height: 0`、`touch-action: pan-y` 根治 AI 工作台无法上下滑动
+- [x] 从 GitHub 下载安装 `kukemc/bili-cli` (`bili-agent 1.4.0`) 与 Agent Skills，端到端全量单测通过

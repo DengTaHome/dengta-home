@@ -4,6 +4,20 @@
 
 ---
 
+## `v2.13.65`（2026-11-27）— QQ 机器人高对比在线状态与同步铁证、6 位绑定码拦截、真实人设/称呼/记忆/对话延续同步、AI 工作台无法上下滑动根治 & `bili-cli` 安装
+
+- **根治 QQ 机器人「像普通人机、发绑定码 `324116` 没反应、看不出是否同步」全链路（`qq-bridge.js` + `channel-sync.js` + `qq-cloud.js` + `ChannelHub.jsx` + `QQCloudConnect.jsx` + `channel-hub.css`）**：
+  - 借鉴《把大肥鱼养进微信 QQ》（DSH-IM `@xmanrui/dsh-im`）及开源 AstrBot/LangBot 实践：
+    1. **人设与连续记忆完整同步**：`buildChannelPersonaDetail` 完整读取并脱敏注入灯塔核心人设（`unified_system_prompt` / `system_prompt` / `personality`）、主人称呼与背景（`user_details`）、已确认长期记忆（彻底修复「点选最近记忆但 `memory_limit` 仍为 0 导致同步 0 条」的隐蔽陷阱，默认 `15/30` 条）以及最近 10 轮灯塔主聊天记录衔接，并以自然有温度的伴侣身份提示替代生硬的机器人免责套话；QQ 新用户默认开启人设与最近 15 条记忆同步。
+    2. **可验证同步铁证（前后端 1:1 同一指纹）**：新增 `GET /api/v2/channel-sync/preview` 并在保存时直接返回 `sync_receipt`（8 位 SHA-256 指纹 + 人设/详情/小节/记忆/最近对话计数 + 真实摘录预览 + 告警）；前端「人设与记忆」顶部新增「同步生效证据」卡，若仍处于普通默认人机态立即标红警告并提供「一键开启完整人设 + 最近 15 条记忆并保存」按钮；在 QQ 私聊发送 **`/同步状态`** 即可直出服务端实时自检回执核对同一指纹。
+    3. **醒目连接态大横幅 + 6 位绑定码拦截**：修复 `ChannelHub` 默认标签页未加载 `/api/v2/qq-cloud` 导致已连上却总显示「待绑定」的问题，顶部增加绿/琥珀/红呼吸灯大状态横幅；`qq-cloud.js` 拦截 6 位绑定码（如 `324116`）自动尝试核销 `channel_bindings` 并清晰告知已在线及当前同步指纹，不再傻傻透传给模型。
+- **根治「AI 工作台·剪映」无法上下滑动（`LocalAgentStudio.jsx` + `local-agent-studio.css` + `creator-world-studio.css`）**：
+  - 为 `LocalAgentStudio` 根容器补回缺失的 `feature-page` 类，并显式设置 `height: 100%; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; touch-action: pan-y` 及子项 `flex-shrink: 0`，彻底修复在 `.view-content { overflow: hidden }` 下的上下滚动卡死问题。
+- **GitHub `kukemc/bili-cli` (`bili-agent 1.4.0`) 下载与本机安装**：
+  - 克隆至 `D:\GZdeepseek\_tools\bili-cli` 并完成 Python 3.12 可编辑安装（`D:\GZdeepseek\_tools\python312\Scripts\bili.exe`）、加入用户 `PATH` 并安装 Agent Skills 至本机 `.agents` / `.claude` / `.dsh`（DeepSeek Harness）。
+
+---
+
 ## `v2.13.64`（2026-11-27）— AI 视界 · B站/抖音/小红书一站式接入向导、修复「MCP 插件中心」全站跳转错位与本机 18088 网关直连
 
 - **根治「MCP 插件中心」全站跳转错位大 Bug（`App.jsx`）**：
