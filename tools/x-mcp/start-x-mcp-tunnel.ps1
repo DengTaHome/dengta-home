@@ -91,9 +91,9 @@ if (-not $sgReady) {
 }
 Write-Host "[网关] supergateway 已就绪：http://127.0.0.1:8765/mcp (PID=$($sgProc.Id))" -ForegroundColor Green
 
-# 4. Launch cloudflared quick tunnel
+# 4. Launch cloudflared quick tunnel over HTTP/2 (TCP 443; avoids QUIC UDP 7844 blocks)
 $cfProc = Start-Process -FilePath $CloudflaredExe `
-  -ArgumentList @("tunnel", "--url", "http://127.0.0.1:8765", "--no-autoupdate") `
+  -ArgumentList @("tunnel", "--protocol", "http2", "--url", "http://127.0.0.1:8765", "--no-autoupdate") `
   -WorkingDirectory "D:\GZdeepseek\_tools" `
   -WindowStyle Hidden `
   -RedirectStandardOutput $CfLogOut `
