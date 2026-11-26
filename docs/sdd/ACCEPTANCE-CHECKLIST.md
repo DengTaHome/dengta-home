@@ -7,6 +7,7 @@
 - [x] 内存 L1 + IndexedDB L2 缓存按 `account+companion` 作用域隔离，切回会话 0ms 秒出历史
 - [x] 无本地缓存时并发请求 `limit=40` 首屏与全量校准，流式回复中不被后台回执覆盖
 - [x] `ChatTranscript.jsx` 首屏 DOM 窗口缩减为 80 条，展开更早消息保持滚动位置不跳动
+- [x] `GET /api/v2/bootstrap` 单次往返预取最近会话 40 条消息 + `seedInitialHistory()` 零覆盖预热，消除无本地缓存冷启动二次 RTT（`v2.13.59`）
 - [ ] 真机实测：打开聊天页/切换会话瞬间显示记录、无明显白屏卡顿
 
 ## B. 音乐工作室手机白屏与二维码登录态同步（`SPEC-MUSIC-STUDIO`）

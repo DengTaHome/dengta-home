@@ -4,6 +4,18 @@
 
 ---
 
+## `v2.13.59`（2026-11-27）— 全链路真实 KV 缓存命中可视化闭环 + 冷启动单次 RTT 首屏预热 + 设置复选框与深色回执精修
+
+- **全链路真实 KV-Cache 遥测闭环（`ai-service.js` → `settings.js` → `PromptPipelineInspector.jsx` + `App.jsx`）**：
+  - 后端补齐无工具流式 `streamOpenAiCompatible`、工具非流式 `callOpenAiCompatibleWithTools` 的 `usage` 采集；在官方 OpenAI / DeepSeek 端点自动附带 `stream_options: { include_usage: true }` 与 `prompt_cache_key`（第三方严格中转保持零入侵）。
+  - 前端 `normalizePromptReceipt` 完整保留并持久化 `upstreamUsage`（兼容服务端 `snake_case` 与 `localStorage` `camelCase` 重载），并在「提示词工作台」与「最近一次模型请求回执」直接展示**最近一轮真实上游 KV 缓存命中率、命中 Token 数与缓存写入量**。
+- **冷启动首屏聊天记录再砍一次网络往返（`SPEC-CHAT-SPEED` Phase 2）**：
+  - `GET /api/v2/bootstrap` 在不改动请求路径、保持 100% 租户隔离的前提下，于同一次请求内顺带预取最近会话最新 40 条消息（`latest_session_messages`）；
+  - 前端 `chat-history-cache.js` 新增 `seedInitialHistory()`，仅在本地 L1 内存尚无更完整缓存时预热，让新装机或清缓存冷启动在 `bootstrap` 返回瞬间 0ms 出首屏，同时后台异步校准完整 500 条记录。
+- **设置面板细节收口**：将语音服务配置复选框 `.voice-provider-toggle input[type="checkbox"]` 从 `22px` 统一收敛为 `18px × 18px`，并补齐夜间模式下语音提示条与提示词回执卡片的 Night Glass 高对比样式。
+
+---
+
 ## `v2.13.58`（2026-11-27）— `agents.md` 提示词 KV 缓存遥测闭环 + 自定义 API 控制台智能识别与测速 + 设置面板动效/SVG/深浅双主题精修
 
 - **上游真实 KV-Cache 命中遥测（`backend-prod/services/ai-service.js`）**：新增 `extractProviderUsageMetrics()` 与 `mergeProviderUsageMetrics()`，统一解析 DeepSeek（`prompt_cache_hit_tokens`）、OpenAI Chat/Responses（`prompt_tokens_details.cached_tokens` / `input_tokens_details.cached_tokens`）、Anthropic（`cache_read_input_tokens` / `cache_creation_input_tokens`，含流式 `message_start` + `message_delta` 合并）与 Gemini（`cachedContentTokenCount`），在聊天回执中非破坏性写入 `prompt_receipt.upstream_usage`（`input_tokens / output_tokens / cached_input_tokens / cache_creation_tokens / cache_hit_ratio`），同时保持 `user-agents-md.test.js` 1:1 原文透传契约。
