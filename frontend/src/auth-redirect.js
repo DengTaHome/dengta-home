@@ -52,15 +52,14 @@ export function resolveEmailRedirectUrl({
   baseUrl = BUILD_APP_BASE_URL,
   officialUrl = PUBLIC_AUTH_REDIRECT_URL,
 } = {}) {
+  // Packaged apps must use the registered scheme on iOS and Android. A copied
+  // web .env.local commonly contains localhost:5173, which cannot reopen an app.
+  if (nativePlatform) return DEEP_LINK_SCHEME;
+
   const configured = cleanHttpUrl(configuredUrl);
   if (configured) return configured;
 
-  // 缺陷 1 修复：原生 App 返回深度链接，用户点击邮箱验证/重置链接后
-  // 回跳到 dengta://auth#access_token=...，由 AppUrlOpen 监听器接收。
-  if (nativePlatform) return DEEP_LINK_SCHEME;
-
   const official = cleanHttpUrl(officialUrl);
-  if (nativePlatform) return official;
 
   const origin = cleanHttpUrl(location?.origin);
   if (!origin) return official;

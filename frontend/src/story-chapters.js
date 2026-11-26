@@ -1,4 +1,5 @@
 import { accountStorageKey } from "./account-storage.js";
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
 
 const BASE_KEY = "dengta_story_chapters_v1";
 const MESSAGES = Object.freeze({
@@ -34,10 +35,14 @@ export function createStoryChapter(title, body, { id = globalThis.crypto?.random
   return chapterRecord({ id:id || `chapter-${Date.now()}-${Math.random().toString(36).slice(2)}`, title, body, createdAt });
 }
 export function createStoryChaptersStore(scope, suppliedStorage) {
+  scope = Object.freeze({ accountScope: scope?.accountScope, companionScope: scope?.companionScope });
   const key = storyScopeKey(scope);
+  let capturedStorage;
+  try { capturedStorage = resolveAccountCacheStorage(suppliedStorage || undefined, accountIdFromRuntimeScope(scope.accountScope)); }
+  catch { /* Reads/writes report the existing storage-unavailable error. */ }
   const storage = () => {
     try {
-      const value = suppliedStorage || globalThis.localStorage;
+      const value = capturedStorage;
       if (!value?.getItem || !value?.setItem) throw new Error();
       return value;
     } catch { throw storyChapterError("story_storage_unavailable"); }

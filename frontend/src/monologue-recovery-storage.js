@@ -1,3 +1,6 @@
+import { resolveAccountCacheStorage } from "./account-cache-vault.js";
+import { normalizeRuntimeAccountId, registerAccountRuntimeCleanup } from "./account-cleanup.js";
+
 const STORAGE_KEY = "dengta_monologue_recovery_v1";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HASH = /^[0-9a-f]{64}$/;
@@ -5,9 +8,30 @@ const MAX_ENTRIES = 128;
 const MAX_AGE = 24 * 60 * 60 * 1000;
 const invalidatedAnchors = new Set();
 
-export function availableMonologueStorage() {
-  try { return globalThis.localStorage || null; } catch { return null; }
+export function availableMonologueStorage(accountId = "") {
+  try { return resolveAccountCacheStorage(undefined, accountId) || null; } catch { return null; }
 }
+
+function accountForScope(scope) {
+  try {
+    const parsed = JSON.parse(scope);
+    return Array.isArray(parsed) && typeof parsed[0] === "string" ? parsed[0] : "";
+  } catch { return ""; }
+}
+
+export function clearMonologueRecoveryMemory(accountId) {
+  const owner = normalizeRuntimeAccountId(accountId);
+  if (!owner) return 0;
+  let cleared = 0;
+  for (const key of invalidatedAnchors) {
+    try {
+      const [scope] = JSON.parse(key);
+      if (normalizeRuntimeAccountId(accountForScope(scope)) === owner) { invalidatedAnchors.delete(key); cleared++; }
+    } catch { /* Ignore malformed metadata instead of guessing its owner. */ }
+  }
+  return cleared;
+}
+registerAccountRuntimeCleanup(clearMonologueRecoveryMemory);
 
 function keyFor(scope) { return `${STORAGE_KEY}:${scope}`; }
 function anchorKey(sessionId, userAnchor, anchorId) {
@@ -38,6 +62,7 @@ export async function resolveMonologueRecoveryId({
   if (!scope || !UUID.test(sessionId) || !String(anchorId || "")) return fresh();
   let requestId;
   try {
+    storage = resolveAccountCacheStorage(storage, accountForScope(scope));
     const { mood, energyLevel, focus, microState } = companionStatus;
     const bytes = new TextEncoder().encode(JSON.stringify([model, mood, energyLevel, focus, microState]));
     const fingerprint = Array.from(sha256(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
@@ -69,6 +94,7 @@ export function removeMonologueRecoveryId({ scope, sessionId, userAnchor, anchor
   };
   if (!requestId) invalidate();
   try {
+    storage = resolveAccountCacheStorage(storage, accountForScope(scope));
     const rows = read(storage, scope, Date.now());
     if (!rows[anchor] || (requestId && rows[anchor].requestId !== requestId)) return true;
     invalidate();

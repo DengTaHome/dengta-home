@@ -1,6 +1,39 @@
+import { accountIdFromRuntimeScope, captureAccountRuntimeEpoch, isAccountRuntimeAvailable, isAccountRuntimeCurrent, normalizeRuntimeAccountId, registerAccountRuntimeCleanup } from "./account-cleanup.js";
+
 const rows = new Map();
 const listeners = new Set();
+const invalidatedAccounts = new Set();
+const capturedScopes = new WeakMap();
 let sequence = 0;
+
+// Async callers capture once before dispatch. A later login of the same account
+// must not make a response from its previous login current again.
+export function captureOperationFailureScope(scope) {
+  if (scope && typeof scope === "object" && capturedScopes.has(scope)) return scope;
+  const key = typeof scope === "string" ? scope : "";
+  const captured = Object.freeze({});
+  capturedScopes.set(captured, { key, ticket: captureAccountRuntimeEpoch(accountIdFromRuntimeScope(key)) });
+  return captured;
+}
+
+function writableScope(scope) {
+  if (scope && typeof scope === "object") {
+    const captured = capturedScopes.get(scope);
+    return captured && isAccountRuntimeCurrent(captured.ticket) ? captured.key : "";
+  }
+  const account = accountIdFromRuntimeScope(scope);
+  // Legacy callers have no capture token. Once an account exits, fail closed
+  // for those old strings; fresh async work uses captureOperationFailureScope.
+  return isAccountRuntimeAvailable(account) && !invalidatedAccounts.has(account) ? scope : "";
+}
+
+export function clearAccountOperationFailures(accountId) {
+  const account = normalizeRuntimeAccountId(accountId);
+  invalidatedAccounts.add(account);
+  for (const scope of rows.keys()) if (accountIdFromRuntimeScope(scope) === account) rows.delete(scope);
+  listeners.forEach(listener => listener());
+}
+registerAccountRuntimeCleanup(clearAccountOperationFailures);
 export const DIAGNOSTIC_OPERATIONS = [
   { prefix: "/api/errors", code: "DT-LOGS", label: "错误日志", source: "App.jsx / ChatErrorLog.jsx · 日志读取与回执" },
   { prefix: "/companion/inner-monologue", code: "DT-MONOLOGUE", label: "心声补充", source: "App.jsx · 心声补充与回执" },
@@ -44,6 +77,7 @@ const DISCOVERY_CODES = new Set(["discover_interests_invalid", "discover_recomme
 const MAP_CODES = new Set(["surprise_map_schema_required", "surprise_map_receipt_invalid", "surprise_map_request_conflict", "surprise_map_location_required", "surprise_map_location_invalid", "surprise_map_location_stale", "surprise_map_not_nearby", "surprise_map_draft_invalid", "surprise_map_not_found", "surprise_map_request_failed", "location_permission_denied", "location_unavailable", "location_timeout"]);
 export const diagnosticScopeKey = (account, companion) => account && companion ? JSON.stringify([account, companion]) : "";
 export function recordOperationFailure(scope, endpoint, error, now = Date.now()) {
+  scope = writableScope(scope);
   if (!scope || error?.name === "AbortError") return null;
   const route = String(endpoint).split("?")[0];
   const operation = DIAGNOSTIC_OPERATIONS.find(item => route === item.prefix || route.startsWith(item.prefix + "/")) || FALLBACK;
@@ -60,6 +94,10 @@ export function recordOperationFailure(scope, endpoint, error, now = Date.now())
   listeners.forEach(listener => listener());
   return record;
 }
-export function readOperationFailures(scope) { return rows.get(scope) || EMPTY; }
+export function readOperationFailures(scope) {
+  if (scope && typeof scope === "object" && !writableScope(scope)) return EMPTY;
+  const key = typeof scope === "string" ? scope : capturedScopes.get(scope)?.key || "";
+  return isAccountRuntimeAvailable(accountIdFromRuntimeScope(key)) ? rows.get(key) || EMPTY : EMPTY;
+}
 export function clearOperationFailures(scope) { rows.delete(scope); listeners.forEach(listener => listener()); }
 export function subscribeOperationFailures(listener) { listeners.add(listener); return () => listeners.delete(listener); }

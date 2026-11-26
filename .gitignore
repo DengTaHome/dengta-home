@@ -1,15 +1,18 @@
 node_modules/
+.references/
 dist/
 coverage/
 .cache/
 .vite/
 .gradle/
 /artifacts/
+/frontend/artifacts/
 **/build/
 
 .env
 .env.*
 !.env.example
+!.env.ios.example
 
 *.zip
 *.tar

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
 import { apiRequest } from "./api.js";
 import { authSession } from "./auth-session.js";
 import { createScopedSettingsSession, settingsSaveScope } from "./settings-save-scope.js";
@@ -14,6 +15,7 @@ export default function XhsStickerImportSettings({ onRefresh, request = apiReque
   return <XhsStickerView key={scope} scope={scope} onRefresh={onRefresh} request={request} session={session} />;
 }
 function XhsStickerView({ scope, onRefresh, request, session }) {
+  const privateStorage = useMemo(() => resolveAccountCacheStorage(undefined, accountIdFromRuntimeScope(scope)), [scope]);
   const [preferences, setPreferences] = useState(null), [busy, setBusy] = useState("load"), [error, setError] = useState(""), [keyword, setKeyword] = useState("");
   const [items, setItems] = useState(null), [result, setResult] = useState(null), [reload, setReload] = useState(0);
   const operation = useRef(null), receipt = useRef(null);
@@ -45,7 +47,7 @@ function XhsStickerView({ scope, onRefresh, request, session }) {
   }
   function collect(item) {
     void perform("import", async (client, current) => {
-      if (receipt.current?.note_id !== item.note_id) receipt.current = xhsStickerRequest(scope, item.note_id);
+      if (receipt.current?.note_id !== item.note_id) receipt.current = xhsStickerRequest(scope, item.note_id, privateStorage);
       const value = validateXhsImport(await client(BASE, { method: "POST", body: JSON.stringify(receipt.current) }));
       if (!current()) return;
       if (value.source.note_id !== item.note_id) throw invalid();

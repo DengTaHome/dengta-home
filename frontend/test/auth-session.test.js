@@ -106,7 +106,7 @@ function createFakeSupabase(initialSession = null) {
     calls,
     setSession(nextSession) {
       session = nextSession;
-      listener?.("TOKEN_REFRESHED", session);
+      listener?.("SIGNED_IN", session);
     },
     enterPasswordRecovery(nextSession) {
       session = nextSession;
@@ -136,7 +136,8 @@ function createFakeSupabase(initialSession = null) {
   assert.equal(factoryCalls[0].options.auth.persistSession, true);
   assert.equal(factoryCalls[0].options.auth.autoRefreshToken, true);
   assert.equal(factoryCalls[0].options.auth.detectSessionInUrl, true);
-  assert.equal(factoryCalls[0].options.auth.storage, storage);
+  assert.notEqual(factoryCalls[0].options.auth.storage, storage);
+  assert.equal(typeof factoryCalls[0].options.auth.storage.retireAndClear, "function");
   assert.equal(manager.getSnapshot().status, AUTH_STATUS.authenticated);
   assert.deepEqual(await manager.getRequestContext(), {
     accessToken: "restored-token",
@@ -178,7 +179,7 @@ function createFakeSupabase(initialSession = null) {
   assert.equal(manager.getSnapshot().activeCompanionId, COMPANION_B);
 
   await manager.signOut();
-  assert.deepEqual(fake.calls.signOut, [undefined]);
+  assert.deepEqual(fake.calls.signOut, [{ scope: "local" }]);
   assert.equal(manager.getSnapshot().status, AUTH_STATUS.anonymous);
   assert.deepEqual(await manager.getRequestContext(), {});
   manager.destroy();

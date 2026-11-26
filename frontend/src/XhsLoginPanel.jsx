@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "./api.js";
 import { browserLauncherAvailable, openBuiltInBrowser, readBrowserCookie } from "./browser-launcher.js";
 import { logoutXhs, readXhsLoginStatus, readXhsMe, startXhsLogin } from "./xhs-login.js";
-import { recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, recordOperationFailure } from "./operation-diagnostics.js";
 import "./xhs-login.css";
 
 const MESSAGES = {
@@ -46,7 +46,7 @@ function ScopedXhsLoginPanel({ scope, operations = defaults, nativeAvailable = b
   const [state, setState] = useState({ status: "idle", feedback: "", qr: "" });
   const lifecycle = useRef(null);
   useEffect(() => {
-    const owner = { active: true, locked: false, version: 0, timer: null };
+    const owner = { active: true, locked: false, version: 0, timer: null, diagnosticScope: captureOperationFailureScope(scope) };
     lifecycle.current = owner;
     return () => { owner.active = false; clearTimeout(owner.timer); };
   }, [scope, operations]);
@@ -61,7 +61,7 @@ function ScopedXhsLoginPanel({ scope, operations = defaults, nativeAvailable = b
       if (!valid()) return;
       const feedback = xhsFeedback(error);
       setState({ status: "error", qr: "", feedback: feedback.message });
-      recordOperationFailure(scope, "/api/v2/xhs", feedback);
+      recordOperationFailure(owner.diagnosticScope, "/api/v2/xhs", feedback);
     };
     const check = async () => {
       const receipt = await operations.me();

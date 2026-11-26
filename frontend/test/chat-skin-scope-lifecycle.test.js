@@ -14,6 +14,7 @@ import {
   writeStoredChatSkinPreferences,
 } from "../src/chat-skin.js";
 import { createScopedSettingsSession, settingsSaveScope } from "../src/settings-save-scope.js";
+import { prepareAccountRuntimeData } from "../src/account-cleanup.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const app = (env.DENGTA_CHAT_SKIN_APP_REF
@@ -53,6 +54,8 @@ async function harness() {
     } }),
   });
   await manager.initialize(); manager.setActiveCompanionId(COMPANION_A);
+  await manager.waitForAccountData();
+  prepareAccountRuntimeData(ACCOUNT_A);
   const descriptors = Object.fromEntries(["window", "fetch"].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const timers = new Map(), requests = [];
   let timerId = 0, writes = 0, preferences = serverPreferences;
@@ -74,7 +77,7 @@ async function harness() {
     AbortController, createScopedSettingsSession,
     STARTUP_REQUEST_OPTIONS: { retry: false },
     chatSkinPreferencesApiPayload, normalizeChatSkinPreferences, writeStoredChatSkinPreferences,
-    localStorage: storage, window, useCallback: callback => callback,
+    privateStorage: storage, window, useCallback: callback => callback,
     registerSettingsSaveGuard: () => () => {},
     canLeaveWorkspace: () => true,
     setSettingsExitBusy() {}, abortChatRequest() {}, releaseChatRequestAttachments() {},
@@ -104,8 +107,8 @@ async function harness() {
     switchAccount() { session = sessionFor(ACCOUNT_B); authListener("SIGNED_IN", session); manager.setActiveCompanionId(COMPANION_B); },
     switchCompanion() { manager.setActiveCompanionId(COMPANION_B); },
     dispose() { if (!disposed) { disposed = true; cleanup(); } },
-    finish() {
-      this.dispose(); manager.destroy();
+    async finish() {
+      this.dispose(); await manager.waitForAccountData(); manager.destroy();
       for (const [name, descriptor] of Object.entries(descriptors)) {
         if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
       }
@@ -120,7 +123,7 @@ test("actual App cleanup cancels the pending skin save timer before the next acc
     subject.dispose(); subject.switchAccount(); await subject.fireSaveTimer();
     assert.equal(subject.requests.length, 0, "old timer must not issue a PUT with current account credentials");
     assert.equal(subject.context.chatSkinSaveTimerRef.current, null);
-  } finally { subject.finish(); }
+  } finally { await subject.finish(); }
 });
 
 test("an already queued skin save is cancelled after the current PUT unblocks during an account switch", async () => {
@@ -135,7 +138,7 @@ test("an already queued skin save is cancelled after the current PUT unblocks du
     assert.equal(subject.requests[0].options.headers.get("X-DengTa-Companion-Id"), COMPANION_A);
     assert.equal(subject.signOuts.length, 0);
     assert.equal(subject.manager.getSnapshot().user.id, ACCOUNT_B);
-  } finally { subject.finish(); }
+  } finally { await subject.finish(); }
 });
 
 test("a late startup preference read preserves a newer local selection and its account storage", async () => {
@@ -146,7 +149,7 @@ test("a late startup preference read preserves a newer local selection and its a
     assert.deepEqual(subject.preferences, edited);
     assert.deepEqual(subject.context.chatSkinPreferencesRef.current, edited);
     assert.deepEqual(subject.stored(), edited);
-  } finally { subject.finish(); }
+  } finally { await subject.finish(); }
 });
 
 test("a read completing after actual App cleanup cannot write local storage or React state", async () => {
@@ -158,7 +161,7 @@ test("a read completing after actual App cleanup cannot write local storage or R
     assert.deepEqual([...subject.values], before);
     assert.equal(subject.writes, writes);
     assert.deepEqual(subject.context.chatSkinPreferencesRef.current, serverPreferences);
-  } finally { subject.finish(); }
+  } finally { await subject.finish(); }
 });
 
 for (const switchKind of ["account", "companion"]) {
@@ -173,7 +176,7 @@ for (const switchKind of ["account", "companion"]) {
       assert.equal(subject.manager.getSnapshot().user.id, switchKind === "account" ? ACCOUNT_B : ACCOUNT_A);
       assert.equal(subject.manager.getSnapshot().activeCompanionId, COMPANION_B);
       assert.equal(subject.requests.length, 1, "401 must not trigger an automatic write or retry");
-    } finally { subject.finish(); }
+    } finally { await subject.finish(); }
   });
 }
 
@@ -190,5 +193,5 @@ test("ordinary same-scope load and debounced save retain the existing API payloa
     assert.equal(subject.requests[1].options.headers.get("X-DengTa-Companion-Id"), COMPANION_A);
     subject.requests[1].resolve(200, {}); await tick();
     assert.equal(subject.signOuts.length, 0);
-  } finally { subject.finish(); }
+  } finally { await subject.finish(); }
 });

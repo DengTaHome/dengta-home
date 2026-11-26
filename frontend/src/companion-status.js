@@ -1,3 +1,5 @@
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
+
 const STORAGE_KEY = "dengta_companion_status_v1";
 const INTERACTION_STORAGE_KEY = "dengta_companion_interactions_v1";
 
@@ -355,10 +357,11 @@ export function normalizeCompanionInteractionStats(value) {
   };
 }
 
-export function readCompanionInteractionStats(accountScope = "") {
+export function readCompanionInteractionStats(accountScope = "", storage) {
   const fallback = createDefaultCompanionInteractionStats();
   try {
-    const raw = localStorage.getItem(
+    storage = resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(accountScope));
+    const raw = storage.getItem(
       accountStorageKey(INTERACTION_STORAGE_KEY, accountScope),
     );
     return raw ? normalizeCompanionInteractionStats(JSON.parse(raw)) : fallback;
@@ -367,9 +370,10 @@ export function readCompanionInteractionStats(accountScope = "") {
   }
 }
 
-export function saveCompanionInteractionStats(value, accountScope = "") {
+export function saveCompanionInteractionStats(value, accountScope = "", storage) {
   try {
-    localStorage.setItem(
+    storage = resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(accountScope));
+    storage.setItem(
       accountStorageKey(INTERACTION_STORAGE_KEY, accountScope),
       JSON.stringify(normalizeCompanionInteractionStats(value)),
     );
@@ -804,10 +808,11 @@ export function settleExpiredCountdown(value, now = Date.now()) {
   );
 }
 
-export function readCompanionStatus(accountScope = "") {
+export function readCompanionStatus(accountScope = "", storage) {
   const fallback = createDefaultCompanionStatus();
   try {
-    const raw = localStorage.getItem(
+    storage = resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(accountScope));
+    const raw = storage.getItem(
       accountStorageKey(STORAGE_KEY, accountScope),
     );
     return raw ? settleExpiredCountdown(JSON.parse(raw)) : fallback;
@@ -816,9 +821,10 @@ export function readCompanionStatus(accountScope = "") {
   }
 }
 
-export function saveCompanionStatus(value, accountScope = "") {
+export function saveCompanionStatus(value, accountScope = "", storage) {
   try {
-    localStorage.setItem(
+    storage = resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(accountScope));
+    storage.setItem(
       accountStorageKey(STORAGE_KEY, accountScope),
       JSON.stringify(normalizeCompanionStatus(value)),
     );

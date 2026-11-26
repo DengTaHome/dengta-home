@@ -22,6 +22,7 @@ Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
 Object.defineProperty(globalThis, "window", { configurable: true, value: { addEventListener: (key, listener) => listeners.set(key, listener), removeEventListener: key => listeners.delete(key) } });
 Object.defineProperty(globalThis, "document", { configurable: true, value: { activeElement: null, addEventListener() {}, removeEventListener() {} } });
 globalThis.__updateFixture = {
+  platform: "android",
   App: { getInfo: async () => ({ build: "121", version: "2.10.73" }), addListener: async (key, listener) => { nativeListeners.set(key, listener); return { remove() { nativeListeners.delete(key); } }; } },
   Native: { schedule: async () => ({ enabled: true }), consumeLaunch: async () => ({ available: false }), openDownload: async value => { downloads.push(value.url); return { opened: true }; }, setEnabled: async value => { preferences.push(value.enabled); } },
   Notifications: { checkPermissions: async () => ({ display: "granted" }) },
@@ -33,7 +34,7 @@ const vite = await createServer({ configFile: false, envDir: false, root: fileUR
     if (id !== "\0update-center.jsx") return;
     const code = readFileSync(new URL("../src/AppUpdateCenter.jsx", import.meta.url), "utf8")
       .replace('import { App } from "@capacitor/app";', 'const App=globalThis.__updateFixture.App;')
-      .replace('import { Capacitor, registerPlugin } from "@capacitor/core";', 'const Capacitor={getPlatform:()=>"android"};const registerPlugin=()=>globalThis.__updateFixture.Native;')
+      .replace('import { Capacitor, registerPlugin } from "@capacitor/core";', 'const Capacitor={getPlatform:()=>globalThis.__updateFixture.platform};const registerPlugin=()=>globalThis.__updateFixture.Native;')
       .replace('import { LocalNotifications } from "@capacitor/local-notifications";', 'const LocalNotifications=globalThis.__updateFixture.Notifications;')
       .replaceAll('from "./', 'from "/src/').replace('import "./app-updates.css";', '');
     return (await transformWithOxc(code, "update-center.jsx", { lang: "jsx", jsx: { runtime: "automatic" } })).code;
@@ -143,4 +144,34 @@ test("duplicate notification toggles are serialized and a late startup receipt c
   assert.ok(button("开启后台更新通知"));
   await act(async () => tree.unmount()); tree = null;
   native.schedule = schedule; native.setEnabled = setEnabled;
+});
+
+test("iOS displays its installed version and installation channel without fetching Android releases or invoking Android plugins", async () => {
+  const fixture = globalThis.__updateFixture;
+  const native = fixture.Native, originals = { ...native };
+  const previousGetInfo = fixture.App.getInfo;
+  const requestCount = requests.length;
+  let androidCalls = 0;
+  fixture.platform = "ios";
+  fixture.App.getInfo = async () => ({ version: "2.10.74", build: "7" });
+  for (const name of Object.keys(native)) native[name] = async () => { androidCalls++; throw Error("Android plugin invoked on iOS"); };
+  try {
+    await act(async () => { tree = TestRenderer.create(React.createElement(UpdateCenter)); });
+    await act(async () => listeners.get("dengta:check-app-updates")());
+    assert.match(text(tree.toJSON()), /当前 iOS 版本 2\.10\.74（7）/);
+    assert.match(text(tree.toJSON()), /TestFlight/);
+    assert.doesNotMatch(text(tree.toJSON()), /APK|安卓|网页版/);
+    assert.equal(button("下载更新"), undefined);
+    await act(async () => listeners.get("dengta:app-update-preferences")());
+    assert.match(text(tree.toJSON()), /当前 iOS 版本：2\.10\.74/);
+    assert.doesNotMatch(text(tree.toJSON()), /APK|安卓|后台更新通知/);
+    assert.equal(button("开启后台更新通知"), undefined);
+    assert.equal(requests.length, requestCount);
+    assert.equal(androidCalls, 0);
+    await act(async () => tree.unmount()); tree = null;
+  } finally {
+    fixture.platform = "android";
+    fixture.App.getInfo = previousGetInfo;
+    Object.assign(native, originals);
+  }
 });

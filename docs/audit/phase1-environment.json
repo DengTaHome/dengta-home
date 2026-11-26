@@ -1,0 +1,19 @@
+{
+  "phase": "0-and-1-only",
+  "requested_windows_workspace": "D:\\LMKJ\\dengta-ios\\ios-agent",
+  "windows_workspace_accessed": false,
+  "actual_sandbox": "/workspace/dengta-ios/ios-agent",
+  "original_workspace": "/workspace/dengta-home",
+  "source_revision": "3401fb1ea7ad971df93015f9096af8539cfd9802",
+  "os": "Linux",
+  "node": "v24.22.1",
+  "npm": "11.9.0",
+  "xcodebuild_local": null,
+  "xcrun_local": null,
+  "source_inode_is_independent": true,
+  "original_git_status": "",
+  "existing_ios_test_files_passed": 3,
+  "native_ui_tests_executed_this_phase": false,
+  "verified_existing_simulator_build": "https://github.com/DengTaHome/dengta-home/actions/runs/42851275140",
+  "implementation_started": false
+}

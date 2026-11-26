@@ -1,4 +1,4 @@
-import { diagnosticScopeKey, recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, diagnosticScopeKey, recordOperationFailure } from "./operation-diagnostics.js";
 import { requestErrorLog } from "./error-log-request.js";
 import { isChatGenerationInProgress } from "./chat-idempotency.js";
 import { authSession as defaultAuthSession } from "./auth-session.js";
@@ -59,56 +59,187 @@ function awaitWithAbortSignal(value, signal) {
  * 且两次 read 都发生在第一次 write 之前——说明是两个并发调用同时拉起的。
  * 让后来者等待同一个请求，可以省掉一整趟跨境往返。
  */
-const inflightGets = new Map();
+const inflightGets = new WeakMap();
 
-async function fetchFromApi(path, options = {}) {
-  const method = String(options.method || "GET").toUpperCase();
-  if (method !== "GET" || !isCacheableGetPath(path)) return performFetchFromApi(path, options);
+export function clearApiRequestCache(manager = defaultAuthSession) {
+  if (manager && typeof manager === "object") inflightGets.delete(manager);
+}
 
-  const companion = String(options.authSession?.getSnapshot?.()?.activeCompanionId || "");
-  const dedupeKey = getCacheKey(path, companion);
-  const existing = inflightGets.get(dedupeKey);
-  if (existing) {
-    const snapshot = await existing.catch(() => null);
-    if (snapshot) {
-      return new Response(snapshot.body, {
-        status: snapshot.status,
-        headers: { "content-type": snapshot.contentType || "application/json" },
-      });
-    }
-    return performFetchFromApi(path, options);
+function readRequestScope(manager) {
+  const scope = manager?.getRequestScope?.();
+  const snapshot = manager?.getSnapshot?.();
+  return {
+    accountId: String(scope?.accountId ?? snapshot?.user?.id ?? ""),
+    companionId: String(scope?.companionId ?? snapshot?.activeCompanionId ?? ""),
+    revision: scope?.revision ?? null,
+  };
+}
+
+function sameRequestScope(a, b) {
+  return a.accountId === b.accountId && a.companionId === b.companionId && a.revision === b.revision;
+}
+
+function changedRequestScope() {
+  return Object.assign(new Error("账号或伴侣已切换，本次请求已取消。"), { name: "AbortError", code: "settings_scope_changed" });
+}
+
+function assertRequestScope(scope) {
+  if (!sameRequestScope(scope.identity, readRequestScope(scope.manager))) throw changedRequestScope();
+}
+
+function captureResponseCompanion(response, scope) {
+  assertRequestScope(scope);
+  const previous = scope.identity;
+  const companion = scope.manager?.captureCompanionFromResponse?.(response, previous);
+  const current = readRequestScope(scope.manager);
+  // A server may select the initial companion. Only accept that synchronous
+  // transition; unrelated logout/login revisions must still cancel this request.
+  if (companion && current.accountId === previous.accountId &&
+      current.companionId === companion && previous.companionId !== companion &&
+      (previous.revision === null || current.revision === previous.revision + 1)) {
+    scope.identity = current;
   }
+  assertRequestScope(scope);
+}
 
-  const task = performFetchFromApi(path, options);
-  // 首调用方拿原始 Response；同时留一份文本快照给后来者。
-  const snapshotTask = task
-    .then(async (response) => ({
-      body: await response.clone().text(),
-      status: response.status,
-      contentType: response.headers.get("content-type"),
-    }))
-    .catch(() => null);
-  inflightGets.set(dedupeKey, snapshotTask);
-  try {
-    return await task;
+function guardedResponse(response, scope, signal) {
+  let body;
+  const check = () => {
+    if (signal?.aborted) throw signal.reason || new DOMException("The operation was aborted.", "AbortError");
+    assertRequestScope(scope);
+  };
+  return new Proxy(response, {
+    get(target, property) {
+      check();
+      if (property === "clone" && typeof target.clone === "function") return () => { check(); return guardedResponse(target.clone(), scope, signal); };
+      if (["json", "text", "blob", "arrayBuffer", "formData", "bytes"].includes(property) && typeof target[property] === "function") {
+        return async (...args) => {
+          check();
+          const value = await awaitWithAbortSignal(target[property](...args), signal);
+          check();
+          return value;
+        };
+      }
+      if (property === "body" && target.body) {
+        check();
+        if (!body) {
+          const reader = target.body.getReader();
+          let released = false;
+          const release = () => { if (!released) { released = true; reader.releaseLock?.(); } };
+          body = new ReadableStream({
+            async pull(controller) {
+              try {
+                check();
+                const chunk = await awaitWithAbortSignal(reader.read(), signal);
+                check();
+                if (chunk.done) { controller.close(); release(); } else controller.enqueue(chunk.value);
+              } catch (error) {
+                void Promise.resolve(reader.cancel?.(error)).catch(() => {}).finally(release);
+                controller.error(error);
+              }
+            },
+            async cancel(reason) { try { return await reader.cancel?.(reason); } finally { release(); } },
+          }, { highWaterMark: 0 });
+        }
+        return body;
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
+async function waitForSharedGet(task, options) {
+  if (!(options.timeoutMs > 0)) return awaitWithAbortSignal(task, options.signal);
+  const controller = new AbortController();
+  let timedOut = false;
+  const abort = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) abort();
+  else options.signal?.addEventListener("abort", abort, { once: true });
+  const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, options.timeoutMs);
+  try { return await awaitWithAbortSignal(task, controller.signal); }
+  catch (error) {
+    if (!timedOut) throw error;
+    throw Object.assign(new Error("等待 DengTa 后端响应超时，本次不会自动重复请求。", { cause: error }), { code: "request_timeout" });
   } finally {
-    inflightGets.delete(dedupeKey);
+    window.clearTimeout(timer);
+    options.signal?.removeEventListener("abort", abort);
   }
 }
 
-async function performFetchFromApi(path, options = {}) {
+async function consumeSharedGet(entry, task, options) {
+  const consumer = {};
+  entry.consumers.add(consumer);
+  const release = (cancelled = false, reason) => {
+    if (!entry.consumers.delete(consumer)) return;
+    options.signal?.removeEventListener("abort", abort);
+    if (cancelled && !entry.settled && entry.consumers.size === 0) {
+      // A manual reconnect must be able to replace an abandoned/hung read.
+      // Drop its entry synchronously, before the next caller tries to join it.
+      entry.discard();
+      entry.controller.abort(reason);
+    }
+  };
+  const abort = () => release(true, options.signal?.reason);
+  if (options.signal?.aborted) abort();
+  else options.signal?.addEventListener("abort", abort, { once: true });
+  // Headers can arrive before the body. Keep the reader's lease until the
+  // shared body finishes, so normal completion never aborts a readable Response.
+  void entry.snapshot.then(() => release(), () => release());
+  try { return await waitForSharedGet(task, options); }
+  catch (error) { release(true, error); throw error; }
+}
+
+async function fetchFromApi(path, options = {}) {
+  if (options.signal?.aborted) throw options.signal.reason || new DOMException("The operation was aborted.", "AbortError");
+  const manager = options.authSession || defaultAuthSession;
+  const scope = { manager, identity: readRequestScope(manager), initialLoading: manager?.getSnapshot?.()?.status === "loading" };
+  const method = String(options.method || "GET").toUpperCase();
+  const ordinaryHeaders = [...new Headers(options.headers || {})].every(([name, value]) => name === "content-type" && value === "application/json");
+  const dedupeKey = method === "GET" && ordinaryHeaders && isCacheableGetPath(path) ? getCacheKey(path, scope.identity) : null;
+  if (!dedupeKey || !manager || typeof manager !== "object") return { response: await performFetchFromApi(path, options, scope), scope };
+  let pending = inflightGets.get(manager);
+  if (!pending) { pending = new Map(); inflightGets.set(manager, pending); }
+  const existing = pending.get(dedupeKey);
+  if (existing) {
+    const snapshot = await consumeSharedGet(existing, existing.snapshot, options);
+    assertRequestScope(existing.scope);
+    return { response: new Response(snapshot.body, { status: snapshot.status, statusText: snapshot.statusText, headers: snapshot.headers }), scope: existing.scope };
+  }
+
+  // The transport belongs to the shared entry. A consumer's cancellation or
+  // deadline must not cancel another consumer waiting for this same read.
+  const controller = new AbortController();
+  const entry = {
+    scope, snapshot: null, controller, consumers: new Set(), settled: false,
+    discard() { if (pending.get(dedupeKey) === entry) pending.delete(dedupeKey); },
+  };
+  const task = performFetchFromApi(path, { ...options, signal: controller.signal, timeoutMs: 0 }, scope);
+  entry.snapshot = task.then(async response => {
+    const body = await guardedResponse(response.clone(), scope, controller.signal).text();
+    return { body: [204, 205, 304].includes(response.status) ? null : body, status: response.status, statusText: response.statusText, headers: [...response.headers] };
+  }).finally(() => { entry.settled = true; entry.discard(); });
+  // The original caller consumes its own Response; a snapshot failure still has
+  // an observer even when no caller joined, and cannot remove a newer entry.
+  void entry.snapshot.catch(() => {});
+  pending.set(dedupeKey, entry);
+  return { response: await consumeSharedGet(entry, task, options), scope };
+}
+
+async function performFetchFromApi(path, options, scope) {
   const {
     timeoutMs = 0,
     retry = true,
-    authSession = defaultAuthSession,
+    authSession: providedAuthSession,
     ...requestOptions
   } = options;
+  const authSession = providedAuthSession || defaultAuthSession;
   const method = String(requestOptions.method || "GET").toUpperCase();
   const retryDelays = retry && method === "GET" ? [0, 1500, 4000] : [0];
 
   for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
     const delay = retryDelays[attempt];
-    if (delay > 0) await wait(delay);
+    if (delay > 0) await awaitWithAbortSignal(wait(delay), requestOptions.signal);
 
     let timeoutId;
     let timedOut = false;
@@ -132,6 +263,23 @@ async function performFetchFromApi(path, options = {}) {
         authSession?.getRequestContext?.(),
         effectiveSignal,
       );
+      if (scope.initialLoading && !scope.identity.accountId) {
+        const initialized = readRequestScope(authSession);
+        // Initialization may yield A's credentials just before B logs in. Never
+        // bind those credentials to whichever account happens to be current.
+        if ((authContext?.accessToken || initialized.accountId) && (
+          !authContext?.accountId || String(authContext.accountId) !== initialized.accountId ||
+          authContext.scopeRevision !== initialized.revision
+        )) throw changedRequestScope();
+        scope.identity = initialized;
+        scope.initialLoading = false;
+      }
+      assertRequestScope(scope);
+      if (typeof authSession?.getRequestScope === "function" && (
+        authContext?.accountId !== undefined && String(authContext.accountId) !== scope.identity.accountId ||
+        authContext?.scopeRevision !== undefined && authContext.scopeRevision !== scope.identity.revision ||
+        authContext?.companionId !== undefined && String(authContext.companionId) !== scope.identity.companionId
+      )) throw changedRequestScope();
       const headers = new Headers(requestOptions.headers || {});
       if (authContext?.accessToken) {
         headers.set("Authorization", `Bearer ${authContext.accessToken}`);
@@ -143,11 +291,13 @@ async function performFetchFromApi(path, options = {}) {
         fetch(`${API_BASE_URL}${path}`, {
           ...requestOptions,
           headers,
+          ...(authContext?.accessToken ? { cache: "no-store" } : {}),
           ...(controller ? { signal: controller.signal } : {}),
         }),
         effectiveSignal,
       );
-      authSession?.captureCompanionFromResponse?.(response);
+      assertRequestScope(scope);
+      if (response.status !== 401) captureResponseCompanion(response, scope);
       if (
         attempt < retryDelays.length - 1 &&
         RETRYABLE_SERVER_STATUSES.has(response.status)
@@ -156,6 +306,7 @@ async function performFetchFromApi(path, options = {}) {
       }
       return response;
     } catch (error) {
+      if (error?.code === "settings_scope_changed") throw error;
       if (requestOptions.signal?.aborted) {
         throw error;
       }
@@ -178,13 +329,20 @@ async function performFetchFromApi(path, options = {}) {
 }
 
 export async function apiFetch(path, options = {}) {
-  const response = await fetchFromApi(path, options);
+  const result = await fetchFromApi(path, options);
+  const { scope } = result;
+  assertRequestScope(scope);
+  const response = guardedResponse(result.response, scope, options.signal);
   if (
     response.status === 401 &&
     typeof response.clone === "function"
   ) {
     // 对任意 401 都触发 session 失效，不限于白名单 code（缺陷 5 修复）
-    const data = await response.clone().json().catch(() => ({}));
+    const data = await response.clone().json().catch(error => {
+      if (options.signal?.aborted || error?.code === "settings_scope_changed" || error?.name === "AbortError") throw error;
+      return {};
+    });
+    assertRequestScope(scope);
     if (
       ["invalid_session", "authentication_required"].includes(data.code)
     ) {
@@ -195,6 +353,9 @@ export async function apiFetch(path, options = {}) {
       await (options.authSession || defaultAuthSession)
         ?.invalidateSession?.();
     }
+    const current = readRequestScope(scope.manager);
+    if (!current.accountId) scope.identity = current;
+    assertRequestScope(scope);
   }
   return response;
 }
@@ -210,7 +371,7 @@ export async function fetchErrorLogById(logId) {
 
 export async function apiRequest(path, options = {}) {
   const snapshot = (options.authSession || defaultAuthSession)?.getSnapshot?.();
-  const scope = diagnosticScopeKey(snapshot?.user?.id, snapshot?.activeCompanionId);
+  const scope = captureOperationFailureScope(diagnosticScopeKey(snapshot?.user?.id, snapshot?.activeCompanionId));
   try { return await requestJson(path, options); }
   catch (error) { recordOperationFailure(scope, path, error); throw error; }
 }
@@ -228,11 +389,15 @@ async function requestJson(path, options = {}) {
     return null;
   }
 
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json().catch(error => {
+    if (options.signal?.aborted || error?.code === "settings_scope_changed" || error?.name === "AbortError") throw error;
+    return {};
+  });
 
   if (!response.ok) {
     if (
       response.status === 401 &&
+      typeof response.clone !== "function" &&
       ["invalid_session", "authentication_required"].includes(data.code)
     ) {
       await (options.authSession || defaultAuthSession)
@@ -329,7 +494,10 @@ export async function streamChat(
 
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok || !contentType.includes("text/event-stream")) {
-    const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(error => {
+      if (signal?.aborted || error?.code === "settings_scope_changed" || error?.name === "AbortError") throw error;
+      return {};
+    });
     // 401 处理由 apiFetch 统一完成（缺陷 7 修复：移除重复 401 处理）
     const error = new Error(
       publicChatErrorMessage(data, "无法开始流式回复。"),
@@ -373,6 +541,9 @@ export async function streamChat(
   }
 
   function processLine(rawLine) {
+    // A callback can synchronously switch accounts while more events remain in
+    // the same network chunk. Recheck before dispatching the next event too.
+    void response.status;
     const line = rawLine.replace(/\r$/, "");
     if (!line.startsWith("data:")) return;
     const json = line.slice(5).trim();
@@ -448,8 +619,8 @@ export async function streamChat(
         : "回复连接中断，服务器尚未确认保存，可以稍后重试。",
     });
   } finally {
-    if (signal?.aborted) {
-      await reader.cancel(signal.reason).catch(() => {});
+    if (signal?.aborted || !completionEvent) {
+      await reader.cancel(signal?.reason).catch(() => {});
     }
     reader.releaseLock();
   }

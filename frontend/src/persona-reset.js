@@ -1,3 +1,5 @@
+import { resolveAccountCacheStorage, accountIdFromRuntimeScope } from "./account-cache-vault.js";
+
 export const PERSONA_RESET_MARKER_KEY = "dengta_persona_reset_seen_v1";
 
 export const PERSONA_LOCAL_STORAGE_KEYS = Object.freeze([
@@ -14,9 +16,10 @@ export const PERSONA_LOCAL_STORAGE_KEYS = Object.freeze([
 
 export function applyPersonaResetToLocalStorage(
   resetAt,
-  storage = globalThis.localStorage,
+  storage,
   accountScope = "",
 ) {
+  storage = resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(accountScope));
   const marker = String(resetAt || "").trim();
   if (!marker || !storage) return false;
   const markerKey = accountStorageKey(PERSONA_RESET_MARKER_KEY, accountScope);

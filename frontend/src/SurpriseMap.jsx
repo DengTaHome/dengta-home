@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMemoryUiRequest } from "./memory-ui-feedback.js";
 import { locateForSurpriseMap, mapRadarPoint, surpriseMapError } from "./surprise-map.js";
-import { recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, recordOperationFailure } from "./operation-diagnostics.js";
 import SurpriseLetterMap from "./SurpriseLetterMap.jsx";
 import { displayMapArea } from "./surprise-map-display.js";
 import "./surprise-map.css";
@@ -24,6 +24,7 @@ export default function SurpriseMap({ scopeKey, aiName = "伴侣" }) {
 }
 
 export function SurpriseMapContent({ request, isCurrent, aiName = "伴侣", scopeKey = "", locatePosition = locateForSurpriseMap }) {
+  const diagnosticScope = useMemo(() => captureOperationFailureScope(scopeKey), [scopeKey]);
   const [letters, setLetters] = useState([]), [publicLetters, setPublicLetters] = useState([]);
   const [view, setView] = useState("private"), [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(""), [feedback, setFeedback] = useState("");
@@ -54,7 +55,7 @@ export function SurpriseMapContent({ request, isCurrent, aiName = "伴侣", scop
     const token = {}; operation.current = token; setBusy(name); setFeedback("");
     const owns = () => current() && operation.current === token;
     try { await action(owns); }
-    catch (error) { if (owns()) { recordOperationFailure(scopeKey, "/api/v2/surprise-map", error); setFeedback(surpriseMapError(error)); } }
+    catch (error) { if (owns()) { recordOperationFailure(diagnosticScope, "/api/v2/surprise-map", error); setFeedback(surpriseMapError(error)); } }
     finally { if (owns()) { operation.current = null; setBusy(""); } }
   }
   const items = view === "private" ? letters : publicLetters;

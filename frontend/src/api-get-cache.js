@@ -23,10 +23,8 @@ export const CACHEABLE_GET_PREFIXES = Object.freeze([
   "/health",
 ]);
 
-/** 这些接口的内容随伴侣变化，去重键必须带伴侣 id；其余的只按账号区分。 */
-export const COMPANION_SCOPED_PREFIXES = Object.freeze([
-  "/api/v2/private-media/catalog",
-]);
+/** Every authenticated response belongs to the account and companion that requested it. */
+export const COMPANION_SCOPED_PREFIXES = CACHEABLE_GET_PREFIXES;
 
 function normalizePath(path) {
   const value = String(path || "");
@@ -44,10 +42,7 @@ export function isCompanionScopedPath(path) {
   return COMPANION_SCOPED_PREFIXES.some((prefix) => base.startsWith(prefix));
 }
 
-export function getCacheKey(path, companionId = "") {
-  // 启动期同一个接口会被拉起两遍：第一遍还没有伴侣作用域头，第二遍有了。
-  // 如果键里一律带伴侣 id，两边永远合不到一起，去重就白做了。
-  // 所以只有真正随伴侣变化的接口才把伴侣 id 放进键里。
-  const scope = isCompanionScopedPath(path) ? String(companionId || "") : "";
-  return `${scope}|${String(path || "")}`;
+export function getCacheKey(path, { accountId = "", companionId = "", revision = null } = {}) {
+  if (!accountId) return null;
+  return JSON.stringify([String(accountId), String(companionId), revision, String(path || "")]);
 }

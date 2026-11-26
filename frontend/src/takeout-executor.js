@@ -1,6 +1,6 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { apiRequest } from "./api.js";
-import { recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, recordOperationFailure } from "./operation-diagnostics.js";
 import { withBrowserAccount } from "./browser-account-binding.js";
 
 export const OrderBrowser = registerPlugin("OrderBrowser");
@@ -225,6 +225,7 @@ export function startTakeoutRunner({
   if (!scope || !takeoutPluginAvailable(capacitor)) {
     return () => {};
   }
+  const diagnosticScope = captureOperationFailureScope(scope);
   let stopped = false;
   let running = false;
   const controller = new AbortController();
@@ -265,7 +266,7 @@ export function startTakeoutRunner({
         }
         if (!stopped) {
           const outcome = { ok: false, code: "takeout_previous_attempt_unknown", message: "上次操作状态不明，请先核对购物车，再决定是否重试。" };
-          recordOperationFailure(scope, "/api/v2/takeout", outcome);
+          recordOperationFailure(diagnosticScope, "/api/v2/takeout", outcome);
           onCommandDone(command, outcome);
         }
         return;
@@ -284,7 +285,7 @@ export function startTakeoutRunner({
         }
       }
       if (!stopped && outcome) {
-        if (!outcome.ok || !outcome.receipt_synced) recordOperationFailure(scope, "/api/v2/takeout", outcome);
+        if (!outcome.ok || !outcome.receipt_synced) recordOperationFailure(diagnosticScope, "/api/v2/takeout", outcome);
         onCommandDone(command, outcome);
       }
     } finally {

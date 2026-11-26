@@ -1,3 +1,8 @@
+import { Capacitor } from "@capacitor/core";
+import { accountCacheStorage, flushAccountCache } from "./account-cache-vault.js";
+
+// Web / Android use the existing IndexedDB cache. iOS stores these rows inside
+// the account's encrypted native vault, never a plaintext IndexedDB fallback.
 // 工作区文件本地缓存（IndexedDB）：把查看过的文件缓存在手机本地，
 // 离线时仍能查看已缓存的内容；「清理缓存」一键删除全部缓存副本。
 
@@ -36,11 +41,15 @@ function openDatabase() {
   });
 }
 
-function withStore(mode, callback) {
+function withStore(mode, callback, { clearUnowned = false } = {}) {
   return openDatabase().then((db) => {
     return new Promise((resolve, reject) => {
       let tx, store;
-      try { tx = db.transaction(STORE, mode); store = tx.objectStore(STORE); }
+      try {
+        const stores = clearUnowned && db.objectStoreNames.contains("files") ? [STORE, "files"] : [STORE];
+        tx = db.transaction(stores, mode); store = tx.objectStore(STORE);
+        if (stores.length > 1) tx.objectStore("files").clear();
+      }
       catch { db.close(); reject(cacheFailure()); return; }
       let result;
       let settled = false;
@@ -71,6 +80,7 @@ function requireAccount(account) {
 }
 
 export async function workspaceCacheWrite(account, path, content) {
+  if (Capacitor.getPlatform() === "ios") return nativeWorkspace.write(account, path, content);
   const scope = requireAccount(account);
   return withStore("readwrite", (store) => {
     return store.put({ account: scope, path, content, savedAt: Date.now() });
@@ -78,6 +88,7 @@ export async function workspaceCacheWrite(account, path, content) {
 }
 
 export async function workspaceCacheRead(account, path) {
+  if (Capacitor.getPlatform() === "ios") return nativeWorkspace.read(account, path);
   const scope = requireAccount(account);
   const item = await withStore("readonly", (store) => store.get([scope, path]));
   if (item !== undefined && (item?.account !== scope || item.path !== path || typeof item.content !== "string")) throw cacheFailure();
@@ -85,6 +96,7 @@ export async function workspaceCacheRead(account, path) {
 }
 
 export async function workspaceCacheList(account) {
+  if (Capacitor.getPlatform() === "ios") return nativeWorkspace.list(account);
   const scope = requireAccount(account);
   const items = await withStore("readonly", (store) => store.index("account").getAll(scope));
   if (!Array.isArray(items) || items.some(item => item?.account !== scope || typeof item.path !== "string" || typeof item.content !== "string")) throw cacheFailure();
@@ -92,11 +104,19 @@ export async function workspaceCacheList(account) {
 }
 
 export async function workspaceCacheDelete(account, path) {
+  if (Capacitor.getPlatform() === "ios") return nativeWorkspace.delete(account, path);
   const scope = requireAccount(account);
   return withStore("readwrite", (store) => store.delete([scope, path]));
 }
 
 export async function workspaceCacheClear(account) {
+  if (Capacitor.getPlatform() === "ios") return nativeWorkspace.clear(account);
+  return workspaceCacheClearLegacy(account);
+}
+
+// Explicit cleanup for account-owned rows left by older native builds. It is
+// never consulted as a fallback when a native vault read/write fails.
+export async function workspaceCacheClearLegacy(account, { clearUnowned = false } = {}) {
   const scope = requireAccount(account);
   return withStore("readwrite", (store) => {
     const request = store.index("account").openKeyCursor(scope);
@@ -106,8 +126,43 @@ export async function workspaceCacheClear(account) {
       store.delete(cursor.primaryKey);
       cursor.continue();
     };
+  }, { clearUnowned });
+}
+
+const NATIVE_WORKSPACE_KEY = "dengta.workspace-cache.v3";
+
+export function createNativeWorkspaceCache({ storageForAccount = accountCacheStorage, flush = flushAccountCache } = {}) {
+  function state(account) {
+    const scope = requireAccount(account);
+    const storage = storageForAccount(scope);
+    const encoded = storage.getItem(NATIVE_WORKSPACE_KEY);
+    const rows = encoded === null ? [] : JSON.parse(encoded);
+    if (!Array.isArray(rows) || rows.some(row => row?.account !== scope || typeof row.path !== "string" || typeof row.content !== "string")) throw cacheFailure();
+    return { scope, storage, rows };
+  }
+  async function run(action) { try { return await action(); } catch { throw cacheFailure(); } }
+  async function persist(current, rows) {
+    if (rows.length) current.storage.setItem(NATIVE_WORKSPACE_KEY, JSON.stringify(rows));
+    else current.storage.removeItem(NATIVE_WORKSPACE_KEY);
+    await flush(current.scope);
+    // An in-flight operation cannot report success after its facade is sealed.
+    current.storage.getItem(NATIVE_WORKSPACE_KEY);
+  }
+  return Object.freeze({
+    write: (account, path, content) => run(async () => {
+      const current = state(account);
+      if (typeof path !== "string" || !path || typeof content !== "string") throw cacheFailure();
+      const item = { account: current.scope, path, content, savedAt: Date.now() };
+      await persist(current, [...current.rows.filter(row => row.path !== path), item]);
+    }),
+    read: (account, path) => run(() => state(account).rows.find(row => row.path === path)),
+    list: account => run(() => state(account).rows),
+    delete: (account, path) => run(async () => { const current = state(account); await persist(current, current.rows.filter(row => row.path !== path)); }),
+    clear: account => run(async () => { const current = state(account); await persist(current, []); }),
   });
 }
+
+const nativeWorkspace = createNativeWorkspaceCache();
 
 export function cachedWorkspaceEntries(items, path = "") {
   const prefix = path ? `${path.replace(/\/$/, "")}/` : "";

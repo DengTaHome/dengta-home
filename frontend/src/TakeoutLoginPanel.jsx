@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { App as CapacitorApp } from "@capacitor/app";
 import { openTakeoutLogin, readTakeoutLoginState, takeoutLoginFailure, takeoutPluginAvailable } from "./takeout-executor.js";
-import { recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, recordOperationFailure } from "./operation-diagnostics.js";
 import "./takeout-login.css";
 
 function removeListener(handle) {
@@ -16,7 +16,7 @@ function ScopedTakeoutLoginPanel({ scope, feedback, available = takeoutPluginAva
   const [state, setState] = useState(null), [opening, setOpening] = useState(null), [notice, setNotice] = useState(null);
   const lifecycle = useRef(null), openingRequest = useRef(null);
   useEffect(() => {
-    const owner = { active: true, scope, pending: null };
+    const owner = { active: true, scope, pending: null, diagnosticScope: captureOperationFailureScope(scope) };
     lifecycle.current = owner;
     const current = () => owner.active && lifecycle.current === owner;
     const check = () => {
@@ -27,7 +27,7 @@ function ScopedTakeoutLoginPanel({ scope, feedback, available = takeoutPluginAva
         .catch(() => takeoutLoginFailure()).then(result => {
           if (!current() || !result) return null;
           setState({ ...result, scope });
-          if (result.status === "error") recordOperationFailure(scope, "/api/v2/takeout/login", result);
+          if (result.status === "error") recordOperationFailure(owner.diagnosticScope, "/api/v2/takeout/login", result);
           return result;
         }).finally(() => { owner.pending = null; });
       return owner.pending;
@@ -65,14 +65,14 @@ function ScopedTakeoutLoginPanel({ scope, feedback, available = takeoutPluginAva
       } else {
         const failure = takeoutLoginFailure(result?.code || "takeout_login_open_failed");
         setNotice({ ...failure, scope, feedbackAtOpen: feedback });
-        recordOperationFailure(scope, "/api/v2/takeout/login", failure);
+        recordOperationFailure(owner.diagnosticScope, "/api/v2/takeout/login", failure);
       }
       void owner.check();
     } catch {
       if (owner.active && lifecycle.current === owner) {
         const failure = takeoutLoginFailure("takeout_login_open_failed");
         setNotice({ ...failure, scope, feedbackAtOpen: feedback });
-        recordOperationFailure(scope, "/api/v2/takeout/login", failure);
+        recordOperationFailure(owner.diagnosticScope, "/api/v2/takeout/login", failure);
       }
     } finally {
       if (openingRequest.current === request) openingRequest.current = null;

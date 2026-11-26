@@ -1,3 +1,7 @@
+import { resolveAccountCacheStorage, accountIdFromRuntimeScope } from "./account-cache-vault.js";
+
+const ambientStorageWrappers = new WeakSet();
+
 export const SHANGHAI_TIME_ZONE = "Asia/Shanghai";
 export const AMBIENT_LOCATION_CACHE_KEY =
   "dengta_home_ambient_location_v1";
@@ -48,10 +52,10 @@ const WEATHER_CODE_LABELS = Object.freeze({
   99: "雷雨伴冰雹",
 });
 
-function getStorage(storage) {
-  if (storage !== undefined) return storage;
+function getStorage(storage, accountScope = "") {
+  if (storage && ambientStorageWrappers.has(storage)) return storage;
   try {
-    return globalThis.localStorage;
+    return resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(accountScope));
   } catch {
     return null;
   }
@@ -67,7 +71,7 @@ export function normalizeAmbientPreferences(value) {
 }
 
 export function readAmbientPreferences(storage, accountScope = "") {
-  const target = getStorage(storage);
+  const target = getStorage(storage, accountScope);
   if (!target) {
     return {
       state: "unavailable",
@@ -102,7 +106,7 @@ export function readAmbientPreferences(storage, accountScope = "") {
 }
 
 export function storeAmbientPreferences(value, storage, accountScope = "") {
-  const target = getStorage(storage);
+  const target = getStorage(storage, accountScope);
   if (!target) return false;
 
   try {
@@ -324,13 +328,15 @@ export function readCachedWeather(
 }
 
 export function ambientCacheStorage(storage, accountScope = "") {
-  const target = getStorage(storage);
+  const target = getStorage(storage, accountScope);
   if (!target || !accountScope) return target;
-  return {
+  const wrapper = {
     getItem: (key) => target.getItem(accountStorageKey(key, accountScope)),
     setItem: (key, value) => target.setItem(accountStorageKey(key, accountScope), value),
     removeItem: (key) => target.removeItem(accountStorageKey(key, accountScope)),
   };
+  ambientStorageWrappers.add(wrapper);
+  return wrapper;
 }
 
 export function readEnabledAmbientCache(storage, accountScope = "") {

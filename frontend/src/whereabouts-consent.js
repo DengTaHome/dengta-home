@@ -1,4 +1,5 @@
 import { accountStorageKey } from "./account-storage.js";
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
 
 const CONSENT_KEY = "dengta_whereabouts_recording_consent_v1";
 const listeners = new Set();
@@ -11,19 +12,19 @@ function usableScope(scope) {
   } catch { return false; }
 }
 
-function storageFor(candidate) {
-  try { return candidate ?? globalThis.localStorage; } catch { return undefined; }
+function storageFor(candidate, scope) {
+  try { return resolveAccountCacheStorage(candidate ?? undefined, accountIdFromRuntimeScope(scope)); } catch { return undefined; }
 }
 
 export function readWhereaboutsConsent(scope, candidate) {
-  const storage = storageFor(candidate);
+  const storage = storageFor(candidate, scope);
   if (!usableScope(scope) || !storage || denied.get(storage)?.has(scope)) return false;
   try { return storage.getItem(accountStorageKey(CONSENT_KEY, scope)) === "enabled"; }
   catch { return false; }
 }
 
 export function setWhereaboutsConsent(scope, enabled, candidate) {
-  const storage = storageFor(candidate);
+  const storage = storageFor(candidate, scope);
   if (!usableScope(scope) || !storage) throw Object.assign(new Error("Location consent could not be saved"), { code: "whereabouts_consent_unavailable" });
   let scopes = denied.get(storage);
   if (!scopes) { scopes = new Set(); denied.set(storage, scopes); }

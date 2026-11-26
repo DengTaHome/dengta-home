@@ -1,6 +1,6 @@
 import { funLabsDiagnostic } from "./fun-labs-refresh.js";
 import { describeOperationError } from "./operation-error-help.js";
-import { recordOperationFailure } from "./operation-diagnostics.js";
+import { captureOperationFailureScope, recordOperationFailure } from "./operation-diagnostics.js";
 
 export const DISCOVERY_ERROR_FEEDBACK = Object.freeze({
   interest_profile_empty: { reason: "还没有足够的一起看记录来推荐视频。", action: "先挑一个视频一起看，之后再回来换一批。" },
@@ -56,6 +56,7 @@ export function discoveryFailure(error) {
 
 export async function refreshDiscovery({ token, currentToken, isMounted, lock, request, update, previousVideos = [] }) {
   if (!isMounted() || currentToken() !== token || lock.current?.scope === token) return;
+  const diagnosticScope = captureOperationFailureScope(token.scope);
   const operation = { scope: token };
   lock.current = operation;
   const revision = token.discoveryRevision = (token.discoveryRevision || 0) + 1;
@@ -81,7 +82,7 @@ export async function refreshDiscovery({ token, currentToken, isMounted, lock, r
         return "success";
       } catch (error) {
         if (!current()) return "stale";
-        if (["discover_interests_invalid", "discover_recommend_invalid"].includes(error?.code)) recordOperationFailure(token.scope, path, error);
+        if (["discover_interests_invalid", "discover_recommend_invalid"].includes(error?.code)) recordOperationFailure(diagnosticScope, path, error);
         const feedback = discoveryFailure(error);
         change(state => ({ ...state, sections: { ...state.sections, [section]: { status: "error", ...feedback } } }));
         return "error";

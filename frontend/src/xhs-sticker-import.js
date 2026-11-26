@@ -1,6 +1,7 @@
 import { isPrivateMediaAssetId } from "./private-media.js";
 import { createChatClientMessageId } from "./chat-idempotency.js";
 import { stickerImportError } from "./sticker-import.js";
+import { accountIdFromRuntimeScope, resolveAccountCacheStorage } from "./account-cache-vault.js";
 const NOTE = /^[a-f0-9]{24}$/;
 const invalid = () => Object.assign(new Error("小红书表情回执不完整，请重新检测。"), { code: "sticker_import_receipt_invalid" });
 export function validateXhsSearch(data) {
@@ -17,7 +18,7 @@ export function validateXhsImport(data) {
 export function xhsStickerRequest(scope, noteId, storage, uuid = createChatClientMessageId) {
   const key = `dengta-xhs-sticker-import:${scope}`;
   let saved;
-  try { storage ??= globalThis.localStorage; saved = JSON.parse(storage?.getItem(key) || "null"); } catch { /* Disabled storage keeps the current operation in memory. */ }
+  try { storage = resolveAccountCacheStorage(storage, accountIdFromRuntimeScope(scope)); saved = JSON.parse(storage?.getItem(key) || "null"); } catch { storage = undefined; /* Unavailable vaults keep this receipt in memory. */ }
   if (saved?.note_id === noteId && isPrivateMediaAssetId(saved.client_request_id)) return { note_id: noteId, client_request_id: saved.client_request_id };
   const value = { note_id: noteId, client_request_id: uuid() };
   try { storage?.setItem(key, JSON.stringify(value)); } catch { /* The view retains this request for retries. */ }

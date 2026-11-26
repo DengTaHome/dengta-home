@@ -150,7 +150,7 @@ assert.match(
   /onPlaybackChange\?\.\(\{[\s\S]*?sessionId:[\s\S]*?mediaPositionSeconds:[\s\S]*?mediaDurationSeconds:/,
   "player metadata and time updates must update the in-memory co-watch session",
 );
-assert.match(together, /clearDirectMediaSession\(globalThis\.sessionStorage/);
+assert.match(together, /clearDirectMediaSession\(sessionStorage/);
 assert.match(together, /const startDirect = async \(\) =>/);
 assert.match(together, /const stopDirect = async \(\) =>/);
 const stopDirect = together.slice(
@@ -178,7 +178,7 @@ assert.match(
 );
 assert.match(directStart, /sessionMode: pageMode \? "web_page" : "direct_media"/);
 assert.match(directStart, /mediaUrl:\s*options\.mediaUrl/);
-assert.match(app, /clearDirectMediaSession\(globalThis\.sessionStorage, accountStorageScope, companionScope\)/);
+assert.match(app, /clearDirectMediaSession\(privateSessionStorage, accountStorageScope, companionScope\)/);
 assert.match(
   app,
   /playbackPositionSeconds \?\? target\.mediaPositionSeconds/,

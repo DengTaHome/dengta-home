@@ -20,7 +20,7 @@ $forbiddenFiles = @($allFiles | Where-Object {
   $forbiddenExtensions -contains $_.Extension.ToLowerInvariant()
 })
 $privateEnvFiles = @($allFiles | Where-Object {
-  $_.Name -like '.env*' -and $_.Name -ne '.env.example'
+  $_.Name -like '.env*' -and $_.Name -notin @('.env.example', '.env.ios.example')
 })
 
 if ($forbiddenFiles.Count -gt 0 -or $privateEnvFiles.Count -gt 0) {
@@ -32,7 +32,7 @@ $textExtensions = @(
   '.jsx', '.md', '.mjs', '.properties', '.ps1', '.sql', '.svg', '.ts',
   '.tsx', '.txt', '.xml', '.yaml', '.yml'
 )
-$textNames = @('.env.example', '.gitattributes', '.gitignore', 'Dockerfile', 'LICENSE')
+$textNames = @('.env.example', '.env.ios.example', '.gitattributes', '.gitignore', 'Dockerfile', 'LICENSE')
 $patterns = @(
   'https://[^\s"]+\.(?:onrender\.com|supabase\.co|vercel\.app)',
   ('eyJhbGci' + 'Oi'),
@@ -44,6 +44,8 @@ $patterns = @(
   '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
 )
 $safeValuePattern = '(?i)(your-project|your_|example\.|localhost|127\.0\.0\.1|users\.noreply\.github\.com|i@izs\.me|sk-provider-secret-123456789)'
+# Explicit fictional iOS compile/test values, never production credentials.
+$safeValuePattern += '|ios-ci\.supabase\.co|dengtatest\.supabase\.co|sb_publishable_ci_build_not_for_auth|sb_publishable_local_test_public_value'
 $unsafeLocations = New-Object 'System.Collections.Generic.List[string]'
 
 foreach ($file in $allFiles) {

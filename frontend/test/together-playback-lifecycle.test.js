@@ -137,7 +137,7 @@ test('ending then loading a different web video clears the previous animated com
 test('actual App identity cleanup prevents a previous companion comment appearing after Together remount', async () => {
   storage.clear();
   const source = readFileSync(root + '/src/App.jsx', 'utf8');
-  const cleanup = source.match(/useLayoutEffect\(\s*\(\) => (\(\) => \{\s*if \(coWatchReplyJobRef\.current\)[\s\S]*?setCoWatchDialog\(\[\]\);[\s\S]*?\n {4}\}),\s*\[accountStorageScope, companionScope\]/)?.[1];
+  const cleanup = source.match(/useLayoutEffect\(\s*\(\) => (\(\) => \{\s*if \(coWatchReplyJobRef\.current\)[\s\S]*?setCoWatchDialog\(\[\]\);[\s\S]*?\n {4}\}),\s*\[accountStorageScope, companionScope, privateSessionStorage\]/)?.[1];
   assert.ok(cleanup, 'the current App identity cleanup must be extracted without changing its source');
   const state = { danmaku: [{ text: '旧伴侣的虚构弹幕', media_time_seconds: 0 }], dialog: [{ text: 'fictional previous dialog' }], session: { id: 'fictional-old' } };
   const invalidate = () => {};
@@ -146,7 +146,7 @@ test('actual App identity cleanup prevents a previous companion comment appearin
     coWatchLifecycleRef: { current: { invalidate } }, coWatchViewScopeRef: { current: { invalidate } },
     musicPlaybackSyncRef: { current: null }, nowPlayingSyncRef: { current: null }, screenGlanceLifecycleRef: { current: { invalidate } },
     releasePendingScreenGlanceTurn() {}, pendingScreenGlanceTurnRef: { current: null }, coWatchSessionRef: { current: state.session },
-    clearDirectMediaSession() {}, accountStorageScope: props.accountScope, companionScope: props.companionScope,
+    clearDirectMediaSession() {}, privateSessionStorage: {}, accountStorageScope: props.accountScope, companionScope: props.companionScope,
     setCoWatchSession: value => { state.session = value; }, setActivityReturn() {}, setCoWatchDialog: value => { state.dialog = value; },
     setCoWatchDanmaku: value => { state.danmaku = value; },
   };

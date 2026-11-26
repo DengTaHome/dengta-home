@@ -2,6 +2,7 @@ import { apiRequest } from "./api.js";
 import { authSession } from "./auth-session.js";
 import { coWatchRequestOptions } from "./co-watch-request-scope.js";
 import { assertMusicScope, captureMusicScope } from "./music-request-scope.js";
+import { accountIdFromRuntimeScope, captureAccountRuntimeEpoch, isAccountRuntimeCurrent, normalizeRuntimeAccountId, registerAccountRuntimeCleanup } from "./account-cleanup.js";
 
 const TRACK_ID = /^\d{1,20}$/;
 const LOG_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -31,6 +32,19 @@ const ANALYSIS_FIELDS = {
 const ANALYSIS_METADATA_FIELDS = new Set(["status", "error", "code", "message", "detail", "success", "confidence", "file", "duration_sec"]);
 const analysisOperations = new Map(), operationListeners = new Map();
 let analysisGeneration = 0;
+
+export function clearAccountMusicAnalysis(accountId) {
+  const account = normalizeRuntimeAccountId(accountId);
+  const notify = new Set();
+  for (const key of new Set([...analysisOperations.keys(), ...operationListeners.keys()])) {
+    if (accountIdFromRuntimeScope(key) !== account) continue;
+    analysisOperations.delete(key);
+    for (const listener of operationListeners.get(key) || []) notify.add(listener);
+    operationListeners.delete(key);
+  }
+  notify.forEach(listener => listener());
+}
+registerAccountRuntimeCleanup(clearAccountMusicAnalysis);
 
 export const MUSIC_UNDERSTANDING_FEEDBACK = Object.freeze({
   music_track_id_invalid: { reason: "这首歌没有有效的网易云歌曲编号。", action: "从网易云单曲或歌单导入后，选择一首歌再使用音乐理解；本地曲目编号不能代替网易云编号。" },
@@ -90,16 +104,19 @@ export function musicUnderstandingViewKey(props = {}) {
 // Keep only operation metadata while the application remains open, including when a track or session remounts its panel.
 export function createMusicAnalysisRecovery(scope, providerTrackId) {
   const key = JSON.stringify([scope.accountScope || "", scope.companionScope || "", String(providerTrackId || "").trim()]);
+  const epoch = captureAccountRuntimeEpoch(scope.accountScope);
+  const current = () => isAccountRuntimeCurrent(epoch);
   const emit = () => operationListeners.get(key)?.forEach(listener => listener());
-  const matches = ticket => ticket && analysisOperations.get(key)?.generation === ticket.generation;
+  const matches = ticket => current() && ticket && analysisOperations.get(key)?.generation === ticket.generation;
   return {
-    getSnapshot: () => analysisOperations.get(key) || null,
+    getSnapshot: () => current() ? analysisOperations.get(key) || null : null,
     subscribe(listener) {
+      if (!current()) return () => {};
       const listeners = operationListeners.get(key) || new Set(); listeners.add(listener); operationListeners.set(key, listeners);
       return () => { listeners.delete(listener); if (!listeners.size) operationListeners.delete(key); };
     },
     begin() {
-      if (analysisOperations.has(key)) return null;
+      if (!current() || analysisOperations.has(key)) return null;
       const ticket = Object.freeze({ generation: ++analysisGeneration, startedAt: Date.now(), phase: "pending", canRestore: false });
       analysisOperations.set(key, ticket); emit(); return ticket;
     },
@@ -117,7 +134,7 @@ export function createMusicAnalysisRecovery(scope, providerTrackId) {
       analysisOperations.set(key, Object.freeze({ ...analysisOperations.get(key), phase: "unconfirmed", canRestore: true })); emit();
     },
     restore(ticket) {
-      if (analysisOperations.get(key) !== ticket || !ticket?.canRestore) return false;
+      if (!current() || analysisOperations.get(key) !== ticket || !ticket?.canRestore) return false;
       analysisOperations.delete(key); emit(); return true;
     },
   };

@@ -71,8 +71,8 @@ assert.ok(voiceCssIdx > startupIdx, "voice-composer.css 应最后导入以覆盖
 assert.match(app, /const initialChatCache = useMemo\(/, "首屏缓存读取必须用 useMemo 包裹");
 assert.match(
   app,
-  /\[visualPreview, accountStorageScope, companionScope\]/,
-  "缓存 memo 的依赖必须包含视觉预览与作用域"
+  /\[visualPreview, accountStorageScope, companionScope, privateStorage\]/,
+  "缓存 memo 的依赖必须包含视觉预览、作用域与本轮账号存储"
 );
 
 // 麦克风授权超时 + 授权期间松手不能开始无人按着的录音

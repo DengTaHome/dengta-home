@@ -1,0 +1,33 @@
+{
+  "events": [
+    {
+      "stage": "bridge-created"
+    },
+    {
+      "stage": "bridge-keychain-available"
+    },
+    {
+      "stage": "bridge-vault-available"
+    },
+    {
+      "stage": "protected-data-available"
+    },
+    {
+      "stage": "probe-add",
+      "status": -34018
+    },
+    {
+      "stage": "probe-read",
+      "status": -34018
+    },
+    {
+      "stage": "probe-roundtrip",
+      "verified": false
+    },
+    {
+      "stage": "probe-delete",
+      "status": -34018
+    }
+  ],
+  "schemaVersion": 1
+}

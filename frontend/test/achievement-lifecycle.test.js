@@ -7,6 +7,7 @@ import TestRenderer from "react-test-renderer";
 import { createServer, transformWithOxc } from "vite";
 import { apiRequest } from "../src/api.js";
 import { createAuthSessionManager } from "../src/auth-session.js";
+import { prepareAccountRuntimeData } from "../src/account-cleanup.js";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const source = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8").replaceAll("\r\n", "\n");
@@ -57,6 +58,7 @@ const vite = await createServer({ configFile: false, root: fileURLToPath(new URL
       export default function Harness({companionScope=A}) {
         const accountStorageScope=${JSON.stringify(ACCOUNT)}, privateMediaScope=JSON.stringify([accountStorageScope,companionScope]);
         const authSession=fixture.manager;
+        const privateStorage=useMemo(()=>fixture.privateStorage,[accountStorageScope]);
         const componentMountedRef=useRef(true),settingsScopeControllerRef=useRef(null),unlockedCodesRef=useRef(null);
         const [,setAchievementPopup]=useState(null),[notice,setNotice]=useState("");
         useLayoutEffect(()=>{componentMountedRef.current=true;const controller=new AbortController();settingsScopeControllerRef.current=controller;return()=>{componentMountedRef.current=false;controller.abort();};},[privateMediaScope]);
@@ -79,10 +81,13 @@ async function mount({ expired = false } = {}) {
   const values = new Map(), refresh = deferred();
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
   globalThis.localStorage = storage;
+  fixture.privateStorage = storage;
   const session = { access_token: "synthetic-token", expires_at: Math.floor(Date.now()/1000)+(expired?-60:3600), user:{id:ACCOUNT} };
   const auth = { getSession: async()=>({data:{session},error:null}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),refreshSession:()=>refresh.promise,signOut:async()=>({error:null}) };
   fixture.manager=createAuthSessionManager({supabaseUrl:"https://synthetic.example.test",supabaseAnonKey:"synthetic-public-key",storage,createClientFn:()=>({auth})});
   await fixture.manager.initialize(); fixture.manager.setActiveCompanionId(A);
+  await fixture.manager.waitForAccountData();
+  prepareAccountRuntimeData(ACCOUNT);
   fixture.calls=[];fixture.transport=()=>list();
   await act(async()=>{tree=TestRenderer.create(React.createElement(Harness));});
   return { refresh, session };
@@ -91,7 +96,7 @@ const writes=()=>fixture.calls.filter(call=>call.method!=="GET");
 const read=()=>fixture.api.read();
 const snapshot=()=>JSON.stringify(tree.toJSON());
 async function fill(){await act(async()=>fixture.api.setCustomAchievement({title:"  Fixture title  ",emoji:"🎯",description:" condition\r\n "}));}
-afterEach(async()=>{if(tree)await act(async()=>tree.unmount());tree=null;});
+afterEach(async()=>{if(tree)await act(async()=>tree.unmount());tree=null;await fixture.manager?.waitForAccountData();fixture.manager?.destroy();});
 after(async()=>{await vite.close();globalThis.window=oldWindow;globalThis.fetch=oldFetch;globalThis.localStorage=oldStorage;delete globalThis.__achievementLifecycleFixture;});
 
 for(const kind of ["create","unlock","delete","onboarding"]){

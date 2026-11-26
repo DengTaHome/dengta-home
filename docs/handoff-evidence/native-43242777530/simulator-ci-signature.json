@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "signing": "ad-hoc-simulator-only",
+  "platform": "iPhoneSimulator",
+  "signatureVerified": true,
+  "applicationIdentifierPresent": true,
+  "defaultKeychainGroupPresent": true,
+  "appleCertificateUsed": false,
+  "deviceInstallable": false
+}

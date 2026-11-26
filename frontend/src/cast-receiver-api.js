@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 const API_BASE_URL = (
   import.meta.env?.VITE_API_URL || "http://localhost:3000"
 ).replace(/\/$/, "");
@@ -54,11 +56,16 @@ async function receiverRequest(path, { method = "GET", body, token = "", signal 
 
 export function storeReceiverToken(storage, token) {
   const value = cleanText(token, 2048);
+  if (Capacitor.getPlatform() === "ios") {
+    clearReceiverToken(storage);
+    return value; // An unauthenticated receiver keeps its bearer token in memory.
+  }
   try { if (value) storage?.setItem(RECEIVER_TOKEN_KEY, value); } catch { /* 当前页面仍可使用内存中的凭据。 */ }
   return value;
 }
 
 export function readReceiverToken(storage) {
+  if (Capacitor.getPlatform() === "ios") { clearReceiverToken(storage); return ""; }
   try { return cleanText(storage?.getItem(RECEIVER_TOKEN_KEY), 2048); } catch { return ""; }
 }
 
