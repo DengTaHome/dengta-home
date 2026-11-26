@@ -20,8 +20,9 @@
 - [ ] 真机实测：在已连接的 vivo Android 15 手机上安装新版 APK，打开「音乐工作室」，确认首屏直接展示清晰二维码且无白屏、保存二维码按钮可用
 
 ## C. Chronos 严格时间与自动唤醒（`SPEC-CHRONOS`）
-- [x] `chronos-engine.js`、`chronos-wake-engine.js`、`routes/v2/chronos.js` 与 `special-dates.js` 全部 10 组后端单测通过
-- [x] `ChronosWakeCenter.jsx` + `PushNotificationWorker.java` 前端校验与生产构建通过
+- [x] `chronos-engine.js`、`chronos-wake-engine.js`、`routes/v2/chronos.js` 与 `special-dates.js` 全部后端单测通过（含实时轮次自消息遮蔽修复、连续未读 2x 退避上限、暂停周期恢复与 `snooze_minutes`）
+- [x] `manage_wake_schedule` 支持 `create` / `list` / `update` / `snooze` / `cancel` / `set_policy` 全链路对话调度
+- [x] `ChronosWakeCenter.jsx` + `chronos-client.js`（准秒级动态心跳 + 自定义 IANA 时区 + 一键 `+10分` 推迟 + 离线宽限配置）+ `PushNotificationWorker.java` 前端校验与生产构建通过
 - [ ] 真机实测：设置 → 人设与记忆内「Chronos 严格时间与自动唤醒」时钟实时走字、布局清晰
 
 ## D. 博美犬小棉花可见性（`SPEC-COTTON-PET`）

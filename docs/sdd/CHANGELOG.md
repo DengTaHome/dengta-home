@@ -4,6 +4,21 @@
 
 ---
 
+## `v2.13.60`（2026-11-27）— Chronos 严格时间与自动唤醒架构深度加固（实时轮次时间差防遮蔽 + 未读退避防刷屏 + AI 全功能调度 + 准秒级前台唤醒）
+
+- **根治实时对话「自消息时间差遮蔽」核心缺陷（`chronos-engine.js` + `environment-context.js` + `server.js`）**：
+  - 修复 `saveMessage(user)` 先落库导致 `loadChatContext` 末尾就是刚发的当前消息、使 `analyzeConversationTemporality` 在隔夜/多日重逢首轮误判为「刚刚」的缺陷；新增 `excludeMessageId` 显式剔除 + `<=20s` 尾消息防御识别，确保跨夜/隔天时间差 100% 准确注入。
+- **自动唤醒状态机防打扰退避与周期恢复修复（`chronos-wake-engine.js`）**：
+  - 沉默超时轻唤新增「连续未回复指数退避上限」：第 1 次按 `silence_wake_hours` 触发，用户未回复时第 2 次自动加倍至 `2x` 间隔，连续 2 条未读后自动暂停轻唤直至用户再次开口（显式闹钟与早晚仪式不受影响）。
+  - 修复 `updateSchedule` / `deleteSchedule` 时区回退问题与暂停周期闹钟重新启用后沿用过期 `next_fire_at` 的缺陷；新增 `snooze_minutes` 精确顺延能力。
+- **AI 工具 `manage_wake_schedule` 全能力升级（`server.js`）**：新增 `action="update"`（改时间/标题/启停/`snooze_minutes` 推迟）与 `action="set_policy"`（聊天内直接设置免打扰静默窗口、早晚仪式与 IANA 时区）。
+- **准秒级前台精确触发与即时系统闹钟同步（`chronos-client.js` + `App.jsx` + `ChronosWakeCenter.jsx`）**：
+  - 新增 `computeNextChronosHeartbeatDelayMs()`，在距离下次闹钟 `<45s` 时动态对齐至目标秒 `+800ms` 触发，告别 45 秒粗粒度轮询延迟；
+  - 新增 `dengta:chronos-refresh` 事件总线，AI 聊天建闹钟或面板修改后即时重刷并重新挂载 Android/iOS 原生系统通知；
+  - 控制面板支持任意自定义本机 IANA 时区显示、一键「`+10分`」贪睡推迟与离线补发宽限分钟配置。
+
+---
+
 ## `v2.13.59`（2026-11-27）— 全链路真实 KV 缓存命中可视化闭环 + 冷启动单次 RTT 首屏预热 + 设置复选框与深色回执精修
 
 - **全链路真实 KV-Cache 遥测闭环（`ai-service.js` → `settings.js` → `PromptPipelineInspector.jsx` + `App.jsx`）**：
