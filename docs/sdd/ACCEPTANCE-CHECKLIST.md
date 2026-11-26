@@ -74,3 +74,8 @@
 - [x] `ChannelHub.jsx` + `QQCloudConnect.jsx` + `channel-hub.css` 首帧加载连接态与同步证据，展示高对比三态大横幅、同步指纹证据卡与一键全量开启按钮
 - [x] `LocalAgentStudio.jsx` + `local-agent-studio.css` 添加 `feature-page`、`overflow-y: auto`、`min-height: 0`、`touch-action: pan-y` 根治 AI 工作台无法上下滑动
 - [x] 从 GitHub 下载安装 `kukemc/bili-cli` (`bili-agent 1.4.0`) 与 Agent Skills，端到端全量单测通过
+
+## L. X / Twitter 真实连接态检测与防误判（`SPEC-X-HUB-HONEST-STATE`）
+- [x] `x-hub-utils.js` 新增 `resolveXConnectionState()`，彻底移除裸 `/\bx\b/i` 误匹配，严格校验 `enabled === true`、`last_status === "connected"` 与真实 X 工具存在
+- [x] `XHub.jsx` + `x-hub.css` 移除硬编码「MCP 网关在线」，清晰呈现四态与诊断卡片，提供「实测连通性」「一键启用并实测连通」及工具调用失败自动翻红，新增用户资料/时间线查询卡
+- [x] 自动化单测 `test/x-hub-status.test.js`（3/3）及 `build:web` / `verify:csp` / `test:initial-bundle-budget` 全通过

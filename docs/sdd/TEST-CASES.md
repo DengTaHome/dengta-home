@@ -84,3 +84,10 @@
 | `TC-QQSYNC-01` | QQ 6 位绑定码拦截与 `/同步状态` 自检 | 向在线 QQ 云机器人发送 `324116` 与 `/同步状态` | 两条均由服务端直接处理不触发 LLM；自动尝试核销绑定码并回执伴侣名、8 位指纹、人设字数、记忆与最近对话条数 | `backend-prod/test/qq-cloud.test.js` |
 | `TC-QQSYNC-02` | 完整人设 + `user_details` + `memory_limit=0` 兜底 + 最近对话衔接 | 配置 `qq_include_persona_prompt=true`、`memory_mode=recent`、`memory_limit=0` 并调用 `buildChannelPersonaDetail` | `is_fallback_generic=false`，同时包含核心人设、主人称呼、已确认记忆与最近对话，返回合法 8 位指纹 | `backend-prod/test/qq-bridge.test.js` |
 | `TC-QQSYNC-03` | QQ 高对比状态横幅、同步证据卡与 AI 工作台垂直滚动 | 打开「QQ」通道与「AI 工作台·剪映」 | QQ 页首帧拉取 `/api/v2/qq-cloud` + `/api/v2/channel-sync/preview` 展示绿/琥珀/红呼吸灯横幅与证据卡；`LocalAgentStudio` 使用 `feature-page` + `overflow-y: auto` + `touch-action: pan-y` 顺滑上下滚动 | `channel-hub-usability.test.js` + `local-agent-studio.test.js` |
+
+## 10. X / Twitter 真实连接态检测与防误判（`SPEC-X-HUB-HONEST-STATE`）
+
+| 测例 ID | 场景 | 操作步骤 | 可观察预期结果 | 自动化映射 |
+|---|---|---|---|---|
+| `TC-XHUB-01` | 杜绝名称含字母 x 误匹配与未启用/离线虚报已连接 | 传入含字母 `x` 的非 X 连接、未启用 X 连接、离线错误连接、0 工具连接与健康连接调用 `resolveXConnectionState` | 非 X 连接返回 `none`；未启用返回 `disabled`；错误/0 工具返回 `disconnected`；仅启用+已连通+含 X 工具才返回 `connected` | `frontend-gh/test/x-hub-status.test.js` |
+| `TC-XHUB-02` | 实测连通性、一键启用与失败自动翻红 | 检查 `XHub.jsx` 状态徽章与交互逻辑 | 无硬编码「MCP 网关在线」与 `/\bx\b/`；提供「实测连通性」与「一键启用并实测连通」，遇到 409/502/504 立即切回离线/未启用态 | `frontend-gh/test/x-hub-status.test.js` |

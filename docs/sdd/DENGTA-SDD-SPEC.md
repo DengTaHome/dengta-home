@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.65-sdd.5`  
-> **对应应用版本**：`v2.13.65`（Android `versionCode 323`）  
+> **文档版本**：`v2.13.66-sdd.6`  
+> **对应应用版本**：`v2.13.66`（Android `versionCode 324`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：
@@ -118,6 +118,11 @@
   1. **真实人设与连续记忆同步引擎（`backend-prod/routes/v2/qq-bridge.js` + `channel-sync.js` + `services/qq-cloud.js`）**：`buildChannelPersonaDetail` 完整加载伴侣个性化指令、`user_details`（脱敏）、长期记忆（修复 `memory_limit=0` 静默零条陷阱，自动默认 `15/30` 条）及最近 10 轮灯塔对话延续，并生成 8 位 SHA-256 `sync_fingerprint`；新增 `GET /api/v2/channel-sync/preview` 与保存回执；`qq-cloud.js` 拦截 6 位数字绑定码（自动核销 `channel_bindings` 或回执在线状态，不再透传给 LLM）并支持 QQ 私聊发送 `/同步状态` 实时核对指纹。
   2. **QQ 连接态醒目横幅与同步证据卡（`ChannelHub.jsx` + `QQCloudConnect.jsx` + `channel-hub.css`）**：首帧立即拉取 `/api/v2/qq-cloud` 与 `/api/v2/channel-sync/preview`，顶部展示绿/琥珀/红三态呼吸灯大横幅与同步证据卡（检测到回落普通人机时标红告警并提供「一键开启完整人设 + 最近 15 条记忆并保存」）；明确区分官方云机器人（12 位配对指令）与旧版 SnowLuma 6 位绑定码。
   3. **AI 工作台·剪映垂直滚动修复（`LocalAgentStudio.jsx` + `local-agent-studio.css`）**：根节点挂载 `feature-page local-agent-studio` 并设置 `overflow-y: auto; min-height: 0; touch-action: pan-y; flex-shrink: 0`，彻底根治在 `.view-content { overflow: hidden }` 下无法上下滑动的缺陷。
+
+### 模块 L · X / Twitter 真实连接态检测与防误判（`SPEC-X-HUB-HONEST-STATE` · v2.13.66）
+- **可执行规范**：
+  1. **严格连接态判定（`x-hub-utils.js` `resolveXConnectionState`）**：严禁使用裸 `/\bx\b/i` 正则误匹配非 X 连接；只有同时满足 `enabled === true && last_status === "connected"` 且发现真实 X 工具（`search_tweets` / `post_tweet` 等）时才显示「● 已连接 · 可用」，其余明确区分为「○ 未连接」「◌ 已保存 · 未启用」「✕ 连接离线 / 不可用」。
+  2. **实时连通性探测与工具按需启用（`XHub.jsx` + `x-hub.css`）**：移除硬编码「MCP 网关在线」文案；提供「实测连通性」「一键启用并实测连通」直连后端 `/api/mcp/connections/manage/:id/test`，调用遇 `409/502/504` 即时翻转真实离线/未启用态；按已发现工具动态呈现搜索、推文解析、用户资料/时间线与发帖卡片。
 
 ---
 
