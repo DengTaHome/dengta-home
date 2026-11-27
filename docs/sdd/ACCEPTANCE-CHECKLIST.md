@@ -98,3 +98,9 @@
 - [x] `companion-status.js` + `emotion-state.js` + 后端 `services/companion-status.js` / `companion-interaction.js` / `companion-status-refresh.js` 修复默认/重置/闲置元气掉至 0%（恢复 70–80% 健康人类基线）、移除游戏式 `回元气 +18%` 并落地真人感 `喜/怒/哀/乐` 与情境化哄人/陪伴逻辑
 - [x] `b1857-character.js` + `mtoon-style.js` + `interaction-props.js` + `interaction-controller.js` + `gyro-controller.js` + `pet-runtime.js` + `CottonPet.jsx` + `CottonDesktopPet.jsx` 完成手绘奶油毛绒纹理、24 骨骼实景食盆水碗互动、手机陀螺仪满屏跑动与甩球物理、GPU 零闪烁身体部位拎拖、精致磨砂图标菜单栏及小屋上下滑动修复
 - [x] 修复 Windows PowerShell 5.1 一键发布脚本中 `git push` 正常 stderr 输出误触 `NativeCommandError` 中断的缺陷（`complete-github-release-v2.13.69.ps1`）
+
+## P. 全端音乐无缝自动连播（`SPEC-MUSIC-AUTO-NEXT` · `v2.13.70`）
+- [x] `built-in-now-playing.js` + `useBuiltInNowPlaying.js` + `backend-prod/routes/v2/music-cookie.js` 实现灵动岛内置随心听 `ended` 立即自动续播下一首、`?exclude=` 防重复、移动端 `NotAllowedError` 复用旧 Audio 兜底、失败清理与 `MediaSession` 操控同步
+- [x] `MusicStudio.jsx` + `music-studio.css` 落地歌单/日推/搜索队列自动连播、自动跳过 VIP 不可播曲目、连续失败熔断保护及迷你栏「自动连播 · i/N」与上一首/下一首控制按钮
+- [x] `TogetherMusic.jsx` + `MusicChatCard.jsx` + `App.jsx` 补齐一起听本地预览自动连播（保持 `active === true` 队列契约 100% 不变）及聊天歌曲卡片播完后通过 `dengta:chat-music-ended` 无缝接力灵动岛连播
+- [x] 前后端全套音乐/生命周期单测（后端 42 项、前端 73 项）、ESLint、`build:web`、`verify:csp`、`verify:public-auth-build`、`test:initial-bundle-budget` 全部通过并签发 `DengTa-2.13.70.apk`（`versionCode 328`）

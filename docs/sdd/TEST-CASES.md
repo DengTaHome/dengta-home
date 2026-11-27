@@ -117,3 +117,9 @@
 | `TC-EMOTION-02` | 真人感「喜怒哀乐」象限、情境化哄人动作、彩虹胶囊双标签与位置简繁归一 | 验证 `resolveHumanEmotionQuadrant`、`describeRecoveryIntent`、`localCompanionInteractionReaction`（赌气态拥抱）及 `normalizeSimplifiedPlaceName("上海市 · 黃浦區")` | 正确区分 `喜/怒/哀/乐` 象限、消除游戏式 `回元气 +18%`、赌气态拥抱输出「嘴硬心软」而非瞬间假笑；`黃浦區` 归一为 `黄浦区`；展开面板使用 `di-panel-tabs` 双标签且无闪屏/光球透按钮 | `human-emotion-and-cotton-v2.test.js` + `dynamic-island.test.js` |
 | `TC-COTTON-05` | 小棉花 24 骨骼毛绒纹理、陀螺仪重力滚球与 GPU `translate3d` 拎拖 | 校验 `BallPhysics.setTiltGravity` 倾斜加速与 `CottonDesktopPet` / `CottonPet` 滚动与形态键契约 | 倾斜重力稳定驱动小球滚动回弹；49,853 顶点与 5 形态键完整保留；桌宠采用 `translate3d` 与 `createGyroController`；小屋支持 `overflow-y: auto` + `touch-action: pan-y` | `human-emotion-and-cotton-v2.test.js` + `cotton-course-upgrades.test.js` |
 | `TC-COTTON-06` | 聊天左下角麦克风单击/长按录音与离线本地语音识别回落 | 检验 `App.jsx` `localSpeechListening`、`getSpeechRecognitionCtor`、`requestNativeMediaPermissions` 与 `voice.test.js` | 无论语音服务在线或离线点击均有明确录音响应与回落机制，长按松手与单击再点均可发送 | `human-emotion-and-cotton-v2.test.js` + `voice.test.js` |
+
+### 15. 全端音乐无缝自动连播（`SPEC-MUSIC-AUTO-NEXT`）
+| 用例号 | 场景 | 执行步骤 | 预期结果 | 自动化 / 实测依据 |
+|---|---|---|---|---|
+| `TC-MUSIC-05` | 灵动岛内置随心听自动连播、防重复、复用解锁 Audio 与失败清理 | 触发 `ended`（含连续双 `ended`）、模拟移动端新建 Audio `NotAllowedError`、模拟失败响应及 `localBlocked()` 场景 | 单次 `ended` 自动带 `?exclude=` 拉取并续播下一首且释放旧音轨；遇 `NotAllowedError` 自动复用旧 Audio 播放；失败时清空已结束卡片不留死卡；本地占线时不抢声道 | `built-in-now-playing.test.js` (16/16) |
+| `TC-MUSIC-06` | 音乐工作室队列连播、一起听本地预览连播与聊天音乐卡片续播 | 校验 `MusicStudio.jsx` `handlePlayAdjacent`/`onEnded`、`TogetherMusic.jsx` `localAutoPlayRef`、`MusicChatCard.jsx` 与 `App.jsx` `dengta:chat-music-ended` | 音乐工作室播完自动切下一首可播歌曲并跳过 VIP 受限曲；一起听未开场本地预览自动切歌（不破坏 `active` 队列测试）；聊天卡片播完无缝触发灵动岛续播 | `music-studio-qr-and-history.test.js` + `music-player-lifecycle.test.js` |

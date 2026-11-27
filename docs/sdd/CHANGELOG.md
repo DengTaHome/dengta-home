@@ -4,6 +4,20 @@
 
 ---
 
+## `v2.13.70`（2026-11-27）— 全端音乐无缝自动连播（一首歌放完紧接着放下一首）
+
+- **灵动岛内置随心听自动连播与防重复（`built-in-now-playing.js` + `useBuiltInNowPlaying.js` + `backend-prod/routes/v2/music-cookie.js`）**：
+  - 修复原 `ended` 回调直接销毁音频并清空 `nowPlaying` 的缺陷：歌曲播完后去重并立即调用 `run("next", entry.song, { autoAdvance: true })` 无缝续播下一首。
+  - 后端 `GET /providers/netease/random-playable` 与 `POST /providers/netease/random-fetch` 新增 `exclude` 参数，在有多首可播歌曲时自动排除刚播完的曲目，杜绝连续两遍同一首歌。
+  - 兼容移动端浏览器严格自动播放策略：若自动切歌时新建 `Audio` 遇到 `NotAllowedError`，自动复用已由用户手势解锁的旧 `Audio` 实例续播；同时同步 `navigator.mediaSession` 元数据与锁屏/耳机 `play`/`pause`/`nexttrack` 操控。
+- **音乐工作室直连队列自动连播（`MusicStudio.jsx` + `music-studio.css`）**：
+  - 点击「我的歌单」「每日推荐」「搜歌」任意曲目自动挂载完整播放队列，播完（`onEnded`）或音频加载异常自动切至下一首可播歌曲，自动跳过最多 6 首 VIP/版权受限曲目；迷你播放栏新增「自动连播 · i/N」徽章与上一首/下一首按钮。
+- **一起听本地预览连播与聊天音乐卡片接力（`TogetherMusic.jsx` + `MusicChatCard.jsx` + `App.jsx`）**：
+  - 修复一起听未开场（`!active`）状态下本地歌单预览播完停住的问题，播完自动切至下一首并自动播放（完整保留已开场 `active === true` 的服务端队列与 `repeat_mode` 逻辑）。
+  - 聊天页 `MusicChatCard` 播完广播 `dengta:chat-music-ended` 事件，`App.jsx` 自动唤起灵动岛续播下一首不同歌曲。
+
+---
+
 ## `v2.13.69`（2026-11-27）— 小棉花 3D 桌宠全量重塑 + 聊天麦克风修复 + 彩虹胶囊去杂去闪与定位修复 + 真人「喜怒哀乐」与健康元气基线 + PowerShell 5.1 发布脚本修复
 
 - **小棉花 3D 桌宠按教程全量重塑（`b1857-character.js` + `mtoon-style.js` + `interaction-props.js` + `interaction-controller.js` + `gyro-controller.js` + `pet-runtime.js` + `CottonPet.jsx` + `CottonDesktopPet.jsx` + `cotton-pet.css` + `cotton-desktop-pet.css`）**：

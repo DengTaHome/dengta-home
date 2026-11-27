@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.69-sdd.9`  
-> **对应应用版本**：`v2.13.69`（Android `versionCode 327`）  
+> **文档版本**：`v2.13.70-sdd.10`  
+> **对应应用版本**：`v2.13.70`（Android `versionCode 328`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：
@@ -144,6 +144,12 @@
   2. **灵动岛右侧精简天气胶囊 & 彩虹胶囊去杂去闪（`CompanionStatus.jsx` + `StatusFlowField.jsx` + `live-location-weather.js` + `dynamic-island.css` + `sun-glass-chat.css`）**：天气按钮移至胶囊右侧，采用彩色天气 SVG 图标 + 两字城市缩写（如 `上海 9°`）并移除时钟与天气汉字；展开面板拆分为「此刻陪伴 / 天气与工具」两页（点天气胶囊直达「天气与工具」），WebGL 流光画布仅响应空白区滑动并在首帧前清黑、取消 `scale3d` 过冲动画根治打开闪屏；位置卡片改为不透明深色底层、非裁切矩形圆角按钮与简繁归一（`黃浦區`→`黄浦区`），卫星芯片区不再压住聊天文字。
   3. **健康人类元气基线与真人感「喜怒哀乐」（`companion-status.js` + `emotion-state.js` + `backend-prod/services/companion-status.js` / `companion-interaction.js` / `companion-status-refresh.js`）**：默认、重置及旧缓存异常 0% 均恢复至正常人日常基线 `76%`（70–80 区间），闲置改为柔和昼夜节律平衡（绝不掉到 0%）；界面移除游戏式「回元气 +18%」数值，改用 `喜/怒/哀/乐` 象限徽章与情境化关怀按钮（如赌气时「认真听TA吐槽 / 服软抱抱顺毛 / 问TA怎么才肯消气」），前后端回复与状态更新均忠实人设性格与真实情绪惯性。
   4. **博美犬小棉花 3D 全面重塑（`b1857-character.js` + `mtoon-style.js` + `interaction-props.js` + `interaction-controller.js` + `gyro-controller.js` + `pet-runtime.js` + `CottonPet.jsx` + `CottonDesktopPet.jsx`）**：注入 256×256 手绘奶油杏色卡通毛绒纹理与凹凸贴图、粉嫩耳廓腮红、高光动画眼眸及可见项圈金铃（告别白膜，保持 49,853 顶点与 5 形态键契约）；24 骨骼完整驱动吃饭（3D 食盆粮粒渐减+骨头饼干）、喝水（3D 水碗涟漪）、梳毛、四足奔跑与垂吊蹬腿；接入手机陀螺仪（`DeviceOrientationEvent` / `DeviceMotionEvent`）实现满屏跑动与球体倾斜重力滚弹、手指拖拽甩飞小球追逐回拍；GPU `translate3d` 零重绘身体部位丝滑拎拖、全新精致磨砂图标菜单栏并修复「小棉花的小屋」无法上下滑动。
+
+### 模块 P · 全端音乐无缝自动连播（`SPEC-MUSIC-AUTO-NEXT` · v2.13.70）
+- **可执行规范**：
+  1. **灵动岛内置随心听自动连播与防重复（`built-in-now-playing.js` + `useBuiltInNowPlaying.js` + `backend-prod/routes/v2/music-cookie.js`）**：监听当前曲目 `ended` 事件不再销毁清空播放器，而是去重后立即执行 `run("next", entry.song, { autoAdvance: true })` 无缝续播下一首；前端向 `GET /providers/netease/random-playable?exclude=` 与 `POST /providers/netease/random-fetch` 透传刚播完曲目的 `songId/title`，后端在存在其他可播歌曲时严格排除刚播完曲目（仅剩 1 首时兜底循环）；若移动端浏览器拦截新建 `Audio` 的 `play()`（`NotAllowedError`），自动复用已由用户手势解锁的旧 `Audio` 实例续播下一首；若一起听等本地音频占线（`localBlocked()`）则仅静默释放不抢声道；同步接入 `navigator.mediaSession` 元数据与锁屏/耳机 `play`/`pause`/`nexttrack` 操控。
+  2. **音乐工作室直连播放器队列连播（`MusicStudio.jsx` + `music-studio.css`）**：点击「我的歌单」「每日推荐」或「搜歌」任一曲目时记录当前曲目列表与索引；`<audio>` 挂载 `onEnded` 与受连续失败次数保护的 `onError` 自动切歌，自动跳过最多 6 首 VIP/版权受限无直链曲目直至找到可播 HTTPS 直链；迷你播放条展示「自动连播 · i/N」状态徽章与「上一首 / 下一首」按钮。
+  3. **一起听本地预览连播与聊天歌曲卡片续播（`TogetherMusic.jsx` + `MusicChatCard.jsx` + `App.jsx`）**：一起听未开场（`!active`）本地歌单预览在 `onEnded` 时自动递增 `localIndex`（循环取模）并在 `mediaGeneration` 完成后自动 `play()`（保持 `active === true` 服务端队列与 `repeat_mode === "off"` 契约完全不变）；聊天页 `MusicChatCard` 播完广播 `dengta:chat-music-ended` 事件，`App.jsx` 收到后自动调用 `startBuiltInNowPlaying({ exclude })` 无缝接力播放下一首。
 
 ---
 
