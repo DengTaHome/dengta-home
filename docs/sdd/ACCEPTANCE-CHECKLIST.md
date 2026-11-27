@@ -84,3 +84,10 @@
 - [x] `creative-prompt-engineer.js` + `companion-creative.js` 实现 8 套画风预设、5 种画幅、7 层美术指导编译、零 DB 迁移 `__DT_PROMPT_V2__:` 加密封套及多模型家族渐进降级调用
 - [x] `companion-creative-tool.js` + `tenant-companion-creative.js` + `routes/companion-creative.js` + `server.js` 升级专业工具 Schema、否定句过滤、`PATCH /artworks/:id/prompt` 与 `POST /artworks/:id/refine-prompt`
 - [x] `CompanionCreativeStudio.jsx` + `cozy-theme.css` + `native-feel.css` 落地创作导演台、提示词精修/AI 免费润色抽屉与 8 项主流生图接口预设；前后端单测、ESLint、CSP 与包体预算全绿
+
+## N. 聊天收纳重构、持久权限/Siri 呼唤/智能截屏依据、弹字引用修复与灵动岛 CD 封面升级（`SPEC-PERCEPTION-UX-AND-DANZI` · `v2.13.68`）
+- [x] 原生 `MediaPermissionsPlugin.java` + `MainActivity.java` + `live-perception.js` + `LivePerceptionBar.jsx` 持久化摄像头/麦克风授权并在切应用回前台后自动恢复
+- [x] `App.jsx` + `LivePerceptionBar.jsx` + `CottonChatDock.jsx` + `CottonDesktopPet.jsx` + `sun-glass-chat.css` + `dynamic-island.css` 将 4 项感知控制、暂停屏幕共享、小棉花陪聊与悬浮桌宠收拢至左侧星星抽屉，修复语音按钮换行与诊断药丸压字
+- [x] `voice-wake-word.js` + `screen-change-monitor.js` + `ChatMessage.jsx` + 后端 `environment-context.js` / `chat-attachments.js` / `server.js` 落地 Siri 语音呼唤、32×18 智能屏幕变化检测、摄像头主动聊天引导与带时间点/缩略图的「截屏依据」气泡引用卡片（零 DB 迁移）
+- [x] `ChatTextImpact.jsx` + `text-impact-preferences.js` + `chat-text-impact.css` 修复手机端「弹字」无头像回退、解除移动端自动播放禁用与触控防误关容差；升级「引用」点击跳转高亮与单行「追问」条
+- [x] `NowPlayingCard.jsx` + `built-in-now-playing.js` + `sun-glass-chat.css` + `DeviceActivityPlugin.java` + `netease-cookie-session.js` + `music-cookie.js` 重构灵动岛防裁切三栏布局、移除遮挡封面的不透明灰盘并在左边旋转 CD 圆盘中完整展示 HTTPS 专辑封面（支持 `/providers/netease/cover` 自动补齐）

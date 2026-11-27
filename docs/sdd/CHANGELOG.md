@@ -4,6 +4,25 @@
 
 ---
 
+## `v2.13.68`（2026-11-27）— 聊天按钮收纳进左侧星星菜单 + 一次授权持久感知/Siri 呼唤/智能截屏依据 + 手机端「弹字/引用」修复 + 灵动岛放歌防裁切与 CD 专辑封面升级
+
+- **一次授权持久感知与切应用自恢复（`MediaPermissionsPlugin.java` + `MainActivity.java` + `live-perception.js` + `LivePerceptionBar.jsx`）**：
+  - 新增原生 `MediaPermissions` 插件直接核验/申请 Android 系统 `CAMERA`、`RECORD_AUDIO` 永久权限，彻底根治 WebView 切应用后权限误判为 `unknown` 且把用户开关重置为关闭的缺陷；切回前台自动无感恢复音视频轨（Android 15 系统录屏共享保活期间无需重复弹窗）。
+- **聊天界面极致减负，全部收拢进左侧星星按钮（`App.jsx` + `LivePerceptionBar.jsx` + `CottonChatDock.jsx` + `CottonDesktopPet.jsx` + `index.css` + `sun-glass-chat.css` + `dynamic-island.css`）**：
+  - 移除聊天页输入框上方常驻挤压的 4 项小药丸、小棉花陪聊条以及遮挡右下角的「召唤小棉花桌宠」浮钮，统一收纳进左侧星星菜单抽屉（顶部展示 2×2 宽敞 4 项感知中心 + 清晰功能说明 + 完整不裁切的「暂停屏幕共享」与「让TA看一眼聊」+ 小棉花/桌宠一键开关），并在星星按钮右上角显示开启感知数量角标。
+  - 修复手机端语音按钮溢出掉到第二行的问题，将语音与「更多回复」精巧嵌入单行玻璃输入胶囊内；修复顶部 `.di-live-satellites` 换行导致「N 条诊断」药丸压住聊天文字的问题。
+- **Siri 风格语音呼唤 + 摄像头主动聊天 + 智能屏幕变化截屏依据（`voice-wake-word.js` + `screen-change-monitor.js` + `ChatMessage.jsx` + `backend-prod/services/environment-context.js` + `chat-attachments.js` + `server.js`）**：
+  - 支持直接口头喊「灯塔 / 嗨灯塔 / Hey DengTa / 伴侣名」唤醒对话（带轻柔双音提示音与监听横幅）；开启摄像头后后端明确引导伴侣主动提及画面中看见的真实细节展开互动。
+  - 新增 32×18 亮度变化监测引擎，感应到切换应用或屏幕显著变化（`>= 18%`）即自动截屏并记录时间、应用与变化幅度，以零 DB Schema 迁移方式随 `tool_calls.perception_evidence` 持久化并在 AI 回复气泡下渲染可点击放大的 **「🖥️ 截屏依据 / 📷 摄像头实景依据」** 卡片。
+- **手机端「弹字」与「引用」全面修复升级（`ChatTextImpact.jsx` + `text-impact-preferences.js` + `chat-text-impact.css` + `ChatMessage.jsx`）**：
+  - 根治手机端隐藏头像导致「弹字」静默报错 `avatar_not_found` 的问题：自动无缝回退为对消息正文播放弹性/重力散落动效并新增第三落点「消息文字」、解除手机端「新回复自动播放」禁用、将触控滚动防误关阈值提升至 `28px`。
+  - 「引用」条压缩为单行紧凑胶囊并新增快捷「追问」按钮；点击消息气泡内的引用块可丝滑跳转回原消息并高亮闪烁定位。
+- **灵动岛音乐胶囊防裁切三栏布局与 CD 专辑封面（`NowPlayingCard.jsx` + `built-in-now-playing.js` + `sun-glass-chat.css` + `dynamic-island.css` + `DeviceActivityPlugin.java` + `netease-cookie-session.js` + `music-cookie.js`）**：
+  - 重构灵动岛播放胶囊为防裁切三栏横排（左 48px 旋转 CD 专辑封面 `<img>` + 中歌名/歌手专辑两行 + 右播放/切歌/关闭按钮），彻底移除遮住封面的 92% 不透明黑灰遮罩层，消除歌名上半截与按钮下半截被裁切的问题。
+  - 网易云搜歌优先调用 `cloudsearch/pc` 并用 `v3/song/detail` 自动补齐 HTTPS 专辑封面，新增 `GET /api/v2/music/providers/netease/cover` 为任何缺封面歌曲（含旧导入与外部播放器）实时补齐真实专辑封面并静默回填数据库；Android `DeviceActivityPlugin` 同步补充读取 `METADATA_KEY_ART` 与封面 URI。
+
+---
+
 ## `v2.13.67`（2026-11-27）— 涂鸦画室调用链路与提示词书写逻辑专业化升级 + Windows 零乱码 GUI GitHub 同步工具 + 本机 X MCP 一键启动脚本
 
 - **专业视觉提示词工程引擎（`backend-prod/services/creative-prompt-engineer.js` + `tenant-companion-creative.js` + `companion-creative-tool.js`）**：

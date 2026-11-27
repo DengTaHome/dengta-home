@@ -99,3 +99,12 @@
 | `TC-CREATIVE-01` | 废话与陈旧堆词清洗、短提示 7 层补全与 V2 加密封套兼容 | 调用 `sanitizeVisualPrompt`、`compileCreativePrompt`、`encodeArtworkPromptPayload` / `decodeArtworkPromptPayload` | 剥离「请帮我画一张」与 `masterpiece/best quality/8k`；短提示自动注入类型构图与画风媒介指导及负向避坑词；旧明文与新 V2 封套双向无损解码 | `backend-prod/test/creative-prompt-engineer.test.js` |
 | `TC-CREATIVE-02` | 多模型家族协议适配与 400/422 渐进降级重试 | 针对 `gpt-image-1`、`dall-e-3`、`Kwai-Kolors/Kolors`、`FLUX.1-schnell`、`test-image` 验证 `buildImageGenerationRequests` 与 `fetchGeneratedImage` | `gpt-image-1` 跳过无效 `response_format` 并映射 `1024x1536` + `quality=high`；SiliconFlow 使用 `image_size` + `negative_prompt`；遇到 400/422 逐级剥离可选字段重试成功 | `backend-prod/test/creative-prompt-engineer.test.js` + `companion-creative.test.js` |
 | `TC-CREATIVE-03` | 聊天 `create_artwork` 专业槽位与画室首屏零扣费兼容 | 调用 `createCompanionCreativeToolExecutor` 传精简/完整槽位；渲染 `CompanionArtStudio` 核对首屏请求 | 工具自动按 `kind` 匹配默认画幅并编译高质量提示词；打开涂鸦画室仍仅发 2 个 GET（`/status`、`/artworks`），无任何自动生图调用 | `companion-creative-tool.test.js` + `art-studio.component.test.js` |
+
+## 12. 聊天按钮收纳、持久感知/Siri 呼唤/截屏依据、弹字引用修复与灵动岛 CD 封面（`SPEC-PERCEPTION-UX-AND-DANZI`）
+
+| 测例 ID | 场景 | 操作步骤 | 可观察预期结果 | 自动化映射 |
+|---|---|---|---|---|
+| `TC-PERCEPT-04` | Siri 风格语音呼唤、智能屏幕变化检测与本地缩略图隔离 | 调用 `parseWakeWordTranscript`、`computeLumaChangePercent`、`shouldTriggerAutoScreenCapture`、`registerScreenEvidence` 与 `serializeEvidenceForPayload` | 正确识别「嗨灯塔/Hey DengTa/伴侣名」单气命令与纯唤醒；切换应用或变化 `>=18%` 触发截屏、冷却期内抑制重复；序列化载荷不含本地缩略图 base64 | `frontend-gh/test/sidebar-and-perception.test.js` |
+| `TC-PERCEPT-05` | 后端摄像头主动观察引导、截屏时间依据注入与 `perception_evidence` 透传 | 调用 `normalizeEnvironmentContext`、`buildEnvironmentRuntimeContext` 与 `publicMessage` 传入 `screen_evidence`、`wake_word_triggered` | 提示词自动注入【摄像头实时画面互动指引】【屏幕变化截屏依据】（含时间点/应用/变化%）与【语音呼唤】；`publicMessage` 安全透传 `tool_calls.perception_evidence` | `backend-prod/test/live-perception-context.test.js` |
+| `TC-PERCEPT-06` | 手机端「弹字」无头像回退与三落点切换 | 在无可见 `.message-avatar`（`width=0`）环境下点击「弹字 → 文字弹弹」 | 自动无缝回退对 `.message-content` 播放弹性动效并触发 `onAvatarHit({ target: "bubble" })`，不再报错 `avatar_not_found`；提供第三落点「消息文字」 | `frontend-gh/test/chat-text-impact.component.test.js` |
+| `TC-ISLAND-01` | 灵动岛三栏防裁切布局、CD 专辑封面渲染与网易云 HTTPS 封面归一化 | 渲染 `CompanionStatus` 播放中状态（传入 `http://p1.music.126.net/...` 封面）并校验 `normalizeNeteaseCoverUrl` | CD 圆盘内渲染 `<img class="sun-glass-now-playing-art">` 且自动升级 `https://`；自动过滤网易云空占位封面；三栏布局歌名、歌手与三枚按钮完整不裁切 | `dynamic-island.test.js` + `live-perception-context.test.js` |

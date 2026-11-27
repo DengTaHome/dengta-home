@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.67-sdd.7`  
-> **对应应用版本**：`v2.13.67`（Android `versionCode 325`）  
+> **文档版本**：`v2.13.68-sdd.8`  
+> **对应应用版本**：`v2.13.68`（Android `versionCode 326`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：
@@ -129,6 +129,14 @@
   1. **专业提示词编译引擎与零 Schema 变更 V2 封套（`backend-prod/services/creative-prompt-engineer.js` + `companion-creative.js`）**：内置 8 套专业画风预设（智能匹配/水彩手账/电影胶片/日系通透/暖调厚涂油画/彩铅淡彩速写/极简杂志人像/梦幻光影绘本）、5 种标准画幅（`1:1`/`3:4`/`4:3`/`9:16`/`16:9`）与分类型构图规范（`avatar`/`doodle`/`gift`）；自动剥离对话废话与陈旧 `masterpiece/best quality/8k` 堆词，将短提示补全为具象可绘制视觉分镜与避坑词，经 `__DT_PROMPT_V2__:` 加密存入既有 `prompt_ciphertext` 列（零 DB 迁移，`INV-01`）。
   2. **模型家族感知的协议适配与渐进降级调用（`buildImageGenerationRequests` + `fetchGeneratedImage`）**：自动识别 `gpt-image`（免无效 `response_format` 报错并支持 `1024x1536`/`1536x1024` + `quality`）、`dall-e-3`（`quality`/`style`/`1792`）、`siliconflow`（`image_size` + `negative_prompt` + `batch_size`）、`zhipu`、`gemini-image` 与通用 `openai-compatible`，遇上游 `400/422` 逐级剥离可选字段重试以最大化调用成功率。
   3. **聊天专业工具契约与涂鸦画室导演台（`companion-creative-tool.js` + `tenant-companion-creative.js` + `routes/companion-creative.js` + `server.js` + `CompanionCreativeStudio.jsx`）**：`create_artwork` 工具扩展 `aspect_ratio`/`style_preset`/`quality`/`composition`/`lighting_palette`/`medium_style`/`negative_prompt` 槽位并在触发提示排除否定句；涂鸦画室提供主题输入、画风/画幅/画质/避坑词选择、直接建稿及单卡「精修提示词」与免费文字模型「AI 专业润色」（`PATCH /artworks/:id/prompt`、`POST /artworks/:id/refine-prompt`）。
+
+### 模块 N · 聊天体验收纳重构、一次授权持久感知、Siri 语音呼唤、智能截屏依据、弹字/引用修复与灵动岛 CD 封面升级（`SPEC-PERCEPTION-UX-AND-DANZI` · v2.13.68）
+- **可执行规范**：
+  1. **一次授权持久感知与切应用自恢复（`MediaPermissionsPlugin.java` + `MainActivity.java` + `live-perception.js` + `LivePerceptionBar.jsx`）**：新增原生 `MediaPermissions` 插件持久化核验与申请 `CAMERA`/`RECORD_AUDIO` 系统权限，切应用时绝不清除用户 `cameraAlwaysOn`/`micAlwaysOn` 意图，回到前台通过 `visibilitychange`/`focus`/`appStateChange` 自动无感恢复。
+  2. **左侧星星菜单收纳重构与单行输入框（`App.jsx` + `LivePerceptionBar.jsx` + `CottonChatDock.jsx` + `CottonDesktopPet.jsx` + `index.css` + `sun-glass-chat.css`）**：将 4 项实时感知（含清晰功能引导、完整不裁切「暂停屏幕共享」、主动「让TA看一眼聊」与最近截屏依据缩略图）、小棉花陪聊与悬浮桌宠全部收纳进左侧星星按钮抽屉（星星按钮右上角显示绿色感知数量角标）；修复语音按钮溢出换至第二行及「诊断」药丸压住聊天文字的问题，键盘弹起时输入区上方保持清爽单行。
+  3. **Siri 语音呼唤与智能屏幕变化截屏依据（`voice-wake-word.js` + `screen-change-monitor.js` + `ChatMessage.jsx` + `backend-prod/services/environment-context.js` + `chat-attachments.js` + `server.js`）**：支持说「灯塔 / 嗨灯塔 / DengTa / 伴侣名」唤醒对话；32×18 亮度变化检测（`>= 18%` 或切换应用）自动截取屏幕并记录时间点、应用与变化幅度，后端提示词引导伴侣主动聊起摄像头画面并注明截屏时间依据，依据以零 Schema 变更方式存入 `messages.tool_calls.perception_evidence` 并在气泡中渲染可点击放大的「🖥️ 截屏依据 / 📷 摄像头实景依据」卡片。
+  4. **手机端「弹字」与「引用」体验修复（`ChatTextImpact.jsx` + `text-impact-preferences.js` + `chat-text-impact.css` + `ChatMessage.jsx`）**：手机端隐藏头像时「弹字」无缝回退为对本条消息文字播放真实物理/弹性动效并新增「消息文字」落点、解除移动端自动播放限制、将触控抖动防误关容差提升至 `28px`；「引用」支持点击原消息丝滑跳转定位并高亮闪烁，输入框引用条压紧为单行胶囊并增加「追问」快捷按钮。
+  5. **灵动岛音乐胶囊防裁切三栏布局与 CD 专辑封面（`NowPlayingCard.jsx` + `built-in-now-playing.js` + `sun-glass-chat.css` + `dynamic-island.css` + `DeviceActivityPlugin.java` + `netease-cookie-session.js` + `music-cookie.js`）**：重构灵动岛播放胶囊为防裁切三栏（左 48px 旋转 CD 专辑封面 `<img>` + 中歌名/歌手专辑两行 + 右播放/切歌/关闭按钮），彻底移除遮挡封面的 92% 不透明灰盘并重设按钮高度；网易云搜歌改走 `cloudsearch/pc` + `song/detail` 补齐 HTTPS 封面，新增 `GET /api/v2/music/providers/netease/cover` 自动补全缺封面歌曲并回填数据库，Android 原生同步读取 `METADATA_KEY_ART` 与封面 URI。
 
 ---
 
