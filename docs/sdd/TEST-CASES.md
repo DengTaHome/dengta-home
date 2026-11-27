@@ -108,3 +108,12 @@
 | `TC-PERCEPT-05` | 后端摄像头主动观察引导、截屏时间依据注入与 `perception_evidence` 透传 | 调用 `normalizeEnvironmentContext`、`buildEnvironmentRuntimeContext` 与 `publicMessage` 传入 `screen_evidence`、`wake_word_triggered` | 提示词自动注入【摄像头实时画面互动指引】【屏幕变化截屏依据】（含时间点/应用/变化%）与【语音呼唤】；`publicMessage` 安全透传 `tool_calls.perception_evidence` | `backend-prod/test/live-perception-context.test.js` |
 | `TC-PERCEPT-06` | 手机端「弹字」无头像回退与三落点切换 | 在无可见 `.message-avatar`（`width=0`）环境下点击「弹字 → 文字弹弹」 | 自动无缝回退对 `.message-content` 播放弹性动效并触发 `onAvatarHit({ target: "bubble" })`，不再报错 `avatar_not_found`；提供第三落点「消息文字」 | `frontend-gh/test/chat-text-impact.component.test.js` |
 | `TC-ISLAND-01` | 灵动岛三栏防裁切布局、CD 专辑封面渲染与网易云 HTTPS 封面归一化 | 渲染 `CompanionStatus` 播放中状态（传入 `http://p1.music.126.net/...` 封面）并校验 `normalizeNeteaseCoverUrl` | CD 圆盘内渲染 `<img class="sun-glass-now-playing-art">` 且自动升级 `https://`；自动过滤网易云空占位封面；三栏布局歌名、歌手与三枚按钮完整不裁切 | `dynamic-island.test.js` + `live-perception-context.test.js` |
+
+## 13. 小棉花 3D 重塑、麦克风修复、彩虹胶囊去杂去闪与真人喜怒哀乐情绪系统（`SPEC-COTTON-V2-AND-EMOTION`）
+
+| 测例 ID | 场景 | 操作步骤 | 可观察预期结果 | 自动化映射 |
+|---|---|---|---|---|
+| `TC-EMOTION-01` | 健康人类元气基线（70–80%、永不默认归零）与旧缓存自愈 | 调用 `createDefaultCompanionStatus`、`createResetCompanionStatus`、`readCompanionStatus`（含 0% 旧缓存）与 `settleAmbientCompanionEnergy` | 默认与重置元气均位于 `70–80` 之间、心跳正常；旧 0% 缓存读取自动恢复至 `76`；持续闲置不低于健康静息下限 `56` | `human-emotion-and-cotton-v2.test.js` + `backend-prod/test/companion-status.test.js` |
+| `TC-EMOTION-02` | 真人感「喜怒哀乐」象限、情境化哄人动作、彩虹胶囊双标签与位置简繁归一 | 验证 `resolveHumanEmotionQuadrant`、`describeRecoveryIntent`、`localCompanionInteractionReaction`（赌气态拥抱）及 `normalizeSimplifiedPlaceName("上海市 · 黃浦區")` | 正确区分 `喜/怒/哀/乐` 象限、消除游戏式 `回元气 +18%`、赌气态拥抱输出「嘴硬心软」而非瞬间假笑；`黃浦區` 归一为 `黄浦区`；展开面板使用 `di-panel-tabs` 双标签且无闪屏/光球透按钮 | `human-emotion-and-cotton-v2.test.js` + `dynamic-island.test.js` |
+| `TC-COTTON-05` | 小棉花 24 骨骼毛绒纹理、陀螺仪重力滚球与 GPU `translate3d` 拎拖 | 校验 `BallPhysics.setTiltGravity` 倾斜加速与 `CottonDesktopPet` / `CottonPet` 滚动与形态键契约 | 倾斜重力稳定驱动小球滚动回弹；49,853 顶点与 5 形态键完整保留；桌宠采用 `translate3d` 与 `createGyroController`；小屋支持 `overflow-y: auto` + `touch-action: pan-y` | `human-emotion-and-cotton-v2.test.js` + `cotton-course-upgrades.test.js` |
+| `TC-COTTON-06` | 聊天左下角麦克风单击/长按录音与离线本地语音识别回落 | 检验 `App.jsx` `localSpeechListening`、`getSpeechRecognitionCtor`、`requestNativeMediaPermissions` 与 `voice.test.js` | 无论语音服务在线或离线点击均有明确录音响应与回落机制，长按松手与单击再点均可发送 | `human-emotion-and-cotton-v2.test.js` + `voice.test.js` |

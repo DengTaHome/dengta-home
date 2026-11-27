@@ -91,3 +91,10 @@
 - [x] `voice-wake-word.js` + `screen-change-monitor.js` + `ChatMessage.jsx` + 后端 `environment-context.js` / `chat-attachments.js` / `server.js` 落地 Siri 语音呼唤、32×18 智能屏幕变化检测、摄像头主动聊天引导与带时间点/缩略图的「截屏依据」气泡引用卡片（零 DB 迁移）
 - [x] `ChatTextImpact.jsx` + `text-impact-preferences.js` + `chat-text-impact.css` 修复手机端「弹字」无头像回退、解除移动端自动播放禁用与触控防误关容差；升级「引用」点击跳转高亮与单行「追问」条
 - [x] `NowPlayingCard.jsx` + `built-in-now-playing.js` + `sun-glass-chat.css` + `DeviceActivityPlugin.java` + `netease-cookie-session.js` + `music-cookie.js` 重构灵动岛防裁切三栏布局、移除遮挡封面的不透明灰盘并在左边旋转 CD 圆盘中完整展示 HTTPS 专辑封面（支持 `/providers/netease/cover` 自动补齐）
+
+## O. 小棉花 3D 全面重塑、聊天麦克风修复、彩虹胶囊去杂去闪与真人喜怒哀乐情绪系统（`SPEC-COTTON-V2-AND-EMOTION` · `v2.13.69`）
+- [x] `App.jsx` + `index.css` 修复聊天左下角麦克风支持单击录音/长按松手发送、原生权限申请与离线本地 `SpeechRecognition` 回落
+- [x] `CompanionStatus.jsx` + `StatusFlowField.jsx` + `live-location-weather.js` + `dynamic-island.css` + `sun-glass-chat.css` 将彩色 SVG 天气胶囊移至右侧（`上海 9°` 去时间）、展开重构「此刻陪伴 / 天气与工具」双标签、消除开合闪屏与 WebGL 光球透字、修复定位按钮圆圈裁字与繁体「黃浦區」
+- [x] `companion-status.js` + `emotion-state.js` + 后端 `services/companion-status.js` / `companion-interaction.js` / `companion-status-refresh.js` 修复默认/重置/闲置元气掉至 0%（恢复 70–80% 健康人类基线）、移除游戏式 `回元气 +18%` 并落地真人感 `喜/怒/哀/乐` 与情境化哄人/陪伴逻辑
+- [x] `b1857-character.js` + `mtoon-style.js` + `interaction-props.js` + `interaction-controller.js` + `gyro-controller.js` + `pet-runtime.js` + `CottonPet.jsx` + `CottonDesktopPet.jsx` 完成手绘奶油毛绒纹理、24 骨骼实景食盆水碗互动、手机陀螺仪满屏跑动与甩球物理、GPU 零闪烁身体部位拎拖、精致磨砂图标菜单栏及小屋上下滑动修复
+- [x] 修复 Windows PowerShell 5.1 一键发布脚本中 `git push` 正常 stderr 输出误触 `NativeCommandError` 中断的缺陷（`complete-github-release-v2.13.69.ps1`）

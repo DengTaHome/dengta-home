@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.68-sdd.8`  
-> **对应应用版本**：`v2.13.68`（Android `versionCode 326`）  
+> **文档版本**：`v2.13.69-sdd.9`  
+> **对应应用版本**：`v2.13.69`（Android `versionCode 327`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：
@@ -137,6 +137,13 @@
   3. **Siri 语音呼唤与智能屏幕变化截屏依据（`voice-wake-word.js` + `screen-change-monitor.js` + `ChatMessage.jsx` + `backend-prod/services/environment-context.js` + `chat-attachments.js` + `server.js`）**：支持说「灯塔 / 嗨灯塔 / DengTa / 伴侣名」唤醒对话；32×18 亮度变化检测（`>= 18%` 或切换应用）自动截取屏幕并记录时间点、应用与变化幅度，后端提示词引导伴侣主动聊起摄像头画面并注明截屏时间依据，依据以零 Schema 变更方式存入 `messages.tool_calls.perception_evidence` 并在气泡中渲染可点击放大的「🖥️ 截屏依据 / 📷 摄像头实景依据」卡片。
   4. **手机端「弹字」与「引用」体验修复（`ChatTextImpact.jsx` + `text-impact-preferences.js` + `chat-text-impact.css` + `ChatMessage.jsx`）**：手机端隐藏头像时「弹字」无缝回退为对本条消息文字播放真实物理/弹性动效并新增「消息文字」落点、解除移动端自动播放限制、将触控抖动防误关容差提升至 `28px`；「引用」支持点击原消息丝滑跳转定位并高亮闪烁，输入框引用条压紧为单行胶囊并增加「追问」快捷按钮。
   5. **灵动岛音乐胶囊防裁切三栏布局与 CD 专辑封面（`NowPlayingCard.jsx` + `built-in-now-playing.js` + `sun-glass-chat.css` + `dynamic-island.css` + `DeviceActivityPlugin.java` + `netease-cookie-session.js` + `music-cookie.js`）**：重构灵动岛播放胶囊为防裁切三栏（左 48px 旋转 CD 专辑封面 `<img>` + 中歌名/歌手专辑两行 + 右播放/切歌/关闭按钮），彻底移除遮挡封面的 92% 不透明灰盘并重设按钮高度；网易云搜歌改走 `cloudsearch/pc` + `song/detail` 补齐 HTTPS 封面，新增 `GET /api/v2/music/providers/netease/cover` 自动补全缺封面歌曲并回填数据库，Android 原生同步读取 `METADATA_KEY_ART` 与封面 URI。
+
+### 模块 O · 小棉花 3D 桌宠全量重塑、麦克风修复、彩虹胶囊减负去闪与真人喜怒哀乐情绪系统（`SPEC-COTTON-V2-AND-EMOTION` · v2.13.69）
+- **可执行规范**：
+  1. **聊天页左下角麦克风一键修复（`App.jsx` + `index.css`）**：同时支持单击录音再点发送与长按（`>= 450ms`）松手发送（根治短按静默丢弃），点击时自动请求原生 Android 麦克风权限，后端语音服务离线时自动回落浏览器/系统 `SpeechRecognition` 并带呼吸红环录音态。
+  2. **灵动岛右侧精简天气胶囊 & 彩虹胶囊去杂去闪（`CompanionStatus.jsx` + `StatusFlowField.jsx` + `live-location-weather.js` + `dynamic-island.css` + `sun-glass-chat.css`）**：天气按钮移至胶囊右侧，采用彩色天气 SVG 图标 + 两字城市缩写（如 `上海 9°`）并移除时钟与天气汉字；展开面板拆分为「此刻陪伴 / 天气与工具」两页（点天气胶囊直达「天气与工具」），WebGL 流光画布仅响应空白区滑动并在首帧前清黑、取消 `scale3d` 过冲动画根治打开闪屏；位置卡片改为不透明深色底层、非裁切矩形圆角按钮与简繁归一（`黃浦區`→`黄浦区`），卫星芯片区不再压住聊天文字。
+  3. **健康人类元气基线与真人感「喜怒哀乐」（`companion-status.js` + `emotion-state.js` + `backend-prod/services/companion-status.js` / `companion-interaction.js` / `companion-status-refresh.js`）**：默认、重置及旧缓存异常 0% 均恢复至正常人日常基线 `76%`（70–80 区间），闲置改为柔和昼夜节律平衡（绝不掉到 0%）；界面移除游戏式「回元气 +18%」数值，改用 `喜/怒/哀/乐` 象限徽章与情境化关怀按钮（如赌气时「认真听TA吐槽 / 服软抱抱顺毛 / 问TA怎么才肯消气」），前后端回复与状态更新均忠实人设性格与真实情绪惯性。
+  4. **博美犬小棉花 3D 全面重塑（`b1857-character.js` + `mtoon-style.js` + `interaction-props.js` + `interaction-controller.js` + `gyro-controller.js` + `pet-runtime.js` + `CottonPet.jsx` + `CottonDesktopPet.jsx`）**：注入 256×256 手绘奶油杏色卡通毛绒纹理与凹凸贴图、粉嫩耳廓腮红、高光动画眼眸及可见项圈金铃（告别白膜，保持 49,853 顶点与 5 形态键契约）；24 骨骼完整驱动吃饭（3D 食盆粮粒渐减+骨头饼干）、喝水（3D 水碗涟漪）、梳毛、四足奔跑与垂吊蹬腿；接入手机陀螺仪（`DeviceOrientationEvent` / `DeviceMotionEvent`）实现满屏跑动与球体倾斜重力滚弹、手指拖拽甩飞小球追逐回拍；GPU `translate3d` 零重绘身体部位丝滑拎拖、全新精致磨砂图标菜单栏并修复「小棉花的小屋」无法上下滑动。
 
 ---
 

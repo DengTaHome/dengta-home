@@ -4,6 +4,23 @@
 
 ---
 
+## `v2.13.69`（2026-11-27）— 小棉花 3D 桌宠全量重塑 + 聊天麦克风修复 + 彩虹胶囊去杂去闪与定位修复 + 真人「喜怒哀乐」与健康元气基线 + PowerShell 5.1 发布脚本修复
+
+- **小棉花 3D 桌宠按教程全量重塑（`b1857-character.js` + `mtoon-style.js` + `interaction-props.js` + `interaction-controller.js` + `gyro-controller.js` + `pet-runtime.js` + `CottonPet.jsx` + `CottonDesktopPet.jsx` + `cotton-pet.css` + `cotton-desktop-pet.css`）**：
+  - **手绘卡通毛绒纹理（告别白膜）**：保持 49,853 顶点与 5 形态键契约不变，程序化生成 256×256 暖奶油杏色卡通毛绒漫反射 + 凹凸贴图，补齐粉嫩耳廓/腮红/脚垫、3D 闪亮动画高光眼瞳与可见珊瑚项圈+金铃，默认启用 MToon 卡通着色与细描边。
+  - **24 骨骼完整互动与实景 3D 道具**：全量驱动四足 24 根骨骼实现低头干饭（3D 陶瓷食盆+随吃递减狗粮粒与骨头饼干）、饮水（3D 蓝瓷水碗+水面涟漪）、梳毛、欢快四足奔跑与身体拎起悬吊蹬腿回弹。
+  - **手机陀螺仪 + 物理甩球 + 零卡顿身体部位拎拖 + 精致菜单 + 小屋滚动修复**：接入 `DeviceOrientationEvent` / `DeviceMotionEvent` 让小棉花随手机倾斜满屏跑动、小球受陀螺仪重力滚动且支持手指抓球甩飞与小棉花追逐回拍；悬浮桌宠改用 GPU `translate3d` 零 React 重绘拖拽；全新半透明磨砂图标菜单栏替代笨重文字栏；修复「小棉花的小屋」在 `.view-content { overflow: hidden }` 下无法上下滑动的问题。
+- **彩虹胶囊与灵动岛大减负 + 根治闪屏与定位模块错误（`CompanionStatus.jsx` + `StatusFlowField.jsx` + `live-location-weather.js` + `dynamic-island.css` + `sun-glass-chat.css`）**：
+  - 天气按钮移至彩虹胶囊右侧单行排布，用彩色天气 SVG 图标代替中文天气词、两字城市缩写（如 `上海 9°`）并隐藏时间；移动端卫星芯片区不再压住聊天文字。
+  - 展开面板精简重构为 **「此刻陪伴 / 天气与工具」** 双标签页（点天气胶囊直接进入「天气与工具」），根治开合闪屏（取消 `scale3d` 过冲、WebGL 首帧先清黑、卡片改用不透明深邃黑底隔离）；WebGL 流光画布仅响应空白区滑动，根治点击定位按钮时绿/橙色大光球透字和按钮被压成圆圈裁切文字的缺陷；将反向地理编码切换为 `zh-CN` 并做简繁归一（`黃浦區`→`黄浦区`）。
+- **真人感「喜怒哀乐」与健康元气基线（`companion-status.js` + `emotion-state.js` + `App.jsx` + `backend-prod/services/companion-status.js` / `companion-interaction.js` / `companion-status-refresh.js`）**：
+  - 根治默认/重置/闲置后元气归零的缺陷：默认与重置元气统一为正常人类日常基线 `76%`（70–80 区间），自动修复旧缓存异常 `0%`，闲置改为柔和昼夜节律平衡（最低不低于 56%，绝不再像电子宠物饿死到 0%）。
+  - 移除游戏化「回元气 +18%」数值按钮，新增 `喜 / 怒 / 哀 / 乐` 四象限情绪徽章与情境化互动（赌气时「认真听TA吐槽 / 服软抱抱顺毛 / 问TA怎么才肯消气」，委屈低落时安静接住，状态好时自然聊天亲近），前后端提示词与回复均遵循人设性格与真实情绪惯性。
+- **聊天左下角麦克风一键修复（`App.jsx` + `index.css`）**：同时支持单击录音再点发送与长按（`>= 450ms`）松手发送，自动请求原生麦克风权限并在后端语音不可用时自动回落本机 `SpeechRecognition`。
+- **Windows PowerShell 5.1 一键同步脚本根治**：修复 `v2.13.68` 脚本中 `git push` 正常进度输出到 stderr 触发 `NativeCommandError` 导致中断的缺陷（`Invoke-GitSafe` 临时切 `Continue` 并严格校验 `$LASTEXITCODE`）。
+
+---
+
 ## `v2.13.68`（2026-11-27）— 聊天按钮收纳进左侧星星菜单 + 一次授权持久感知/Siri 呼唤/智能截屏依据 + 手机端「弹字/引用」修复 + 灵动岛放歌防裁切与 CD 专辑封面升级
 
 - **一次授权持久感知与切应用自恢复（`MediaPermissionsPlugin.java` + `MainActivity.java` + `live-perception.js` + `LivePerceptionBar.jsx`）**：
