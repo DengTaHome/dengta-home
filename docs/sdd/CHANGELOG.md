@@ -4,6 +4,20 @@
 
 ---
 
+## `v2.13.71`（2026-11-27）— 家庭育儿房聊天语料偷学 + 五阶段真实语言成长（吸收 `tsuru0805/llm-nursery`）+ `dengta-home` 远端历史拉平
+
+- **聊天语料随机偷学（`nursery-engine.js` + `nursery.js` + `routes/nursery.js` + `server.js`，零 DB 迁移）**：
+  - 复用既有 `nursery_corpus`（`source_kind='conversation_opt_in'`、`scene='overheard'`、`source_message_id`），在正常聊天回合完成后异步概率性随机偷听你或伴侣的几个字或短句（自动剔除 Markdown/URL/邮箱/手机号/密钥与拒答模板，严格租户隔离），并在家庭页新增 `POST /api/v2/nursery/children/:childId/overhear`（「让她偷听刚聊的话」）随时现场触发。
+- **五阶段真实语言发育与自主思考（`nursery-engine.js` + `nursery-cognition.js` + `routes/nursery.js`）**：
+  - 吸收 `tsuru0805/llm-nursery` 核心解码思想升级 `VariableOrderMarkov`：引入 `training_weight`、句首边界、`backoffP`、`temperature`、婴幼儿叠词 `reduplicateP`、`extractNurseryChunks` 家庭/偷学词块提取与 LCS + 4-gram 重合率双层护栏，实现「婴儿期只会重复叠词 → 幼儿期两三词拼接 → 童年期萌芽思考/语出惊人 → 青春期独立主见说更多 → 成年期流畅丰沛表达」。
+  - 新增 `services/nursery-cognition.js` 与 `POST /api/v2/nursery/children/:childId/reflect`：婴儿/幼儿期严格 0 LLM 调用（纯本地咿呀与拼词），童年/青春/成年期结合偷学来的词句与情绪自主组织思考与更丰富的表达（离线自动回落本地模型）。
+- **家庭页「偷学小本本」UI（`Nursery.jsx` + `cozy-theme.css` + `App.jsx`）**：
+  - 上线五阶段语言发育进度条、最新开口来源徽章与内心小想法、「偷学小本本」（含 `18px` 自动偷听开关、脑海高频词云、偷听词句记录、「让她偷听刚聊的话」与「听她自己想想说句话」按钮、可展开最近开口记录），全面适配 Day/Night Glass 双主题。
+- **GitHub 三仓一键同步彻底畅通**：
+  - 无损合并拉平文档仓 `tnineninet/dengta-home` 远端历史（根治 `non-fast-forward`）；升级 `complete-github-release-v2.13.71.ps1` 在登录验证后立即保存 `Jessica-tce` 凭据并支持自动读取已保存凭据免重复输入。
+
+---
+
 ## `v2.13.70`（2026-11-27）— 全端音乐无缝自动连播（一首歌放完紧接着放下一首）
 
 - **灵动岛内置随心听自动连播与防重复（`built-in-now-playing.js` + `useBuiltInNowPlaying.js` + `backend-prod/routes/v2/music-cookie.js`）**：

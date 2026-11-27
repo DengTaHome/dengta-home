@@ -1,7 +1,7 @@
 # DengTa（灯塔）SDD 规范驱动开发主文档（Single Source of Truth）
 
-> **文档版本**：`v2.13.70-sdd.10`  
-> **对应应用版本**：`v2.13.70`（Android `versionCode 328`）  
+> **文档版本**：`v2.13.71-sdd.11`  
+> **对应应用版本**：`v2.13.71`（Android `versionCode 329`）  
 > **最后更新**：`2026-11-27`  
 > **方法论来源**：SDD（Specification-Driven Development · 规范驱动开发），完整吸收 PMGao《AI 产品经理不懂 SDD，你的 VibeCoding 项目就是在胡扯蛋》的核心三步闭环（先讲清楚 → 再让 AI 动手 → 照标准验收）与五大执行支柱。  
 > **配套 SDD 体系文档（单一事实来源家族）**：
@@ -150,6 +150,13 @@
   1. **灵动岛内置随心听自动连播与防重复（`built-in-now-playing.js` + `useBuiltInNowPlaying.js` + `backend-prod/routes/v2/music-cookie.js`）**：监听当前曲目 `ended` 事件不再销毁清空播放器，而是去重后立即执行 `run("next", entry.song, { autoAdvance: true })` 无缝续播下一首；前端向 `GET /providers/netease/random-playable?exclude=` 与 `POST /providers/netease/random-fetch` 透传刚播完曲目的 `songId/title`，后端在存在其他可播歌曲时严格排除刚播完曲目（仅剩 1 首时兜底循环）；若移动端浏览器拦截新建 `Audio` 的 `play()`（`NotAllowedError`），自动复用已由用户手势解锁的旧 `Audio` 实例续播下一首；若一起听等本地音频占线（`localBlocked()`）则仅静默释放不抢声道；同步接入 `navigator.mediaSession` 元数据与锁屏/耳机 `play`/`pause`/`nexttrack` 操控。
   2. **音乐工作室直连播放器队列连播（`MusicStudio.jsx` + `music-studio.css`）**：点击「我的歌单」「每日推荐」或「搜歌」任一曲目时记录当前曲目列表与索引；`<audio>` 挂载 `onEnded` 与受连续失败次数保护的 `onError` 自动切歌，自动跳过最多 6 首 VIP/版权受限无直链曲目直至找到可播 HTTPS 直链；迷你播放条展示「自动连播 · i/N」状态徽章与「上一首 / 下一首」按钮。
   3. **一起听本地预览连播与聊天歌曲卡片续播（`TogetherMusic.jsx` + `MusicChatCard.jsx` + `App.jsx`）**：一起听未开场（`!active`）本地歌单预览在 `onEnded` 时自动递增 `localIndex`（循环取模）并在 `mediaGeneration` 完成后自动 `play()`（保持 `active === true` 服务端队列与 `repeat_mode === "off"` 契约完全不变）；聊天页 `MusicChatCard` 播完广播 `dengta:chat-music-ended` 事件，`App.jsx` 收到后自动调用 `startBuiltInNowPlaying({ exclude })` 无缝接力播放下一首。
+
+### 模块 Q · 家庭育儿房聊天语料偷学与五阶段真实语言成长（`SPEC-NURSERY-EAVESDROP-GROWTH` · v2.13.71）
+- **可执行规范（零数据库表迁移，吸收 MIT 开源 `tsuru0805/llm-nursery` 核心理念独立原生实现）**：
+  1. **随机偷学聊天语料（`nursery-engine.js` `extractOverhearFragments` + `nursery.js` `overhearChatCorpus` / `maybeOverhearFromChatTurn` + `server.js`）**：严格按租户作用域（`scope.db`）从用户与伴侣的可见对话（`visible=true`、`context_visible=true`，跳过育儿通知与拒答）中随机提取 2–10 字（婴幼儿）或 5–36 字（大龄）自然片段，自动清洗 Markdown/URL/邮箱/电话/密钥（`maskNurseryPrivateText`），落入既有 `nursery_corpus`（`source_kind='conversation_opt_in'`、`scene='overheard'`、`source_message_id`）并记录 `first_overhear` / `overhear_outburst` 里程碑；支持每轮聊天后后台异步概率偷学（`nursery_overhear_paused` 可关闭）及 `POST /api/v2/nursery/children/:childId/overhear` 手动触发。
+  2. **五阶段可变阶语言发育与家庭词块（`nursery-engine.js`）**：升级 `buildCharacterModel`（支持 `training_weight` + 句首边界）与 `generateChildUtterance`（按阶段控制 `maxOrder 1..5`、`backoffP`、`temperature`、`reduplicateP`、`vocabularyRatio`、`overlapLimit` 与 4-gram 重合率双层防机械复读护栏），并实现 `extractNurseryChunks`（子串吸收提取家庭与偷学高频词块）与零成本 `synthesizeChildThought`（好奇/独立/依恋三倾向 + 阶段内心小想法）；婴儿期只会叠词重复刚听见的字音，幼儿期拼词，童年/青春/成年期逐步说出更长、更有独立想法的句子。
+  3. **长大后自主思考说话层（`services/nursery-cognition.js` + `routes/nursery.js` `POST /reflect`）**：严格按阶段门控——婴儿/幼儿期永不调用 LLM（纯本地咿呀复读与拼词），童年/青春/成年期可结合偷学片段、脑海词块与当前情绪经既有租户 `generateReply` 组织独立想法与更长发言（离线或未配置时自动无缝回落本地模型），同时 `services/nursery.js` 与 `services/nursery-events.js` 保持零外部模型调用不变量。
+  4. **家庭页「偷学小本本」与发育进度 UI（`Nursery.jsx` + `cozy-theme.css` + `App.jsx`）**：展示五阶段语言发育进度条、最新开口来源徽章与内心小想法、「偷学小本本」（自动偷听 `18px` 开关、`让她偷听刚聊的话`、`听她自己想想说句话`、脑海高频词云、偷学语料列表与可展开最近开口记录），全面适配 Day 与 Night Glass 双主题。
 
 ---
 

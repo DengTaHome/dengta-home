@@ -104,3 +104,10 @@
 - [x] `MusicStudio.jsx` + `music-studio.css` 落地歌单/日推/搜索队列自动连播、自动跳过 VIP 不可播曲目、连续失败熔断保护及迷你栏「自动连播 · i/N」与上一首/下一首控制按钮
 - [x] `TogetherMusic.jsx` + `MusicChatCard.jsx` + `App.jsx` 补齐一起听本地预览自动连播（保持 `active === true` 队列契约 100% 不变）及聊天歌曲卡片播完后通过 `dengta:chat-music-ended` 无缝接力灵动岛连播
 - [x] 前后端全套音乐/生命周期单测（后端 42 项、前端 73 项）、ESLint、`build:web`、`verify:csp`、`verify:public-auth-build`、`test:initial-bundle-budget` 全部通过并签发 `DengTa-2.13.70.apk`（`versionCode 328`）
+
+## Q. 家庭育儿房聊天语料偷学与五阶段真实语言成长（`SPEC-NURSERY-EAVESDROP-GROWTH` · `v2.13.71`）
+- [x] `nursery-engine.js` 升级五阶段可变阶 Markov（`backoffP`、`temperature`、`reduplicateP`、`extractNurseryChunks` 子串吸收、LCS+4-gram 双层护栏、`extractOverhearFragments` 聊天片段偷学提取与零成本 `synthesizeChildThought`）
+- [x] `nursery.js` + `nursery-cognition.js` + `routes/nursery.js` + `server.js` 落地聊天后异步概率偷学、租户隔离 `POST /overhear` 与阶段门控 `POST /reflect`（婴儿/幼儿 0 LLM 调用，大龄结合偷学词句自主思考且离线回落本地模型），零 DB 迁移且保持 `nursery.js` 零外部调用不变量
+- [x] `Nursery.jsx` + `cozy-theme.css` + `App.jsx` 上线五阶段语言发育进度条、内心小想法、「偷学小本本」（`18px` 自动偷听开关、高频词云、偷听列表、可展开最近开口记录）与 Day/Night Glass 双主题适配
+- [x] 后端全部育儿房与契约测试（含 `nursery-eavesdrop-and-growth.test.js`、`nursery-engine.test.js`、`nursery.test.js`、`user-agents-md.test.js`）及前端 `nursery-lifecycle.test.js` (53/53) / `nursery.test.js` / ESLint / `build:web` / CSP / 包体预算全绿并签发 `DengTa-2.13.71.apk`（`versionCode 329`）
+- [x] 无损合并拉平 `dengta-home` 远端历史（解决 `non-fast-forward`），并升级 `complete-github-release-v2.13.71.ps1` 支持验证通过后立即记住凭据与免重输一键同步

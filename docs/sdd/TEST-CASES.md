@@ -123,3 +123,10 @@
 |---|---|---|---|---|
 | `TC-MUSIC-05` | 灵动岛内置随心听自动连播、防重复、复用解锁 Audio 与失败清理 | 触发 `ended`（含连续双 `ended`）、模拟移动端新建 Audio `NotAllowedError`、模拟失败响应及 `localBlocked()` 场景 | 单次 `ended` 自动带 `?exclude=` 拉取并续播下一首且释放旧音轨；遇 `NotAllowedError` 自动复用旧 Audio 播放；失败时清空已结束卡片不留死卡；本地占线时不抢声道 | `built-in-now-playing.test.js` (16/16) |
 | `TC-MUSIC-06` | 音乐工作室队列连播、一起听本地预览连播与聊天音乐卡片续播 | 校验 `MusicStudio.jsx` `handlePlayAdjacent`/`onEnded`、`TogetherMusic.jsx` `localAutoPlayRef`、`MusicChatCard.jsx` 与 `App.jsx` `dengta:chat-music-ended` | 音乐工作室播完自动切下一首可播歌曲并跳过 VIP 受限曲；一起听未开场本地预览自动切歌（不破坏 `active` 队列测试）；聊天卡片播完无缝触发灵动岛续播 | `music-studio-qr-and-history.test.js` + `music-player-lifecycle.test.js` |
+
+### 16. 家庭育儿房聊天语料偷学与五阶段成长说话（`SPEC-NURSERY-EAVESDROP-GROWTH`）
+| 用例号 | 场景 | 执行步骤 | 预期结果 | 自动化 / 实测依据 |
+|---|---|---|---|---|
+| `TC-NURSERY-01` | 聊天语料随机偷学、PII 脱敏与多租户严格隔离 | 注入租户 A 与租户 B 聊天消息（含邮箱/手机号/育儿通知），分别触发 `maybeOverhearFromChatTurn` 与 `overhearChatCorpus` | 仅提取租户 A 可见自然词句、脱敏全部 PII、跳过育儿通知、绝不泄露租户 B 内容，写入 `source_kind='conversation_opt_in'` 并生成 `first_overhear` 里程碑 | `nursery-eavesdrop-and-growth.test.js` + `nursery.test.js` |
+| `TC-NURSERY-02` | 五阶段真实语言发育与阶段门控自主思考 | 在婴儿/幼儿/童年/青春/成年五阶段运行 `generateChildUtterance`、`extractNurseryChunks`、`synthesizeChildThought` 及 `POST /reflect` | 婴儿期严格 `1..8` 字叠词复读且 `reflect` 0 次 LLM 调用；进入童年/青春/成年期后 `maxLength` 递增、`canThink=true`、结合偷学词句产出独立想法并落库 `independent_thought` 里程碑 | `nursery-eavesdrop-and-growth.test.js` + `nursery-engine.test.js` |
+| `TC-NURSERY-03` | 家庭页「偷学小本本」交互、生命周期锁与双主题兼容 | 运行 `nursery-lifecycle.test.js` (53/53) 与 `nursery.test.js` 校验 `Nursery.jsx` 与 `cozy-theme.css` | 53 项生命周期回执锁全绿；「偷学小本本」、五阶段条、`/overhear`、`/reflect`、`18px` 复选框锁与 Night Glass 夜间对比度全部通过 | `nursery-lifecycle.test.js` (53/53) + `nursery.test.js` |
